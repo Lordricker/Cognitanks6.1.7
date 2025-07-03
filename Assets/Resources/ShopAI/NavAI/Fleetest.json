@@ -1,0 +1,227 @@
+{
+  "branchType": 1,
+  "nodes": [
+    {
+      "nodeId": "f911a632-999d-4e03-87a8-5d62c7997255",
+      "nodeType": "EndNode(Clone)",
+      "nodeLabel": "Wander",
+      "position": {
+        "x": -2320.0,
+        "y": -160.0
+      },
+      "properties": []
+    },
+    {
+      "nodeId": "de524c1b-75cb-48f9-99bf-afc76de03a7d",
+      "nodeType": "MiddleNode(Clone)",
+      "nodeLabel": "If Enemy",
+      "position": {
+        "x": -2320.0,
+        "y": 32.0
+      },
+      "properties": []
+    },
+    {
+      "nodeId": "4a08f521-02e0-429a-8069-60c6d0784aa3",
+      "nodeType": "MiddleNode(Clone)",
+      "nodeLabel": "If Range<30",
+      "position": {
+        "x": -2080.0,
+        "y": 128.0
+      },
+      "properties": []
+    },
+    {
+      "nodeId": "8463ca68-fe40-4167-a03c-a388a6f6a8fb",
+      "nodeType": "MiddleNode(Clone)",
+      "nodeLabel": "If Range>60",
+      "position": {
+        "x": -2080.0,
+        "y": 96.0
+      },
+      "properties": []
+    },
+    {
+      "nodeId": "cc2ff63c-9979-4a43-b81b-e15ed4e6ae73",
+      "nodeType": "EndNode(Clone)",
+      "nodeLabel": "Flee",
+      "position": {
+        "x": -1904.0,
+        "y": 128.0
+      },
+      "properties": []
+    },
+    {
+      "nodeId": "fbc2e039-95ab-44e5-80d5-5d926cf7002a",
+      "nodeType": "EndNode(Clone)",
+      "nodeLabel": "Chase",
+      "position": {
+        "x": -1904.0,
+        "y": 96.0
+      },
+      "properties": []
+    },
+    {
+      "nodeId": "4757730f-f034-4a20-ac62-736afe5afc9f",
+      "nodeType": "EndNode(Clone)",
+      "nodeLabel": "Wait",
+      "position": {
+        "x": -1904.0,
+        "y": 64.0
+      },
+      "properties": []
+    }
+  ],
+  "connections": [
+    {
+      "fromNodeId": "StartNavButton",
+      "fromPortId": "NavOrigin",
+      "toNodeId": "f911a632-999d-4e03-87a8-5d62c7997255",
+      "toPortId": "Input"
+    },
+    {
+      "fromNodeId": "StartNavButton",
+      "fromPortId": "NavOrigin",
+      "toNodeId": "de524c1b-75cb-48f9-99bf-afc76de03a7d",
+      "toPortId": "Input"
+    },
+    {
+      "fromNodeId": "de524c1b-75cb-48f9-99bf-afc76de03a7d",
+      "fromPortId": "Output",
+      "toNodeId": "4a08f521-02e0-429a-8069-60c6d0784aa3",
+      "toPortId": "Input"
+    },
+    {
+      "fromNodeId": "de524c1b-75cb-48f9-99bf-afc76de03a7d",
+      "fromPortId": "Output",
+      "toNodeId": "8463ca68-fe40-4167-a03c-a388a6f6a8fb",
+      "toPortId": "Input"
+    },
+    {
+      "fromNodeId": "4a08f521-02e0-429a-8069-60c6d0784aa3",
+      "fromPortId": "Output",
+      "toNodeId": "cc2ff63c-9979-4a43-b81b-e15ed4e6ae73",
+      "toPortId": "Input"
+    },
+    {
+      "fromNodeId": "8463ca68-fe40-4167-a03c-a388a6f6a8fb",
+      "fromPortId": "Output",
+      "toNodeId": "fbc2e039-95ab-44e5-80d5-5d926cf7002a",
+      "toPortId": "Input"
+    },
+    {
+      "fromNodeId": "de524c1b-75cb-48f9-99bf-afc76de03a7d",
+      "fromPortId": "Output",
+      "toNodeId": "4757730f-f034-4a20-ac62-736afe5afc9f",
+      "toPortId": "Input"
+    }
+  ],
+  "executableNodes": [
+    {
+      "nodeId": "f911a632-999d-4e03-87a8-5d62c7997255",
+      "methodName": "Wander",
+      "originalLabel": "Wander",
+      "nodeType": 2,
+      "numericValue": 0.0,
+      "connectedNodeIds": [],
+      "position": {
+        "x": -2320.0,
+        "y": -160.0
+      }
+    },
+    {
+      "nodeId": "de524c1b-75cb-48f9-99bf-afc76de03a7d",
+      "methodName": "IfEnemy",
+      "originalLabel": "If Enemy",
+      "nodeType": 1,
+      "numericValue": 0.0,
+      "connectedNodeIds": [
+        "4757730f-f034-4a20-ac62-736afe5afc9f",
+        "8463ca68-fe40-4167-a03c-a388a6f6a8fb",
+        "4a08f521-02e0-429a-8069-60c6d0784aa3"
+      ],
+      "position": {
+        "x": -2320.0,
+        "y": 32.0
+      }
+    },
+    {
+      "nodeId": "4a08f521-02e0-429a-8069-60c6d0784aa3",
+      "methodName": "IfRange",
+      "originalLabel": "If Range<30",
+      "nodeType": 1,
+      "numericValue": 30.0,
+      "connectedNodeIds": [
+        "cc2ff63c-9979-4a43-b81b-e15ed4e6ae73"
+      ],
+      "position": {
+        "x": -2080.0,
+        "y": 128.0
+      }
+    },
+    {
+      "nodeId": "8463ca68-fe40-4167-a03c-a388a6f6a8fb",
+      "methodName": "IfRange",
+      "originalLabel": "If Range>60",
+      "nodeType": 1,
+      "numericValue": 60.0,
+      "connectedNodeIds": [
+        "fbc2e039-95ab-44e5-80d5-5d926cf7002a"
+      ],
+      "position": {
+        "x": -2080.0,
+        "y": 96.0
+      }
+    },
+    {
+      "nodeId": "cc2ff63c-9979-4a43-b81b-e15ed4e6ae73",
+      "methodName": "Flee",
+      "originalLabel": "Flee",
+      "nodeType": 2,
+      "numericValue": 0.0,
+      "connectedNodeIds": [],
+      "position": {
+        "x": -1904.0,
+        "y": 128.0
+      }
+    },
+    {
+      "nodeId": "fbc2e039-95ab-44e5-80d5-5d926cf7002a",
+      "methodName": "Chase",
+      "originalLabel": "Chase",
+      "nodeType": 2,
+      "numericValue": 0.0,
+      "connectedNodeIds": [],
+      "position": {
+        "x": -1904.0,
+        "y": 96.0
+      }
+    },
+    {
+      "nodeId": "4757730f-f034-4a20-ac62-736afe5afc9f",
+      "methodName": "Wait",
+      "originalLabel": "Wait",
+      "nodeType": 2,
+      "numericValue": 0.0,
+      "connectedNodeIds": [],
+      "position": {
+        "x": -1904.0,
+        "y": 64.0
+      }
+    }
+  ],
+  "startNodeId": "f911a632-999d-4e03-87a8-5d62c7997255",
+  "title": "Fleetest",
+  "description": "AI behavior tree for Nav control",
+  "cost": 100,
+  "weight": 1,
+  "category": 2,
+  "instanceId": "Fleetest",
+  "customColor": {
+    "r": 1.0,
+    "g": 1.0,
+    "b": 1.0,
+    "a": 1.0
+  },
+  "treeName": "Fleetest"
+}

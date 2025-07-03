@@ -93,10 +93,10 @@ public class WorkshopUIManager : MonoBehaviour
         }
         selectedTankSlot = null;
         
-        LoadPlayerInventoryFromSave();
-        
-        // Load AI components from AI Editor folders
+        // Load AI components from AI Editor folders FIRST (before loading player inventory)
         LoadAIComponentsFromFolders();
+        
+        LoadPlayerInventoryFromSave();
         
         // Clean up any legacy AI files with old instanceId format
         CleanupLegacyAIFiles();
@@ -118,6 +118,8 @@ public class WorkshopUIManager : MonoBehaviour
     private void LoadPlayerInventoryFromSave()
     {
         playerInventory.Clear();
+        
+        // Load regular components from PlayerData save file
         foreach (var entry in PlayerDataManager.Instance.playerData.ownedComponents)
         {
             ComponentData prefab = FindComponentPrefabById(entry.id);
@@ -132,6 +134,9 @@ public class WorkshopUIManager : MonoBehaviour
             }
         }
         
+        // Load AI components from JSON files on disk
+        LoadAIInventoryFromDisk();
+        
         // Add default components for new players if inventory is empty
         if (playerInventory.Count == 0)
         {
@@ -141,9 +146,7 @@ public class WorkshopUIManager : MonoBehaviour
     
     private void AddDefaultComponentsToInventory()
     {
-        Debug.Log("[WorkshopUIManager] Adding default components for new player");
-        
-        // Add default AITree components that tank slots expect - now stored on disk
+        // Add default AITree components that tank slots expect - create JSON files on disk
         var defaultTurretAI = aiTreeShopComponents.Find(c => c.id == "Aggressive Hunter" && 
             c is AiTreeAsset tree && tree.branchType == AiEditor.AiBranchType.Turret);
         if (defaultTurretAI != null)
@@ -151,42 +154,23 @@ public class WorkshopUIManager : MonoBehaviour
             // Add TurretAI for Tank Slot 0
             ComponentData turretAI1 = Instantiate(defaultTurretAI);
             turretAI1.instanceId = "Aggressive Hunter_ce9255c7-8383-4919-a8ba-d1686373d471";
-            playerInventory.Add(turretAI1);
             
             // Add TurretAI for Tank Slot 9
             ComponentData turretAI2 = Instantiate(defaultTurretAI);
             turretAI2.instanceId = "Aggressive Hunter_c082be34-e8c2-4937-8aaf-e9f11fced160";
+            
+            // Create JSON files on disk for these default AI components
+            if (defaultTurretAI.name.EndsWith("_JSON"))
+            {
+                CreateJsonAiFileFromPurchase(turretAI1 as AiTreeAsset);
+                CreateJsonAiFileFromPurchase(turretAI2 as AiTreeAsset);
+            }
+            
+            // Add to playerInventory for immediate UI display
+            playerInventory.Add(turretAI1);
             playerInventory.Add(turretAI2);
             
-            // Also add to save data
-            var entry = PlayerDataManager.Instance.playerData.ownedComponents.Find(e => e.id == defaultTurretAI.id);
-            if (entry == null)
-            {
-                entry = new OwnedComponentEntry { id = defaultTurretAI.id, instanceIds = new List<string>() };
-                PlayerDataManager.Instance.playerData.ownedComponents.Add(entry);
-            }
-            entry.instanceIds.Add(turretAI1.instanceId);
-            entry.instanceIds.Add(turretAI2.instanceId);
-
-#if UNITY_EDITOR
-            // In editor: Also create copies in AISaveFiles folders for AI Editor compatibility
-            string assetPath1 = "Assets/AiEditor/AISaveFiles/TurretFiles/" + turretAI1.instanceId + ".asset";
-            ComponentData editorCopy1 = Instantiate(turretAI1);
-            UnityEditor.AssetDatabase.CreateAsset(editorCopy1, assetPath1);
-            
-            string assetPath2 = "Assets/AiEditor/AISaveFiles/TurretFiles/" + turretAI2.instanceId + ".asset";
-            ComponentData editorCopy2 = Instantiate(turretAI2);
-            UnityEditor.AssetDatabase.CreateAsset(editorCopy2, assetPath2);
-            
-            UnityEditor.AssetDatabase.SaveAssets();
-            Debug.Log("[WorkshopUIManager] Created default AI components in playerInventory and AISaveFiles folders");
-#else
-            Debug.Log("[WorkshopUIManager] Created default AI components in playerInventory");
-#endif
-        }
-        else
-        {
-            Debug.LogError("Could not find 'Aggressive Hunter' AITree Turret component in shop components!");
+            // Note: No need to add to PlayerData save since AI components are stored as JSON files
         }
     }
 
@@ -264,13 +248,11 @@ public class WorkshopUIManager : MonoBehaviour
                     // Filter AITree components for Turret branch type
                     source = aiTreeShopComponents.FindAll(c => 
                         c is AiTreeAsset tree && tree.branchType == AiEditor.AiBranchType.Turret);
-                    Debug.Log($"[WorkshopUIManager] TurretAI shop category: Found {source.Count} turret AI assets from {aiTreeShopComponents.Count} total AI assets");
                     break;
                 case ComponentCategory.NavAI:
                     // Filter AITree components for Nav branch type  
                     source = aiTreeShopComponents.FindAll(c => 
                         c is AiTreeAsset tree && tree.branchType == AiEditor.AiBranchType.Nav);
-                    Debug.Log($"[WorkshopUIManager] NavAI shop category: Found {source.Count} nav AI assets from {aiTreeShopComponents.Count} total AI assets");
                     break;
                 case ComponentCategory.EngineFrame:
                     source = engineFrameShopComponents;
@@ -287,13 +269,11 @@ public class WorkshopUIManager : MonoBehaviour
             {
                 // Show Turret AI trees from playerInventory
                 source = playerInventory.FindAll(c => c is AiTreeAsset tree && tree.branchType == AiEditor.AiBranchType.Turret);
-                Debug.Log($"[WorkshopUIManager] TurretAI inventory: Found {source.Count} turret AI assets in playerInventory");
             }
             else if (currentCategory == ComponentCategory.NavAI)
             {
                 // Show Nav AI trees from playerInventory
                 source = playerInventory.FindAll(c => c is AiTreeAsset tree && tree.branchType == AiEditor.AiBranchType.Nav);
-                Debug.Log($"[WorkshopUIManager] NavAI inventory: Found {source.Count} nav AI assets in playerInventory");
             }
             else
             {
@@ -331,7 +311,6 @@ public class WorkshopUIManager : MonoBehaviour
             selectedTankSlot.SetSelected(false);
             UpdateSelectableColor(selectedTankSlot.button, false);
             selectedTankSlot = null;
-            Debug.Log("All tank slots unselected");
             // Unselect in EventSystem so button is not visually selected
             EventSystem.current.SetSelectedGameObject(null);
             UpdateToggleColors();
@@ -350,7 +329,6 @@ public class WorkshopUIManager : MonoBehaviour
 
         selectedTankSlot = tankSlots[index];
         selectedTankSlot.SetSelected(true);
-        Debug.Log($"tankslot{index} selected");
         UpdateToggleColors();
         PopulateComponentList();
 
@@ -442,8 +420,6 @@ public class WorkshopUIManager : MonoBehaviour
 
     private void OnBuyComponent(ComponentData component)
     {
-        Debug.Log($"[WorkshopUIManager] Attempting to buy component: {component.title} (cost: ${component.cost})");
-        
         if (playerCash < component.cost)
         {
             ShowDebugMessage("Not enough cash!");
@@ -461,35 +437,16 @@ public class WorkshopUIManager : MonoBehaviour
         // Handle AI components vs regular components
         if (newComp is AiTreeAsset aiTree)
         {
-            // AI components ALWAYS go into playerInventory (both editor and build)
-            playerInventory.Add(newComp);
-            var entry = PlayerDataManager.Instance.playerData.ownedComponents.Find(e => e.id == component.id);
-            if (entry == null)
+            // For JSON-based AI components: Create actual JSON file on disk instead of saving to PlayerData
+            if (component.name.EndsWith("_JSON"))
             {
-                entry = new OwnedComponentEntry { id = component.id, instanceIds = new List<string>() };
-                PlayerDataManager.Instance.playerData.ownedComponents.Add(entry);
+                CreateJsonAiFileFromPurchase(aiTree);
             }
-            entry.instanceIds.Add(newComp.instanceId);
-            Debug.Log($"[WorkshopUIManager] Added AI component to playerInventory: {newComp.title}");
-
-#if UNITY_EDITOR
-            // In editor: ALSO save a copy to AISaveFiles folder for AI Editor compatibility
-            string saveFolderPath = null;
-            if (aiTree.branchType == AiEditor.AiBranchType.Nav)
-                saveFolderPath = "Assets/AiEditor/AISaveFiles/NavFiles/";
-            else if (aiTree.branchType == AiEditor.AiBranchType.Turret)
-                saveFolderPath = "Assets/AiEditor/AISaveFiles/TurretFiles/";
             
-            if (saveFolderPath != null)
-            {
-                string assetPath = saveFolderPath + newComp.instanceId + ".asset";
-                // Create a separate copy for AI Editor
-                ComponentData editorCopy = Instantiate(newComp);
-                UnityEditor.AssetDatabase.CreateAsset(editorCopy, assetPath);
-                UnityEditor.AssetDatabase.SaveAssets();
-                Debug.Log($"[WorkshopUIManager] Also created AI Editor copy in AISaveFiles folder: {assetPath}");
-            }
-#endif
+            // Add to playerInventory for immediate UI display
+            playerInventory.Add(newComp);
+            
+            // Note: JSON AI components are NOT saved to PlayerData - they exist as files on disk
         }
         else
         {
@@ -502,26 +459,20 @@ public class WorkshopUIManager : MonoBehaviour
                 PlayerDataManager.Instance.playerData.ownedComponents.Add(entry);
             }
             entry.instanceIds.Add(newComp.instanceId);
-            Debug.Log($"[WorkshopUIManager] Added regular component to inventory: {newComp.title}");
         }
 
         PlayerDataManager.Instance.SavePlayerData();
         UpdatePlayerCashUI();
         PopulateComponentList();
-        
-        Debug.Log($"[WorkshopUIManager] Successfully purchased {newComp.title} for ${component.cost}");
     }
 
     private void OnSellComponent(ComponentData component)
     {
-        Debug.Log($"[WorkshopUIManager] Attempting to sell component: {component.title} (instanceId: {component.instanceId})");
-        
         // Unassign from any tank slot before selling
         foreach (var slot in tankSlots)
         {
             if (slot.HasComponent(component))
             {
-                Debug.Log($"[WorkshopUIManager] Unassigning {component.title} from {slot.TankName}");
                 slot.UnassignComponent(component);
             }
         }
@@ -536,59 +487,41 @@ public class WorkshopUIManager : MonoBehaviour
                 var toRemove = playerInventory.Find(c => c.instanceId == component.instanceId);
                 if (toRemove != null)
                     playerInventory.Remove(toRemove);
-                
-                // Remove from player save data (remove instanceId from OwnedComponentEntry)
-                var entry = PlayerDataManager.Instance.playerData.ownedComponents.Find(e => e.id == component.id);
-                if (entry != null)
-                {
-                    entry.instanceIds.Remove(component.instanceId);
-                    if (entry.instanceIds.Count == 0)
-                        PlayerDataManager.Instance.playerData.ownedComponents.Remove(entry);
-                }
-                
-                Debug.Log($"[WorkshopUIManager] Sold AI component from playerInventory: {component.title}");
             }
 
-#if UNITY_EDITOR
-            // In editor: ALSO delete the AI Editor copy from AISaveFiles folder
-            Debug.Log($"[WorkshopUIManager] Selling AI component: {aiTree.title} ({aiTree.branchType}) with instanceId: {component.instanceId}");
-            
-            string saveFolderPath = null;
-            if (aiTree.branchType == AiEditor.AiBranchType.Nav)
-                saveFolderPath = "Assets/AiEditor/AISaveFiles/NavFiles/";
-            else if (aiTree.branchType == AiEditor.AiBranchType.Turret)
-                saveFolderPath = "Assets/AiEditor/AISaveFiles/TurretFiles/";
-            
-            if (saveFolderPath != null)
+            // For JSON-based AI components: Delete the JSON file from disk
+            if (component.name.EndsWith("_JSON"))
             {
-                string assetPath = saveFolderPath + component.instanceId + ".asset";
-                Debug.Log($"[WorkshopUIManager] Attempting to delete AI Editor copy at: {assetPath}");
-                
-                var existingAsset = UnityEditor.AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath);
-                if (existingAsset != null)
-                {
-                    bool deleted = UnityEditor.AssetDatabase.DeleteAsset(assetPath);
-                    if (deleted)
-                    {
-                        UnityEditor.AssetDatabase.SaveAssets();
-                        UnityEditor.AssetDatabase.Refresh();
-                        Debug.Log($"[WorkshopUIManager] Successfully deleted AI Editor copy from AISaveFiles folder: {assetPath}");
-                    }
-                    else
-                    {
-                        Debug.LogError($"[WorkshopUIManager] Failed to delete AI Editor copy: {assetPath}");
-                    }
-                }
-                else
-                {
-                    Debug.LogWarning($"[WorkshopUIManager] AI Editor copy not found for deletion: {assetPath}");
-                }
+                DeleteJsonAiFile(aiTree);
             }
+            else
+            {
+#if UNITY_EDITOR
+                // For ScriptableObject-based AI: delete from AISaveFiles folder (legacy support)
+                string saveFolderPath = aiTree.branchType == AiEditor.AiBranchType.Nav
+                    ? "Assets/AiEditor/AISaveFiles/NavFiles/"
+                    : "Assets/AiEditor/AISaveFiles/TurretFiles/";
+                
+                if (saveFolderPath != null)
+                {
+                    string assetPath = saveFolderPath + component.instanceId + ".asset";
+                    
+                    var existingAsset = UnityEditor.AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath);
+                    if (existingAsset != null)
+                    {
+                        bool deleted = UnityEditor.AssetDatabase.DeleteAsset(assetPath);
+                        if (deleted)
+                        {
+                            UnityEditor.AssetDatabase.SaveAssets();
+                            UnityEditor.AssetDatabase.Refresh();
+                        }
+                    }
+                }
 #endif
+            }
             
             // Refund half the cost
             playerCash += component.cost / 2;
-            Debug.Log($"[WorkshopUIManager] Refunded ${component.cost / 2} for {component.title}");
         }
         else
         {
@@ -610,8 +543,6 @@ public class WorkshopUIManager : MonoBehaviour
                     if (entry.instanceIds.Count == 0)
                         PlayerDataManager.Instance.playerData.ownedComponents.Remove(entry);
                 }
-                
-                Debug.Log($"[WorkshopUIManager] Sold regular component: {component.title}");
             }
         }
 
@@ -625,8 +556,6 @@ public class WorkshopUIManager : MonoBehaviour
 
     private void OnEquipComponent(ComponentData component)
     {
-        Debug.Log($"[WorkshopUIManager] OnEquipComponent called for: {component.title} (instanceId: {component.instanceId})");
-        
         // Find which tank slot (if any) this component is currently assigned to
         TankSlotButtonUI assignedSlot = null;
         foreach (var slot in tankSlots)
@@ -644,7 +573,6 @@ public class WorkshopUIManager : MonoBehaviour
             if (assignedSlot != null)
             {
                 // Unassign from current slot
-                Debug.Log($"[WorkshopUIManager] No slot selected - unassigning {component.title} from {assignedSlot.TankName}");
                 assignedSlot.UnassignComponent(component);
                 UpdateTankLoadoutSave(assignedSlot, component, remove: true);
                 PlayerDataManager.Instance.SavePlayerData();
@@ -660,7 +588,6 @@ public class WorkshopUIManager : MonoBehaviour
         // If component is already assigned to the selected slot, unequip it
         if (assignedSlot == selectedTankSlot)
         {
-            Debug.Log($"[WorkshopUIManager] Component {component.title} already assigned to {selectedTankSlot.TankName} - unequipping");
             selectedTankSlot.UnassignComponent(component);
             UpdateTankLoadoutSave(selectedTankSlot, component, remove: true);
             PlayerDataManager.Instance.SavePlayerData();
@@ -679,7 +606,6 @@ public class WorkshopUIManager : MonoBehaviour
         // If assigned to different slot, move to selected slot
         if (assignedSlot != null && assignedSlot != selectedTankSlot)
         {
-            Debug.Log($"[WorkshopUIManager] Moving {component.title} from {assignedSlot.TankName} to {selectedTankSlot.TankName}");
             assignedSlot.UnassignComponent(component);
             UpdateTankLoadoutSave(assignedSlot, component, remove: true);
         }
@@ -693,12 +619,10 @@ public class WorkshopUIManager : MonoBehaviour
             {
                 // Use the component directly from playerInventory
                 assignComponent = component;
-                Debug.Log($"[WorkshopUIManager] Using AI component from playerInventory: {assignComponent.title} (instanceId: {assignComponent.instanceId})");
             }
         }
 
         // Assign to selected slot
-        Debug.Log($"[WorkshopUIManager] Assigning {assignComponent.title} to {selectedTankSlot.TankName}");
         selectedTankSlot.AssignComponent(assignComponent);
         UpdateTankLoadoutSave(selectedTankSlot, assignComponent);
         PlayerDataManager.Instance.SavePlayerData();
@@ -921,133 +845,74 @@ public class WorkshopUIManager : MonoBehaviour
         // Clear existing AI shop components to reload fresh
         aiTreeShopComponents.Clear();
         
-        // Both editor and build: Load AI assets from Shop Resources folders
-        Debug.Log("[WorkshopUIManager] Loading AI assets from Resources/ShopAI folders...");
+        // Only load JSON-based AI components for shop (no ScriptableObjects)
         
-        // Load Nav AI assets for shop
-        AiTreeAsset[] navAiAssets = Resources.LoadAll<AiTreeAsset>("ShopAI/NavAI");
-        Debug.Log($"[WorkshopUIManager] Found {navAiAssets.Length} NavAI assets in Resources/ShopAI/NavAI");
+        // Load Nav AI JSON files only
+        TextAsset[] navJsonFiles = Resources.LoadAll<TextAsset>("ShopAI/NavAI");
         
-        foreach (var aiTreeAsset in navAiAssets)
+        // Process all TextAsset files for Nav AI (attempt to parse as JSON)
+        foreach (var jsonFile in navJsonFiles)
         {
-            if (aiTreeAsset != null)
+            if (jsonFile != null)
             {
-                Debug.Log($"[WorkshopUIManager] Processing NavAI asset: {aiTreeAsset.title} (branch: {aiTreeAsset.branchType})");
-                
-                // Set branch type to Nav if not already set
-                if (aiTreeAsset.branchType != AiEditor.AiBranchType.Nav)
+                try
                 {
-                    Debug.LogWarning($"[WorkshopUIManager] NavAI asset {aiTreeAsset.title} has wrong branch type: {aiTreeAsset.branchType}, setting to Nav");
-                    aiTreeAsset.branchType = AiEditor.AiBranchType.Nav;
+                    AiTreeAssetJson jsonAi = JsonUtility.FromJson<AiTreeAssetJson>(jsonFile.text);
+                    if (jsonAi != null && !string.IsNullOrEmpty(jsonAi.title))
+                    {
+                        jsonAi.branchType = AiBranchTypeJson.Nav;
+                        jsonAi.category = ComponentCategoryJson.AITree;
+                        
+                        // Create a proxy ComponentData for compatibility with existing UI
+                        ComponentData proxyComponent = CreateAiTreeProxyFromJson(jsonAi);
+                        
+                        if (!aiTreeShopComponents.Exists(c => c.title == jsonAi.title))
+                        {
+                            aiTreeShopComponents.Add(proxyComponent);
+                        }
+                    }
                 }
-                
-                // Ensure the tree asset has proper category set
-                if (aiTreeAsset.category != ComponentCategory.AITree)
+                catch (System.Exception)
                 {
-                    aiTreeAsset.category = ComponentCategory.AITree;
-                }
-                
-                // Add to shop if not already present (check by title and branch type)
-                if (!aiTreeShopComponents.Exists(c => c.title == aiTreeAsset.title && 
-                    c is AiTreeAsset tree && tree.branchType == aiTreeAsset.branchType))
-                {
-                    aiTreeShopComponents.Add(aiTreeAsset);
-                    Debug.Log($"[WorkshopUIManager] Added NavAI to shop: {aiTreeAsset.title} ({aiTreeAsset.branchType})");
-                }
-                else
-                {
-                    Debug.Log($"[WorkshopUIManager] NavAI already exists in shop: {aiTreeAsset.title}");
+                    // Skip invalid JSON files silently
                 }
             }
         }
         
-        // Load Turret AI assets for shop
-        AiTreeAsset[] turretAiAssets = Resources.LoadAll<AiTreeAsset>("ShopAI/TurretAI");
-        Debug.Log($"[WorkshopUIManager] Found {turretAiAssets.Length} TurretAI assets in Resources/ShopAI/TurretAI");
+        // Load Turret AI JSON files only
+        TextAsset[] turretJsonFiles = Resources.LoadAll<TextAsset>("ShopAI/TurretAI");
         
-        foreach (var aiTreeAsset in turretAiAssets)
+        // Process all TextAsset files for Turret AI (attempt to parse as JSON)
+        foreach (var jsonFile in turretJsonFiles)
         {
-            if (aiTreeAsset != null)
+            if (jsonFile != null)
             {
-                Debug.Log($"[WorkshopUIManager] Processing TurretAI asset: {aiTreeAsset.title} (branch: {aiTreeAsset.branchType})");
-                
-                // Set branch type to Turret if not already set
-                if (aiTreeAsset.branchType != AiEditor.AiBranchType.Turret)
+                try
                 {
-                    Debug.LogWarning($"[WorkshopUIManager] TurretAI asset {aiTreeAsset.title} has wrong branch type: {aiTreeAsset.branchType}, setting to Turret");
-                    aiTreeAsset.branchType = AiEditor.AiBranchType.Turret;
+                    AiTreeAssetJson jsonAi = JsonUtility.FromJson<AiTreeAssetJson>(jsonFile.text);
+                    if (jsonAi != null && !string.IsNullOrEmpty(jsonAi.title))
+                    {
+                        jsonAi.branchType = AiBranchTypeJson.Turret;
+                        jsonAi.category = ComponentCategoryJson.AITree;
+                        
+                        // Create a proxy ComponentData for compatibility with existing UI
+                        ComponentData proxyComponent = CreateAiTreeProxyFromJson(jsonAi);
+                        
+                        if (!aiTreeShopComponents.Exists(c => c.title == jsonAi.title))
+                        {
+                            aiTreeShopComponents.Add(proxyComponent);
+                        }
+                    }
                 }
-                
-                // Ensure the tree asset has proper category set
-                if (aiTreeAsset.category != ComponentCategory.AITree)
+                catch (System.Exception)
                 {
-                    aiTreeAsset.category = ComponentCategory.AITree;
+                    // Skip invalid JSON files silently
                 }
-                
-                // Add to shop if not already present (check by title and branch type)
-                if (!aiTreeShopComponents.Exists(c => c.title == aiTreeAsset.title && 
-                    c is AiTreeAsset tree && tree.branchType == aiTreeAsset.branchType))
-                {
-                    aiTreeShopComponents.Add(aiTreeAsset);
-                    Debug.Log($"[WorkshopUIManager] Added TurretAI to shop: {aiTreeAsset.title} ({aiTreeAsset.branchType})");
-                }
-                else
-                {
-                    Debug.Log($"[WorkshopUIManager] TurretAI already exists in shop: {aiTreeAsset.title}");
-                }
-            }
-        }
-        
-        Debug.Log($"[WorkshopUIManager] Loaded {aiTreeShopComponents.Count} AI components into shop from Resources/ShopAI folders");
-        
-        // Debug: Show what we actually loaded
-        foreach (var ai in aiTreeShopComponents)
-        {
-            if (ai is AiTreeAsset tree)
-            {
-                Debug.Log($"[WorkshopUIManager] Shop AI: '{tree.title}' - Branch: {tree.branchType}, Category: {tree.category}");
             }
         }
     }
     
-    private void LoadAiTreeAssetsFromPath(string path, bool addToShop)
-    {
-#if UNITY_EDITOR
-        if (!System.IO.Directory.Exists(path))
-        {
-            Debug.LogWarning($"[WorkshopUIManager] AI path does not exist: {path}");
-            return;
-        }
-            
-        string[] files = System.IO.Directory.GetFiles(path, "*.asset");
-        Debug.Log($"[WorkshopUIManager] Found {files.Length} .asset files in {path}");
-        
-        foreach (string filePath in files)
-        {
-            var aiTreeAsset = UnityEditor.AssetDatabase.LoadAssetAtPath<AiTreeAsset>(filePath);
-            if (aiTreeAsset != null)
-            {
-                // Ensure the tree asset has proper category set
-                if (aiTreeAsset.category != ComponentCategory.AITree)
-                {
-                    aiTreeAsset.category = ComponentCategory.AITree;
-                    UnityEditor.EditorUtility.SetDirty(aiTreeAsset);
-                }
-                
-                if (addToShop)
-                {
-                    // Add to shop if not already present (check by title and branch type)
-                    if (!aiTreeShopComponents.Exists(c => c.title == aiTreeAsset.title && 
-                        c is AiTreeAsset tree && tree.branchType == aiTreeAsset.branchType))
-                    {
-                        aiTreeShopComponents.Add(aiTreeAsset);
-                        Debug.Log($"[WorkshopUIManager] Added {aiTreeAsset.title} ({aiTreeAsset.branchType}) to shop");
-                    }
-                }
-            }
-        }
-#endif
-    }
+
 
     private List<ComponentData> LoadAITreeInventoryFromFolders()
     {
@@ -1055,7 +920,6 @@ public class WorkshopUIManager : MonoBehaviour
         
 #if UNITY_EDITOR
         // In editor: Load AI inventory from AISaveFiles folders
-        Debug.Log("[WorkshopUIManager] Editor mode: Loading AI inventory from Assets/AiEditor/AISaveFiles/NavFiles and TurretFiles folders");
         
         string navFilesPath = "Assets/AiEditor/AISaveFiles/NavFiles/";
         string turretFilesPath = "Assets/AiEditor/AISaveFiles/TurretFiles/";
@@ -1069,7 +933,6 @@ public class WorkshopUIManager : MonoBehaviour
             if (aiTreeAsset != null && aiTreeAsset.branchType == AiEditor.AiBranchType.Nav)
             {
                 inventoryItems.Add(aiTreeAsset);
-                Debug.Log($"[WorkshopUIManager] Added NavAI to inventory: {aiTreeAsset.title} (instanceId: {aiTreeAsset.instanceId})");
             }
         }
         
@@ -1082,24 +945,20 @@ public class WorkshopUIManager : MonoBehaviour
             if (aiTreeAsset != null && aiTreeAsset.branchType == AiEditor.AiBranchType.Turret)
             {
                 inventoryItems.Add(aiTreeAsset);
-                Debug.Log($"[WorkshopUIManager] Added TurretAI to inventory: {aiTreeAsset.title} (instanceId: {aiTreeAsset.instanceId})");
             }
         }
 #else
         // In build: AI inventory is managed through playerInventory list (no file system access)
-        Debug.Log("[WorkshopUIManager] Build mode: Loading AI inventory from playerInventory list");
         
         foreach (var component in playerInventory)
         {
             if (component is AiTreeAsset aiTreeAsset)
             {
                 inventoryItems.Add(aiTreeAsset);
-                Debug.Log($"[WorkshopUIManager] Added AI to inventory: {aiTreeAsset.title} (branch: {aiTreeAsset.branchType}, instanceId: {aiTreeAsset.instanceId})");
             }
         }
 #endif
         
-        Debug.Log($"[WorkshopUIManager] Loaded {inventoryItems.Count} AI components into inventory");
         return inventoryItems;
     }
 
@@ -1123,7 +982,6 @@ public class WorkshopUIManager : MonoBehaviour
                 var asset = UnityEditor.AssetDatabase.LoadAssetAtPath<AiEditor.AiTreeAsset>(filePath);
                 if (asset != null && asset.instanceId == instanceId && asset.branchType == branchType)
                 {
-                    Debug.Log($"[WorkshopUIManager] Found AI asset in AISaveFiles: {asset.title} (instanceId: {instanceId})");
                     return asset;
                 }
             }
@@ -1139,17 +997,12 @@ public class WorkshopUIManager : MonoBehaviour
                 var asset = UnityEditor.AssetDatabase.LoadAssetAtPath<AiEditor.AiTreeAsset>(filePath);
                 if (asset != null && asset.instanceId == instanceId && asset.branchType == branchType)
                 {
-                    Debug.Log($"[WorkshopUIManager] Found AI asset in main AISaveFiles: {asset.title} (instanceId: {instanceId})");
                     return asset;
                 }
             }
         }
-#else
-        // In build: AI assets should be accessed via playerInventory, not from disk
-        Debug.LogWarning($"[WorkshopUIManager] LoadAITreeAssetFromDisk called in build mode for instanceId: {instanceId}");
 #endif
         
-        Debug.LogWarning($"[WorkshopUIManager] Could not find AI asset with instanceId: {instanceId} and branch type: {branchType}");
         return null;
     }
     
@@ -1184,8 +1037,6 @@ public class WorkshopUIManager : MonoBehaviour
                         string newInstanceId = System.Guid.NewGuid().ToString();
                         string newFilePath = folder + "/" + newInstanceId + ".asset";
                         
-                        Debug.Log($"[WorkshopUIManager] Cleaning up legacy AI file: {fileName} -> {newInstanceId}");
-                        
                         // Update the asset's instanceId
                         asset.instanceId = newInstanceId;
                         
@@ -1193,14 +1044,8 @@ public class WorkshopUIManager : MonoBehaviour
                         string moveResult = UnityEditor.AssetDatabase.MoveAsset(filePath, newFilePath);
                         if (string.IsNullOrEmpty(moveResult))
                         {
-                            Debug.Log($"[WorkshopUIManager] Successfully renamed AI file to: {newInstanceId}.asset");
-                            
                             // Update any tank slot data that references the old instanceId
                             UpdateTankSlotReferences(fileName, newInstanceId, asset.branchType);
-                        }
-                        else
-                        {
-                            Debug.LogError($"[WorkshopUIManager] Failed to rename AI file: {moveResult}");
                         }
                     }
                 }
@@ -1227,7 +1072,6 @@ public class WorkshopUIManager : MonoBehaviour
                 {
                     slot.slotData.turretAIInstanceId = newInstanceId;
                     dataChanged = true;
-                    Debug.Log($"[WorkshopUIManager] Updated {slot.slotData.name} turretAI reference: {oldInstanceId} -> {newInstanceId}");
 #if UNITY_EDITOR
                     UnityEditor.EditorUtility.SetDirty(slot.slotData);
 #endif
@@ -1236,7 +1080,6 @@ public class WorkshopUIManager : MonoBehaviour
                 {
                     slot.slotData.navAIInstanceId = newInstanceId;
                     dataChanged = true;
-                    Debug.Log($"[WorkshopUIManager] Updated {slot.slotData.name} navAI reference: {oldInstanceId} -> {newInstanceId}");
 #if UNITY_EDITOR
                     UnityEditor.EditorUtility.SetDirty(slot.slotData);
 #endif
@@ -1247,6 +1090,271 @@ public class WorkshopUIManager : MonoBehaviour
         if (dataChanged)
         {
             PlayerDataManager.Instance.SavePlayerData();
+        }
+    }
+
+    /// <summary>
+    /// Creates a proxy ComponentData from AiTreeAssetJson for compatibility with existing UI
+    /// </summary>
+    private ComponentData CreateAiTreeProxyFromJson(AiTreeAssetJson jsonAi)
+    {
+        // Create a temporary ScriptableObject instance for UI compatibility
+        var proxy = ScriptableObject.CreateInstance<AiTreeAsset>();
+        
+        // Copy properties from JSON to proxy
+        proxy.title = jsonAi.title;
+        proxy.description = jsonAi.description;
+        proxy.cost = jsonAi.cost;
+        proxy.weight = jsonAi.weight;
+        proxy.category = (ComponentCategory)jsonAi.category;
+        proxy.instanceId = jsonAi.instanceId;
+        proxy.customColor = jsonAi.customColor;
+        proxy.branchType = (AiEditor.AiBranchType)jsonAi.branchType;
+        
+        // Note: The id property automatically returns the title, so no need to set it explicitly
+        
+        // Copy nodes and connections
+        proxy.nodes = new List<AiEditor.AiNodeData>();
+        foreach (var jsonNode in jsonAi.nodes)
+        {
+            var node = new AiEditor.AiNodeData();
+            node.nodeId = jsonNode.nodeId;
+            node.nodeType = jsonNode.nodeType;
+            node.nodeLabel = jsonNode.nodeLabel;
+            node.position = jsonNode.position;
+            
+            // Convert properties list back to dictionary
+            node.properties = new Dictionary<string, string>();
+            foreach (var prop in jsonNode.properties)
+            {
+                node.properties[prop.key] = prop.value;
+            }
+            
+            proxy.nodes.Add(node);
+        }
+        
+        proxy.connections = new List<AiEditor.AiConnectionData>();
+        foreach (var jsonConnection in jsonAi.connections)
+        {
+            var connection = new AiEditor.AiConnectionData();
+            connection.fromNodeId = jsonConnection.fromNodeId;
+            connection.fromPortId = jsonConnection.fromPortId;
+            connection.toNodeId = jsonConnection.toNodeId;
+            connection.toPortId = jsonConnection.toPortId;
+            proxy.connections.Add(connection);
+        }
+        
+        proxy.executableNodes = new List<AiEditor.AiExecutableNode>();
+        foreach (var jsonExecNode in jsonAi.executableNodes)
+        {
+            var execNode = new AiEditor.AiExecutableNode();
+            execNode.nodeId = jsonExecNode.nodeId;
+            execNode.methodName = jsonExecNode.methodName;
+            execNode.originalLabel = jsonExecNode.originalLabel;
+            execNode.nodeType = (AiEditor.AiNodeType)jsonExecNode.nodeType;
+            execNode.numericValue = jsonExecNode.numericValue;
+            execNode.connectedNodeIds = new List<string>(jsonExecNode.connectedNodeIds);
+            execNode.position = jsonExecNode.position;
+            proxy.executableNodes.Add(execNode);
+        }
+        
+        proxy.startNodeId = jsonAi.startNodeId;
+        
+        // Set title and TreeName property instead of the private treeName field
+        proxy.title = jsonAi.title;
+        proxy.TreeName = jsonAi.TreeName;
+        
+        // Mark it as a JSON-sourced component for identification
+        proxy.name = $"{jsonAi.title}_JSON";
+        
+        return proxy;
+    }
+    
+    /// <summary>
+    /// Creates a JSON file on disk when purchasing a JSON-based AI component
+    /// </summary>
+    private void CreateJsonAiFileFromPurchase(AiTreeAsset aiTree)
+    {
+        // Convert the purchased AI back to JSON format
+        var jsonAi = ConvertAiTreeToJson(aiTree);
+        string jsonContent = JsonUtility.ToJson(jsonAi, true);
+        
+        // Determine the target folder in persistent data path based on branch type
+        string folderName = aiTree.branchType == AiEditor.AiBranchType.Nav ? "NavFiles" : "TurretFiles";
+        string targetFolder = System.IO.Path.Combine(Application.persistentDataPath, "AiTrees", folderName);
+            
+        // Ensure the folder exists
+        if (!System.IO.Directory.Exists(targetFolder))
+        {
+            System.IO.Directory.CreateDirectory(targetFolder);
+        }
+        
+        // Create the JSON file with the component's instanceId as filename
+        string filePath = System.IO.Path.Combine(targetFolder, $"{aiTree.instanceId}.json");
+        
+        try
+        {
+            System.IO.File.WriteAllText(filePath, jsonContent);
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"Failed to create JSON AI file: {ex.Message}");
+        }
+    }
+    
+    /// <summary>
+    /// Converts an AiTreeAsset back to AiTreeAssetJson format
+    /// </summary>
+    private AiTreeAssetJson ConvertAiTreeToJson(AiTreeAsset aiTree)
+    {
+        var jsonAi = new AiTreeAssetJson();
+        
+        // Copy basic properties
+        jsonAi.title = aiTree.title;
+        jsonAi.description = aiTree.description;
+        jsonAi.cost = aiTree.cost;
+        jsonAi.weight = aiTree.weight;
+        jsonAi.category = (ComponentCategoryJson)aiTree.category;
+        jsonAi.instanceId = aiTree.instanceId;
+        jsonAi.customColor = aiTree.customColor;
+        jsonAi.branchType = (AiBranchTypeJson)aiTree.branchType;
+        jsonAi.startNodeId = aiTree.startNodeId;
+        jsonAi.TreeName = aiTree.TreeName;
+        
+        // Convert nodes
+        jsonAi.nodes = new List<AiNodeDataJson>();
+        foreach (var node in aiTree.nodes)
+        {
+            var jsonNode = new AiNodeDataJson();
+            jsonNode.nodeId = node.nodeId;
+            jsonNode.nodeType = node.nodeType;
+            jsonNode.nodeLabel = node.nodeLabel;
+            jsonNode.position = node.position;
+            
+            // Convert properties dictionary to list
+            jsonNode.properties = new List<NodePropertyJson>();
+            foreach (var prop in node.properties)
+            {
+                jsonNode.properties.Add(new NodePropertyJson(prop.Key, prop.Value));
+            }
+            
+            jsonAi.nodes.Add(jsonNode);
+        }
+        
+        // Convert connections
+        jsonAi.connections = new List<AiConnectionDataJson>();
+        foreach (var connection in aiTree.connections)
+        {
+            var jsonConnection = new AiConnectionDataJson();
+            jsonConnection.fromNodeId = connection.fromNodeId;
+            jsonConnection.fromPortId = connection.fromPortId;
+            jsonConnection.toNodeId = connection.toNodeId;
+            jsonConnection.toPortId = connection.toPortId;
+            jsonAi.connections.Add(jsonConnection);
+        }
+        
+        // Convert executable nodes
+        jsonAi.executableNodes = new List<AiExecutableNodeJson>();
+        foreach (var execNode in aiTree.executableNodes)
+        {
+            var jsonExecNode = new AiExecutableNodeJson();
+            jsonExecNode.nodeId = execNode.nodeId;
+            jsonExecNode.methodName = execNode.methodName;
+            jsonExecNode.originalLabel = execNode.originalLabel;
+            jsonExecNode.nodeType = (AiNodeTypeJson)execNode.nodeType;
+            jsonExecNode.numericValue = execNode.numericValue;
+            jsonExecNode.connectedNodeIds = new List<string>(execNode.connectedNodeIds);
+            jsonExecNode.position = execNode.position;
+            jsonAi.executableNodes.Add(jsonExecNode);
+        }
+        
+        return jsonAi;
+    }
+
+    /// <summary>
+    /// Loads purchased AI components from JSON files on disk into player inventory
+    /// </summary>
+    private void LoadAIInventoryFromDisk()
+    {
+        string[] folderNames = { "NavFiles", "TurretFiles" };
+        
+        foreach (string folderName in folderNames)
+        {
+            string folderPath = System.IO.Path.Combine(Application.persistentDataPath, "AiTrees", folderName);
+            if (!System.IO.Directory.Exists(folderPath)) continue;
+            
+            // Look for JSON files (purchased AI components)
+            string[] jsonFiles = System.IO.Directory.GetFiles(folderPath, "*.json");
+            foreach (string filePath in jsonFiles)
+            {
+                try
+                {
+                    string jsonContent = System.IO.File.ReadAllText(filePath);
+                    AiTreeAssetJson jsonAi = JsonUtility.FromJson<AiTreeAssetJson>(jsonContent);
+                    
+                    if (jsonAi != null && !string.IsNullOrEmpty(jsonAi.title))
+                    {
+                        // Create a proxy ComponentData for the inventory
+                        ComponentData proxyComponent = CreateAiTreeProxyFromJson(jsonAi);
+                        playerInventory.Add(proxyComponent);
+                    }
+                }
+                catch (System.Exception ex)
+                {
+                    Debug.LogWarning($"Failed to load AI inventory from {filePath}: {ex.Message}");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Deletes a JSON AI file from disk when selling
+    /// </summary>
+    private void DeleteJsonAiFile(AiTreeAsset aiTree)
+    {
+        // Determine the target folder in persistent data path based on branch type
+        string folderName = aiTree.branchType == AiEditor.AiBranchType.Nav ? "NavFiles" : "TurretFiles";
+        string targetFolder = System.IO.Path.Combine(Application.persistentDataPath, "AiTrees", folderName);
+            
+        // Create the JSON file path with the component's instanceId as filename
+        string filePath = System.IO.Path.Combine(targetFolder, $"{aiTree.instanceId}.json");
+        
+        try
+        {
+            if (System.IO.File.Exists(filePath))
+            {
+                System.IO.File.Delete(filePath);
+            }
+            else
+            {
+                // Try to find the file by name instead of instanceId
+                if (System.IO.Directory.Exists(targetFolder))
+                {
+                    var files = System.IO.Directory.GetFiles(targetFolder, "*.json");
+                    foreach (var file in files)
+                    {
+                        // Try to match by tree name
+                        try
+                        {
+                            string jsonContent = System.IO.File.ReadAllText(file);
+                            var jsonAsset = JsonUtility.FromJson<AiTreeAssetJson>(jsonContent);
+                            if (jsonAsset != null && (jsonAsset.title == aiTree.title || jsonAsset.TreeName == aiTree.title))
+                            {
+                                System.IO.File.Delete(file);
+                                return;
+                            }
+                        }
+                        catch (System.Exception parseEx)
+                        {
+                            Debug.LogWarning($"[DeleteJsonAiFile] Could not parse file {file}: {parseEx.Message}");
+                        }
+                    }
+                }
+            }
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"[DeleteJsonAiFile] Failed to delete JSON AI file: {ex.Message}");
         }
     }
 }
