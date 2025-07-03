@@ -24,8 +24,8 @@ public class AiEditorFileUI : MonoBehaviour
     private string navFolder = "NavFiles";
     private string turretFolder = "TurretFiles";
 
-    // Track the currently loaded asset path for update-only saves
-    private string currentAssetPath = null;
+    // Track the currently loaded JSON file path for update-only saves
+    private string currentJsonPath = null;
 
     // Prefabs for node types (assign in inspector)
     // public GameObject startNodePrefab; // No longer needed, always reuse StartNodePanel
@@ -115,25 +115,30 @@ public class AiEditorFileUI : MonoBehaviour
             treeName = FileName.text;
         }
         string assetName = treeName.Replace(' ', '_');
+        
         // Only allow updating an existing file
-        if (!string.IsNullOrEmpty(currentAssetPath) && File.Exists(currentAssetPath))
+        if (!string.IsNullOrEmpty(currentJsonPath) && System.IO.File.Exists(currentJsonPath))
         {
-            #if UNITY_EDITOR
-            var asset = UnityEditor.AssetDatabase.LoadAssetAtPath<AiTreeAsset>(currentAssetPath);
-            if (asset != null)
+            // Load existing JSON file and update it
+            string fileName = System.IO.Path.GetFileNameWithoutExtension(currentJsonPath);
+            
+            // Determine branch type from folder
+            AiBranchTypeJson branchType = (folder == navFolder) ? AiBranchTypeJson.Nav : AiBranchTypeJson.Turret;
+            var jsonAsset = AiTreeAssetJson.LoadFromJson(fileName, branchType);
+            if (jsonAsset != null)
             {
-                asset.TreeName = treeName;
-                asset.branchType = (folder == navFolder) ? AiEditor.AiBranchType.Nav : AiEditor.AiBranchType.Turret;
+                jsonAsset.TreeName = treeName;
+                jsonAsset.branchType = (folder == navFolder) ? AiBranchTypeJson.Nav : AiBranchTypeJson.Turret;
                 
                 // Ensure instanceId is set for existing asset (preserve existing or generate new if missing)
-                if (string.IsNullOrEmpty(asset.instanceId))
+                if (string.IsNullOrEmpty(jsonAsset.instanceId))
                 {
-                    asset.instanceId = asset.title + "_" + System.Guid.NewGuid().ToString();
+                    jsonAsset.instanceId = jsonAsset.title + "_" + System.Guid.NewGuid().ToString();
                 }
                 // --- Serialize nodes and connections ---
                 var content = GameObject.Find("Content");
                 var nodeDraggables = content.GetComponentsInChildren<NodeDraggable>();
-                var nodeList = new List<AiEditor.AiNodeData>();
+                var nodeList = new List<AiNodeDataJson>();
                 var nodeIdToDraggable = new Dictionary<string, NodeDraggable>();
                 foreach (var node in nodeDraggables)
                 {
@@ -151,20 +156,20 @@ public class AiEditorFileUI : MonoBehaviour
                     }
                     // Save the node type as the GameObject name (e.g., EndNode(Clone), MiddleNode(Clone), SubAINode(Clone))
                     string nodeType = node.name;
-                    var nodeData = new AiEditor.AiNodeData
+                    var nodeData = new AiNodeDataJson
                     {
                         nodeId = node.nodeId,
                         nodeType = nodeType, // e.g., EndNode(Clone)
                         nodeLabel = label,   // NodeText
                         position = node.GetComponent<RectTransform>().anchoredPosition,
-                        properties = new Dictionary<string, string>()
+                        properties = new List<NodePropertyJson>()
                     };
                     nodeList.Add(nodeData);
                     nodeIdToDraggable[node.nodeId] = node;
                 }
                 // Save all output connections for each node
                 var lineConnectors = content.GetComponentsInChildren<UILineConnector>();
-                var connectionList = new List<AiEditor.AiConnectionData>();
+                var connectionList = new List<AiConnectionDataJson>();
                 foreach (var line in lineConnectors)
                 {
                     // Check if outputRect is StartNavButton or StartTurretButton under StartNodePanel
@@ -190,7 +195,7 @@ public class AiEditorFileUI : MonoBehaviour
                     {
                         string toPortId = line.inputRect != null ? line.inputRect.gameObject.name : "InputPort";
                         string toNodeId = toNode.nodeId;
-                        connectionList.Add(new AiEditor.AiConnectionData
+                        connectionList.Add(new AiConnectionDataJson
                         {
                             fromNodeId = fromNodeId,
                             fromPortId = fromPortId,
@@ -211,48 +216,51 @@ public class AiEditorFileUI : MonoBehaviour
                                 portId = line.outputRect.gameObject.name;
                         }
                         string toPortId = line.inputRect != null ? line.inputRect.gameObject.name : "InputPort";
-                        connectionList.Add(new AiEditor.AiConnectionData
+                        connectionList.Add(new AiConnectionDataJson
                         {
                             fromNodeId = fromNode.nodeId,
                             fromPortId = portId,
                             toNodeId = toNode.nodeId,
                             toPortId = toPortId
                         });
-                    }                }
-                asset.nodes = nodeList;
-                asset.connections = connectionList;
+                    }
+                }
+                jsonAsset.nodes = nodeList;
+                jsonAsset.connections = connectionList;
                 
                 // Generate execution data
-                GenerateExecutionData(asset, nodeList, connectionList);
+                GenerateExecutionData(jsonAsset, nodeList, connectionList);
                 
-                UnityEditor.EditorUtility.SetDirty(asset);
-                // If the name has changed, rename the asset file
-                string newFileName = assetName + ".asset";
-                string newPath = Path.Combine("Assets", "AiEditor", "AISaveFiles", folder, newFileName);
-                if (!currentAssetPath.EndsWith(newFileName))
+                // Save the JSON file
+                jsonAsset.SaveToJson(assetName + ".json");
+                
+                // If the name has changed, rename the file by saving with new name and deleting old
+                string newFileName = assetName + ".json";
+                string currentFileName = System.IO.Path.GetFileNameWithoutExtension(currentJsonPath) + ".json";
+                if (currentFileName != newFileName)
                 {
-                    UnityEditor.AssetDatabase.RenameAsset(currentAssetPath, assetName);
-                    currentAssetPath = newPath;
+                    // Delete old file and update path
+                    if (System.IO.File.Exists(currentJsonPath))
+                        System.IO.File.Delete(currentJsonPath);
+                    currentJsonPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(currentJsonPath), newFileName);
                 }
-                UnityEditor.AssetDatabase.SaveAssets();
             }
-            #endif
         }
         else
         {
-            // TEMP: Allow new file creation if no file is loaded
-            #if UNITY_EDITOR
-            var asset = ScriptableObject.CreateInstance<AiTreeAsset>();
-            asset.name = assetName;
-            asset.TreeName = treeName;
-            asset.branchType = (folder == navFolder) ? AiEditor.AiBranchType.Nav : AiEditor.AiBranchType.Turret;
+            // Create new JSON file
+            var jsonAsset = new AiTreeAssetJson();
+            jsonAsset.title = assetName;
+            jsonAsset.TreeName = treeName;
+            jsonAsset.branchType = (folder == navFolder) ? AiBranchTypeJson.Nav : AiBranchTypeJson.Turret;
             
             // Generate instanceId for new asset
-            asset.instanceId = asset.title + "_" + System.Guid.NewGuid().ToString();
+            jsonAsset.instanceId = jsonAsset.title + "_" + System.Guid.NewGuid().ToString();
+            
             // --- Serialize nodes and connections ---
             var content = GameObject.Find("Content");
             var nodeDraggables = content.GetComponentsInChildren<NodeDraggable>();
-            var nodeList = new List<AiEditor.AiNodeData>();
+            var nodeList = new List<AiNodeDataJson>();
             var nodeIdToDraggable = new Dictionary<string, NodeDraggable>();
             foreach (var node in nodeDraggables)
             {
@@ -261,26 +269,26 @@ public class AiEditorFileUI : MonoBehaviour
                 var title = node.GetComponentInChildren<TitleName>();
                 string label = title != null ? title.titleText.text : node.name;
                 string type = label;
-                var nodeData = new AiEditor.AiNodeData
+                var nodeData = new AiNodeDataJson
                 {
                     nodeId = node.nodeId,
                     nodeType = type,
                     nodeLabel = label,
                     position = node.GetComponent<RectTransform>().anchoredPosition,
-                    properties = new Dictionary<string, string>()
+                    properties = new List<NodePropertyJson>()
                 };
                 nodeList.Add(nodeData);
                 nodeIdToDraggable[node.nodeId] = node;
             }
             var lineConnectors = content.GetComponentsInChildren<UILineConnector>();
-            var connectionList = new List<AiEditor.AiConnectionData>();
+            var connectionList = new List<AiConnectionDataJson>();
             foreach (var line in lineConnectors)
             {
                 var fromNode = line.outputRect != null ? line.outputRect.GetComponentInParent<NodeDraggable>() : null;
                 var toNode = line.inputRect != null ? line.inputRect.GetComponentInParent<NodeDraggable>() : null;
                 if (fromNode != null && toNode != null)
                 {
-                    connectionList.Add(new AiEditor.AiConnectionData
+                    connectionList.Add(new AiConnectionDataJson
                     {
                         fromNodeId = fromNode.nodeId,
                         fromPortId = "OutputPort",
@@ -288,17 +296,16 @@ public class AiEditorFileUI : MonoBehaviour
                         toPortId = "InputPort"
                     });
                 }
-            }            asset.nodes = nodeList;
-            asset.connections = connectionList;
+            }
+            jsonAsset.nodes = nodeList;
+            jsonAsset.connections = connectionList;
             
             // Generate execution data
-            GenerateExecutionData(asset, nodeList, connectionList);
+            GenerateExecutionData(jsonAsset, nodeList, connectionList);
             
-            string path = Path.Combine("Assets", "AiEditor", "AISaveFiles", folder, assetName + ".asset");
-            UnityEditor.AssetDatabase.CreateAsset(asset, path);
-            UnityEditor.AssetDatabase.SaveAssets();
-            currentAssetPath = path;
-            #endif
+            // Save JSON file
+            jsonAsset.SaveToJson(assetName + ".json");
+            currentJsonPath = System.IO.Path.Combine(Application.persistentDataPath, "AiTrees", folder, assetName + ".json");
         }
     }
 
@@ -395,10 +402,16 @@ public class AiEditorFileUI : MonoBehaviour
         // Clear previous
         foreach (Transform child in contentPanel) Destroy(child.gameObject);
         
-        if (!Directory.Exists(Path.Combine("Assets", "AiEditor", "AISaveFiles", folder))) return;
+        // Look for JSON files in Application.persistentDataPath instead of Assets folder
+        string jsonFolderPath = System.IO.Path.Combine(Application.persistentDataPath, "AiTrees", folder);
+        if (!System.IO.Directory.Exists(jsonFolderPath)) 
+        {
+            // Create the directory if it doesn't exist
+            System.IO.Directory.CreateDirectory(jsonFolderPath);
+            return;
+        }
         
-        var files = Directory.GetFiles(Path.Combine("Assets", "AiEditor", "AISaveFiles", folder), "*.asset").OrderBy(f => f).ToArray();
-        
+        var files = System.IO.Directory.GetFiles(jsonFolderPath, "*.json").OrderBy(f => f).ToArray();
         foreach (var file in files)
         {
             var btnObj = Instantiate(fileButtonPrefab, contentPanel);
@@ -407,110 +420,114 @@ public class AiEditorFileUI : MonoBehaviour
             
             if (txt != null) 
             {
-                // Load the asset to get the proper title instead of using filename
-                string assetPath = file.Replace("\\", "/");
-#if UNITY_EDITOR
-                var asset = UnityEditor.AssetDatabase.LoadAssetAtPath<AiTreeAsset>(assetPath);
-                if (asset != null && !string.IsNullOrEmpty(asset.TreeName))
+                // Load the JSON asset to get the proper title instead of using filename
+                string fileName = System.IO.Path.GetFileNameWithoutExtension(file);
+                
+                // Determine branch type from folder
+                AiBranchTypeJson branchType = (folder == navFolder) ? AiBranchTypeJson.Nav : AiBranchTypeJson.Turret;
+                var jsonAsset = AiTreeAssetJson.LoadFromJson(fileName, branchType);
+                if (jsonAsset != null && !string.IsNullOrEmpty(jsonAsset.TreeName))
                 {
-                    txt.text = asset.TreeName; // Use TreeName property which handles title/treeName fallback
+                    txt.text = jsonAsset.TreeName; // Use TreeName property
                 }
                 else
                 {
-                    txt.text = Path.GetFileNameWithoutExtension(file); // Fallback to filename
+                    txt.text = fileName; // Fallback to filename
                 }
-#else
-                txt.text = Path.GetFileNameWithoutExtension(file); // Fallback for runtime
-#endif
             }
             
-            btn.onClick.AddListener(() => OnFileSelected(file));
+            btn.onClick.AddListener(() => OnFileSelected(file, folder));
         }
     }
 
-    void OnFileSelected(string filePath)
+    void OnFileSelected(string filePath, string folder)
     {
-        // Load AiTreeAsset and reconstruct node graph
-        currentAssetPath = filePath.Replace("\\", "/"); // Track the loaded file for update-only saves
-#if UNITY_EDITOR
-    var asset = UnityEditor.AssetDatabase.LoadAssetAtPath<AiTreeAsset>(currentAssetPath);
-    if (asset != null)
-    {
-        // Sync all tree name fields when loading
-        SyncAllTreeNameFields(asset.TreeName);
+        // Load AiTreeAssetJson and reconstruct node graph
+        currentJsonPath = filePath.Replace("\\", "/"); // Track the loaded file for update-only saves
         
-        // Clear existing nodes and lines from the Content panel, except StartNodePanel
-        var content = GameObject.Find("Content");
-        var startPanel = GameObject.Find("StartNodePanel");
-        // Explicitly destroy all node and line prefabs before loading
-        var toDestroy = new List<GameObject>();
-        foreach (Transform child in content.transform)
-        {
-            if (child.gameObject == startPanel) continue;
-            string n = child.gameObject.name;
-            if (n == "UILine(Clone)" || n == "MiddleNode(Clone)" || n == "SubAINode(Clone)" || n == "EndNode(Clone)")
-                toDestroy.Add(child.gameObject);
-        }
-        foreach (var go in toDestroy)
-            DestroyImmediate(go);
-
-        // --- Always run branch label/button hiding logic FIRST ---
-        if (asset.branchType == AiEditor.AiBranchType.Nav)
-        {
-            var turretLabel = GameObject.Find("TurretLabel");
-            if (turretLabel != null) turretLabel.SetActive(false);
-            
-            var navLabel = GameObject.Find("NavLabel");
-            if (navLabel != null) navLabel.SetActive(true);
-            
-            // Find buttons under StartNodePanel (consistent with connection code)
-            if (startPanel != null)
-            {
-                var turretBtn = startPanel.transform.Find("StartTurretButton");
-                if (turretBtn != null) turretBtn.gameObject.SetActive(false);
-                
-                var navBtn = startPanel.transform.Find("StartNavButton");
-                if (navBtn != null) navBtn.gameObject.SetActive(true);
-            }
-        }
-        else if (asset.branchType == AiEditor.AiBranchType.Turret)
-        {
-            var navLabel = GameObject.Find("NavLabel");
-            if (navLabel != null) navLabel.SetActive(false);
-            
-            var turretLabel = GameObject.Find("TurretLabel");
-            if (turretLabel != null) turretLabel.SetActive(true);
-            
-            // Find buttons under StartNodePanel (consistent with connection code)
-            if (startPanel != null)
-            {
-                var navBtn = startPanel.transform.Find("StartNavButton");
-                if (navBtn != null) navBtn.gameObject.SetActive(false);
-                
-                var turretBtn = startPanel.transform.Find("StartTurretButton");
-                if (turretBtn != null) turretBtn.gameObject.SetActive(true);
-            }
-        }
-
-        // Load nodes and connections
-        LoadNodesFromAsset(asset, content, startPanel);
-        LoadConnectionsFromAsset(asset, content, startPanel);
+        string fileName = System.IO.Path.GetFileNameWithoutExtension(filePath);
         
-        loadPanel.SetActive(false);
+        // Determine branch type from folder
+        AiBranchTypeJson branchType = (folder == navFolder) ? AiBranchTypeJson.Nav : AiBranchTypeJson.Turret;
+        var jsonAsset = AiTreeAssetJson.LoadFromJson(fileName, branchType);
+        if (jsonAsset != null)
+        {
+            // Sync all tree name fields when loading
+            SyncAllTreeNameFields(jsonAsset.TreeName);
+            
+            // Clear existing nodes and lines from the Content panel, except StartNodePanel
+            var content = GameObject.Find("Content");
+            var startPanel = GameObject.Find("StartNodePanel");
+            // Explicitly destroy all node and line prefabs before loading
+            var toDestroy = new List<GameObject>();
+            foreach (Transform child in content.transform)
+            {
+                if (child.gameObject == startPanel) continue;
+                string n = child.gameObject.name;
+                if (n == "UILine(Clone)" || n == "MiddleNode(Clone)" || n == "SubAINode(Clone)" || n == "EndNode(Clone)")
+                    toDestroy.Add(child.gameObject);
+            }
+            foreach (var go in toDestroy)
+                DestroyImmediate(go);
+
+            // --- Always run branch label/button hiding logic FIRST ---
+            if (jsonAsset.branchType == AiBranchTypeJson.Nav)
+            {
+                var turretLabel = GameObject.Find("TurretLabel");
+                if (turretLabel != null) turretLabel.SetActive(false);
+                
+                var navLabel = GameObject.Find("NavLabel");
+                if (navLabel != null) navLabel.SetActive(true);
+                
+                // Find buttons under StartNodePanel (consistent with connection code)
+                if (startPanel != null)
+                {
+                    var turretBtn = startPanel.transform.Find("StartTurretButton");
+                    if (turretBtn != null) turretBtn.gameObject.SetActive(false);
+                    
+                    var navBtn = startPanel.transform.Find("StartNavButton");
+                    if (navBtn != null) navBtn.gameObject.SetActive(true);
+                }
+            }
+            else if (jsonAsset.branchType == AiBranchTypeJson.Turret)
+            {
+                var navLabel = GameObject.Find("NavLabel");
+                if (navLabel != null) navLabel.SetActive(false);
+                
+                var turretLabel = GameObject.Find("TurretLabel");
+                if (turretLabel != null) turretLabel.SetActive(true);
+                
+                // Find buttons under StartNodePanel (consistent with connection code)
+                if (startPanel != null)
+                {
+                    var navBtn = startPanel.transform.Find("StartNavButton");
+                    if (navBtn != null) navBtn.gameObject.SetActive(false);
+                    
+                    var turretBtn = startPanel.transform.Find("StartTurretButton");
+                    if (turretBtn != null) turretBtn.gameObject.SetActive(true);
+                }
+            }
+
+            // Load nodes and connections
+            LoadNodesFromJsonAsset(jsonAsset, content, startPanel);
+            LoadConnectionsFromJsonAsset(jsonAsset, content, startPanel);
+            
+            loadPanel.SetActive(false);
+        }
     }
     
-    void LoadNodesFromAsset(AiTreeAsset asset, GameObject content, GameObject startPanel)
+    void LoadNodesFromJsonAsset(AiTreeAssetJson jsonAsset, GameObject content, GameObject startPanel)
     {
         // --- NodeId-based mapping ---
         var nodeIdToGameObject = new Dictionary<string, GameObject>();
         // --- Handle StartNodePanel and all nodes ---
-        foreach (var nodeData in asset.nodes)
+        foreach (var nodeData in jsonAsset.nodes)
         {
-            GameObject nodeGO = null;            if ((nodeData.nodeType == "Start" || nodeData.nodeLabel == asset.TreeName) && startPanel != null)
+            GameObject nodeGO = null;            if ((nodeData.nodeType == "Start" || nodeData.nodeLabel == jsonAsset.TreeName) && startPanel != null)
             {
                 // Update StartNodePanel label and position
                 // NEW: Set filename in FileButtonPanel using TitleName component
-                SetCurrentTreeName(asset.TreeName);
+                SetCurrentTreeName(jsonAsset.TreeName);
                 
                 var rect = startPanel.GetComponent<RectTransform>();
                 rect.anchoredPosition = nodeData.position;
@@ -580,7 +597,7 @@ public class AiEditorFileUI : MonoBehaviour
                 nodeIdToGameObject[nodeData.nodeId] = nodeGO;        }
     }
     
-    void LoadConnectionsFromAsset(AiTreeAsset asset, GameObject content, GameObject startPanel)
+    void LoadConnectionsFromJsonAsset(AiTreeAssetJson jsonAsset, GameObject content, GameObject startPanel)
     {
         // --- Create nodeId mapping for connections ---
         var nodeIdToGameObject = new Dictionary<string, GameObject>();
@@ -606,7 +623,7 @@ public class AiEditorFileUI : MonoBehaviour
         }
         
         // --- Recreate connections using nodeId mapping ---
-        foreach (var conn in asset.connections)
+        foreach (var conn in jsonAsset.connections)
         {
             // Special handling for StartNavButton/StartTurretButton as origin
             GameObject fromNode = null;
@@ -685,24 +702,21 @@ public class AiEditorFileUI : MonoBehaviour
             if (toDraggable != null) toDraggable.RegisterConnectedLine(connector);        
         }
     }
-#endif
-        loadPanel.SetActive(false);
-    }
 
     /// <summary>
     /// Generates execution data from the visual node graph for AI runtime execution
     /// </summary>
-    private void GenerateExecutionData(AiEditor.AiTreeAsset asset, List<AiEditor.AiNodeData> nodeList, List<AiEditor.AiConnectionData> connectionList)
+    private void GenerateExecutionData(AiTreeAssetJson jsonAsset, List<AiNodeDataJson> nodeList, List<AiConnectionDataJson> connectionList)
     {
-        asset.executableNodes.Clear();
+        jsonAsset.executableNodes.Clear();
         
         // Find the start node ID (either StartNavButton or StartTurretButton connections)
-        asset.startNodeId = null;
+        jsonAsset.startNodeId = null;
         foreach (var conn in connectionList)
         {
             if (conn.fromNodeId == "StartNavButton" || conn.fromNodeId == "StartTurretButton")
             {
-                asset.startNodeId = conn.toNodeId;
+                jsonAsset.startNodeId = conn.toNodeId;
                 break;
             }
         }
@@ -726,12 +740,12 @@ public class AiEditorFileUI : MonoBehaviour
             // The numeric value is now extracted directly from the node label by AiMethodConverter.ConvertToMethodName
             // No need to check NumberInputButton since we store numbers directly in NodeText
             
-            var executableNode = new AiEditor.AiExecutableNode
+            var executableNode = new AiExecutableNodeJson
             {
                 nodeId = nodeData.nodeId,
                 methodName = methodName,
                 originalLabel = nodeData.nodeLabel,
-                nodeType = nodeType,
+                nodeType = (AiNodeTypeJson)nodeType, // Cast AiEditor.AiNodeType to AiNodeTypeJson
                 numericValue = numericValue, // This comes from ConvertToMethodName parsing the label
                 position = nodeData.position,
                 connectedNodeIds = new List<string>()
@@ -754,7 +768,7 @@ public class AiEditorFileUI : MonoBehaviour
                 return node1.position.y.CompareTo(node2.position.y); // Higher Y = higher priority
             });
             
-            asset.executableNodes.Add(executableNode);
+            jsonAsset.executableNodes.Add(executableNode);
         }
     }
     
