@@ -1,0 +1,106 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 644b83c0a12cafe4b90e46db268763f8, type: 3}
+  m_Name: n2 1
+  m_EditorClassIdentifier: 
+  title: n2
+  description: AI behavior tree for Nav control
+  cost: 100
+  weight: 1
+  modelPrefab: {fileID: 0}
+  category: 2
+  instanceId: b34bc367-58a3-4ca0-bc42-be874636b5ad
+  customColor: {r: 1, g: 1, b: 1, a: 1}
+  branchType: 2
+  nodes:
+  - nodeId: 93ca2b28-bdb9-4730-b82a-693b5bc6e5a7
+    nodeType: MiddleNode(Clone)
+    nodeLabel: If Enemy
+    position: {x: -2272, y: 32}
+  - nodeId: f911a632-999d-4e03-87a8-5d62c7997255
+    nodeType: EndNode(Clone)
+    nodeLabel: Wander
+    position: {x: -2240, y: -112}
+  - nodeId: 35a134d6-bd7d-413a-bb3a-d60a6c89c096
+    nodeType: MiddleNode(Clone)
+    nodeLabel: If Range>#
+    position: {x: -2080, y: 64}
+  - nodeId: 0eba0fa0-6a25-4b78-b3ff-7e10047fa874
+    nodeType: EndNode(Clone)
+    nodeLabel: Chase
+    position: {x: -1904, y: 64}
+  - nodeId: 34686436-b8be-4e9d-ba20-ecc4b4faf273
+    nodeType: EndNode(Clone)
+    nodeLabel: Wait
+    position: {x: -2080, y: 32}
+  connections:
+  - fromNodeId: StartNavButton
+    fromPortId: NavOrigin
+    toNodeId: 93ca2b28-bdb9-4730-b82a-693b5bc6e5a7
+    toPortId: Input
+  - fromNodeId: StartNavButton
+    fromPortId: NavOrigin
+    toNodeId: f911a632-999d-4e03-87a8-5d62c7997255
+    toPortId: Input
+  - fromNodeId: 93ca2b28-bdb9-4730-b82a-693b5bc6e5a7
+    fromPortId: Output
+    toNodeId: 35a134d6-bd7d-413a-bb3a-d60a6c89c096
+    toPortId: Input
+  - fromNodeId: 35a134d6-bd7d-413a-bb3a-d60a6c89c096
+    fromPortId: Output
+    toNodeId: 0eba0fa0-6a25-4b78-b3ff-7e10047fa874
+    toPortId: Input
+  - fromNodeId: 93ca2b28-bdb9-4730-b82a-693b5bc6e5a7
+    fromPortId: Output
+    toNodeId: 34686436-b8be-4e9d-ba20-ecc4b4faf273
+    toPortId: Input
+  executableNodes:
+  - nodeId: 93ca2b28-bdb9-4730-b82a-693b5bc6e5a7
+    methodName: IfEnemy
+    originalLabel: If Enemy
+    nodeType: 1
+    numericValue: 0
+    connectedNodeIds:
+    - 34686436-b8be-4e9d-ba20-ecc4b4faf273
+    - 35a134d6-bd7d-413a-bb3a-d60a6c89c096
+    position: {x: -2272, y: 32}
+  - nodeId: f911a632-999d-4e03-87a8-5d62c7997255
+    methodName: Wander
+    originalLabel: Wander
+    nodeType: 2
+    numericValue: 0
+    connectedNodeIds: []
+    position: {x: -2240, y: -112}
+  - nodeId: 35a134d6-bd7d-413a-bb3a-d60a6c89c096
+    methodName: IfRange
+    originalLabel: If Range>#
+    nodeType: 1
+    numericValue: 40
+    connectedNodeIds:
+    - 0eba0fa0-6a25-4b78-b3ff-7e10047fa874
+    position: {x: -2080, y: 64}
+  - nodeId: 0eba0fa0-6a25-4b78-b3ff-7e10047fa874
+    methodName: Chase
+    originalLabel: Chase
+    nodeType: 2
+    numericValue: 0
+    connectedNodeIds: []
+    position: {x: -1904, y: 64}
+  - nodeId: 34686436-b8be-4e9d-ba20-ecc4b4faf273
+    methodName: Wait
+    originalLabel: Wait
+    nodeType: 2
+    numericValue: 0
+    connectedNodeIds: []
+    position: {x: -2080, y: 32}
+  startNodeId: 93ca2b28-bdb9-4730-b82a-693b5bc6e5a7
+  treeName: n2

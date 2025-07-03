@@ -1,0 +1,43 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 740ec3c473eeccd4ebed021fa2aa7a40, type: 3}
+  m_Name: TankSlot 9
+  m_EditorClassIdentifier: 
+  isActive: 0
+  teamId: 0
+  isPlayerControlled: 1
+  displayName: 
+  turretPrefab: {fileID: 3464485550662945083, guid: 7d78b5e5b90e2ea4db479ed37b9cff6f, type: 3}
+  armorPrefab: {fileID: 8873969236292567204, guid: 1e04fac2d34df604ba0eea795858f6db, type: 3}
+  engineFramePrefab: {fileID: 304432073890631187, guid: 46e22aaf639161c439dc458ee197f1bc, type: 3}
+  turretAI: {fileID: 0}
+  navAI: {fileID: 0}
+  turretType: 0
+  turretDamage: 10
+  turretRange: 35
+  turretShotsPerSec: 2
+  turretBulletSpeed: 50
+  turretKnockback: Low
+  turretVisionRange: 60
+  turretVisionCone: 45
+  armorHP: 20
+  engineWeightCapacity: 40
+  enginePower: 2
+  totalWeight: 0
+  engineFrameInstanceId: Heavy Engine_eb86b36a-1f20-4618-8bed-28cc04a92d1b
+  armorInstanceId: Light Plate_9d3d1a8d-41de-4f35-94f6-d82d48f9de92
+  turretInstanceId: Rifle_2f54fd4f-4fde-4a42-a521-249b1e9834da
+  turretAIInstanceId: 
+  navAIInstanceId: 
+  engineFrameColor: {r: 1, g: 0, b: 0, a: 1}
+  armorColor: {r: 1, g: 0, b: 0, a: 1}
+  turretColor: {r: 1, g: 0, b: 0, a: 1}

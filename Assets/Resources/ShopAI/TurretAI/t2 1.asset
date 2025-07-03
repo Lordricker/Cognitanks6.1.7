@@ -1,0 +1,75 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 644b83c0a12cafe4b90e46db268763f8, type: 3}
+  m_Name: t2 1
+  m_EditorClassIdentifier: 
+  title: t2
+  description: AI behavior tree for Turret control
+  cost: 150
+  weight: 1
+  modelPrefab: {fileID: 0}
+  category: 2
+  instanceId: 3bbffe32-cc36-4afc-a419-5491dc7aa247
+  customColor: {r: 1, g: 1, b: 1, a: 1}
+  branchType: 1
+  nodes:
+  - nodeId: b9406aa9-d16b-40de-b0f8-b5d62b2a30ed
+    nodeType: MiddleNode(Clone)
+    nodeLabel: If Enemy
+    position: {x: -2211.4243, y: 13.036865}
+  - nodeId: 155447a5-476b-4cd8-a0d3-968ca5f33c0e
+    nodeType: EndNode(Clone)
+    nodeLabel: Center Target
+    position: {x: -1840, y: 48}
+  - nodeId: 3c64e87d-6686-43d7-851c-980d2dcc4d41
+    nodeType: EndNode(Clone)
+    nodeLabel: Fire
+    position: {x: -1840, y: 96}
+  connections:
+  - fromNodeId: StartTurretButton
+    fromPortId: TurretOrigin
+    toNodeId: b9406aa9-d16b-40de-b0f8-b5d62b2a30ed
+    toPortId: Input
+  - fromNodeId: b9406aa9-d16b-40de-b0f8-b5d62b2a30ed
+    fromPortId: Output
+    toNodeId: 155447a5-476b-4cd8-a0d3-968ca5f33c0e
+    toPortId: Input
+  - fromNodeId: b9406aa9-d16b-40de-b0f8-b5d62b2a30ed
+    fromPortId: Output
+    toNodeId: 3c64e87d-6686-43d7-851c-980d2dcc4d41
+    toPortId: Input
+  executableNodes:
+  - nodeId: b9406aa9-d16b-40de-b0f8-b5d62b2a30ed
+    methodName: IfEnemy
+    originalLabel: If Enemy
+    nodeType: 1
+    numericValue: 0
+    connectedNodeIds:
+    - 155447a5-476b-4cd8-a0d3-968ca5f33c0e
+    - 3c64e87d-6686-43d7-851c-980d2dcc4d41
+    position: {x: -2211.4243, y: 13.036865}
+  - nodeId: 155447a5-476b-4cd8-a0d3-968ca5f33c0e
+    methodName: CenterTarget
+    originalLabel: Center Target
+    nodeType: 2
+    numericValue: 0
+    connectedNodeIds: []
+    position: {x: -1840, y: 48}
+  - nodeId: 3c64e87d-6686-43d7-851c-980d2dcc4d41
+    methodName: Fire
+    originalLabel: Fire
+    nodeType: 2
+    numericValue: 0
+    connectedNodeIds: []
+    position: {x: -1840, y: 96}
+  startNodeId: b9406aa9-d16b-40de-b0f8-b5d62b2a30ed
+  treeName: t2

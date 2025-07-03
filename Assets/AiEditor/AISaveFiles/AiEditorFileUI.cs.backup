@@ -1,0 +1,1155 @@
+using UnityEngine;
+using UnityEngine.UI;
+using System.IO;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using AiEditor;
+
+public class AiEditorFileUI : MonoBehaviour
+{
+    public Button saveButton;
+    public Button loadButton;
+    public GameObject loadPanel;
+    public Button turretBranchButton;
+    public Button navBranchButton;
+    public GameObject fileButtonPrefab;
+    public Button startTurretButton;
+    public Button startNavButton;
+    public GameObject navFileScrollView; // Assign the ScrollView GameObject for Nav files
+    public GameObject turretFileScrollView; // Assign the ScrollView GameObject for Turret files
+    public Transform navFileContent; // Assign the Content transform of the Nav ScrollView
+    public Transform turretFileContent; // Assign the Content transform of the Turret ScrollView
+
+    private string navFolder = "NavFiles";
+    private string turretFolder = "TurretFiles";
+
+    // Track the currently loaded asset path for update-only saves
+    private string currentAssetPath = null;
+
+    // Prefabs for node types (assign in inspector)
+    // public GameObject startNodePrefab; // No longer needed, always reuse StartNodePanel
+    public GameObject EndNodePrefab;
+    public GameObject MiddleNodePrefab;
+    public GameObject SubAINodePrefab;
+    public GameObject UILinePrefab;
+
+    // New public field for tree name
+    public TMPro.TMP_Text FileName;
+
+    // Number input system
+    public TMPro.TMP_InputField globalNumberInputField; // Assign in inspector - global input field for all nodes
+    private GameObject currentSelectedNode = null;
+    private InlineNumberInput currentNodeNumberInput = null;
+    
+    // List of node types that can have numeric values
+    private static readonly string[] numericNodeTypes = new string[]
+    {
+        // Condition nodes
+        "If HP", "If Health", 
+        "If Armor", "If Armour",
+        "If Range", "If Distance",
+        "If Rifle", "If Weapon",
+        // Action nodes that can have numeric parameters
+        "Move", "Go",
+        "Chase", "Follow",
+        "Flee", "Escape",
+        "Patrol",
+        "Fire", "Shoot",
+        "Wander", "Roam"
+    };
+
+    void Start()
+    {
+        saveButton.onClick.AddListener(OnSaveClicked);
+        loadButton.onClick.AddListener(ToggleLoadPanel);
+        
+        turretBranchButton.onClick.AddListener(() => ShowFilePanel(turretFileScrollView, turretFileContent, turretFolder));
+        navBranchButton.onClick.AddListener(() => ShowFilePanel(navFileScrollView, navFileContent, navFolder));
+        loadPanel.SetActive(false);
+        navFileScrollView.SetActive(false);
+        turretFileScrollView.SetActive(false);
+        
+        // Setup global number input field
+        if (globalNumberInputField != null)
+        {
+            globalNumberInputField.gameObject.SetActive(false);
+            globalNumberInputField.onEndEdit.AddListener(OnGlobalNumberInputEndEdit);
+            globalNumberInputField.contentType = TMPro.TMP_InputField.ContentType.DecimalNumber;
+            globalNumberInputField.characterValidation = TMPro.TMP_InputField.CharacterValidation.Decimal;
+        }
+    }
+
+    void ToggleLoadPanel()
+    {
+        loadPanel.SetActive(!loadPanel.activeSelf);
+        if (!loadPanel.activeSelf)
+        {
+            navFileScrollView.SetActive(false);
+            turretFileScrollView.SetActive(false);
+        }
+    }
+    
+    void OnSaveClicked()
+    {
+        // Determine branch by which start button is active
+        string folder = "";
+        if (startTurretButton.gameObject.activeSelf)
+            folder = turretFolder;
+        else if (startNavButton.gameObject.activeSelf)
+            folder = navFolder;
+        else
+            return; // No branch selected
+        if (!Directory.Exists(folder)) Directory.CreateDirectory(folder);
+
+        // Get the filename from the starting node's label (replace spaces with _)
+        // Always get the tree name from FileButtonPanel first, then fallback to FileName field
+        string treeName = "NewAI";
+        
+        // PRIORITY 1: Get from FileButtonPanel (the primary display location)
+        string currentTreeName = GetCurrentTreeName();
+        if (!string.IsNullOrEmpty(currentTreeName))
+        {
+            treeName = currentTreeName;
+        }
+        // PRIORITY 2: Fallback to FileName field if FileButtonPanel is empty
+        else if (FileName != null && !string.IsNullOrEmpty(FileName.text))
+        {
+            treeName = FileName.text;
+        }
+        string assetName = treeName.Replace(' ', '_');
+        // Only allow updating an existing file
+        if (!string.IsNullOrEmpty(currentAssetPath) && File.Exists(currentAssetPath))
+        {
+            #if UNITY_EDITOR
+            var asset = UnityEditor.AssetDatabase.LoadAssetAtPath<AiTreeAsset>(currentAssetPath);
+            if (asset != null)
+            {
+                asset.TreeName = treeName;
+                asset.branchType = (folder == navFolder) ? AiEditor.AiBranchType.Nav : AiEditor.AiBranchType.Turret;
+                
+                // Ensure instanceId is set for existing asset (preserve existing or generate new if missing)
+                if (string.IsNullOrEmpty(asset.instanceId))
+                {
+                    asset.instanceId = asset.title + "_" + System.Guid.NewGuid().ToString();
+                }
+                // --- Serialize nodes and connections ---
+                var content = GameObject.Find("Content");
+                var nodeDraggables = content.GetComponentsInChildren<NodeDraggable>();
+                var nodeList = new List<AiEditor.AiNodeData>();
+                var nodeIdToDraggable = new Dictionary<string, NodeDraggable>();
+                foreach (var node in nodeDraggables)
+                {
+                    // Ensure nodeId is set
+                    if (string.IsNullOrEmpty(node.nodeId))
+                        node.nodeId = System.Guid.NewGuid().ToString();
+                    // Find the child named "NodeText" with TMP_Text
+                    string label = node.name;
+                    var textChild = node.transform.Find("NodeText");
+                    if (textChild != null)
+                    {
+                        var tmp = textChild.GetComponent<TMPro.TMP_Text>();
+                        if (tmp != null)
+                            label = tmp.text;
+                    }
+                    // Save the node type as the GameObject name (e.g., EndNode(Clone), MiddleNode(Clone), SubAINode(Clone))
+                    string nodeType = node.name;
+                    var nodeData = new AiEditor.AiNodeData
+                    {
+                        nodeId = node.nodeId,
+                        nodeType = nodeType, // e.g., EndNode(Clone)
+                        nodeLabel = label,   // NodeText
+                        position = node.GetComponent<RectTransform>().anchoredPosition,
+                        properties = new Dictionary<string, string>()
+                    };
+                    nodeList.Add(nodeData);
+                    nodeIdToDraggable[node.nodeId] = node;
+                }
+                // Save all output connections for each node
+                var lineConnectors = content.GetComponentsInChildren<UILineConnector>();
+                var connectionList = new List<AiEditor.AiConnectionData>();
+                foreach (var line in lineConnectors)
+                {
+                    // Check if outputRect is StartNavButton or StartTurretButton under StartNodePanel
+                    var outputButton = line.outputRect != null ? line.outputRect.GetComponent<Button>() : null;
+                    string fromNodeId = null;
+                    string fromPortId = null;
+                    if (outputButton != null)
+                    {
+                        if (outputButton.gameObject.name == "StartNavButton")
+                        {
+                            fromNodeId = "StartNavButton";
+                            fromPortId = "NavOrigin";
+                        }
+                        else if (outputButton.gameObject.name == "StartTurretButton")
+                        {
+                            fromNodeId = "StartTurretButton";
+                            fromPortId = "TurretOrigin";
+                        }
+                    }
+                    var fromNode = line.outputRect != null ? line.outputRect.GetComponentInParent<NodeDraggable>() : null;
+                    var toNode = line.inputRect != null ? line.inputRect.GetComponentInParent<NodeDraggable>() : null;
+                    if (fromNodeId != null && toNode != null)
+                    {
+                        string toPortId = line.inputRect != null ? line.inputRect.gameObject.name : "InputPort";
+                        string toNodeId = toNode.nodeId;
+                        connectionList.Add(new AiEditor.AiConnectionData
+                        {
+                            fromNodeId = fromNodeId,
+                            fromPortId = fromPortId,
+                            toNodeId = toNodeId,
+                            toPortId = toPortId
+                        });
+                    }
+                    else if (fromNode != null && toNode != null)
+                    {
+                        // Store the tag for the output port if it's an origin (NavOrigin, TurretOrigin), otherwise use OutputPort
+                        string portId = "OutputPort";
+                        if (line.outputRect != null)
+                        {
+                            var tag = line.outputRect.gameObject.tag;
+                            if (tag == "NavOrigin" || tag == "TurretOrigin")
+                                portId = tag;
+                            else
+                                portId = line.outputRect.gameObject.name;
+                        }
+                        string toPortId = line.inputRect != null ? line.inputRect.gameObject.name : "InputPort";
+                        connectionList.Add(new AiEditor.AiConnectionData
+                        {
+                            fromNodeId = fromNode.nodeId,
+                            fromPortId = portId,
+                            toNodeId = toNode.nodeId,
+                            toPortId = toPortId
+                        });
+                    }
+                }
+                asset.nodes = nodeList;
+                asset.connections = connectionList;
+                
+                // Generate execution data
+                GenerateExecutionData(asset, nodeList, connectionList);
+                
+                UnityEditor.EditorUtility.SetDirty(asset);
+                // If the name has changed, rename the asset file
+                string newFileName = assetName + ".asset";
+                string newPath = Path.Combine("Assets", "AiEditor", "AISaveFiles", folder, newFileName);
+                if (!currentAssetPath.EndsWith(newFileName))
+                {
+                    UnityEditor.AssetDatabase.RenameAsset(currentAssetPath, assetName);
+                    currentAssetPath = newPath;
+                }
+                UnityEditor.AssetDatabase.SaveAssets();
+            }
+            #endif
+        }
+        else
+        {
+            // TEMP: Allow new file creation if no file is loaded
+            #if UNITY_EDITOR
+            var asset = ScriptableObject.CreateInstance<AiTreeAsset>();
+            asset.name = assetName;
+            asset.TreeName = treeName;
+            asset.branchType = (folder == navFolder) ? AiEditor.AiBranchType.Nav : AiEditor.AiBranchType.Turret;
+            
+            // Generate instanceId for new asset
+            asset.instanceId = asset.title + "_" + System.Guid.NewGuid().ToString();
+            // --- Serialize nodes and connections ---
+            var content = GameObject.Find("Content");
+            var nodeDraggables = content.GetComponentsInChildren<NodeDraggable>();
+            var nodeList = new List<AiEditor.AiNodeData>();
+            var nodeIdToDraggable = new Dictionary<string, NodeDraggable>();
+            foreach (var node in nodeDraggables)
+            {
+                if (string.IsNullOrEmpty(node.nodeId))
+                    node.nodeId = System.Guid.NewGuid().ToString();
+                var title = node.GetComponentInChildren<TitleName>();
+                string label = title != null ? title.titleText.text : node.name;
+                string type = label;
+                var nodeData = new AiEditor.AiNodeData
+                {
+                    nodeId = node.nodeId,
+                    nodeType = type,
+                    nodeLabel = label,
+                    position = node.GetComponent<RectTransform>().anchoredPosition,
+                    properties = new Dictionary<string, string>()
+                };
+                nodeList.Add(nodeData);
+                nodeIdToDraggable[node.nodeId] = node;
+            }
+            var lineConnectors = content.GetComponentsInChildren<UILineConnector>();
+            var connectionList = new List<AiEditor.AiConnectionData>();
+            foreach (var line in lineConnectors)
+            {
+                var fromNode = line.outputRect != null ? line.outputRect.GetComponentInParent<NodeDraggable>() : null;
+                var toNode = line.inputRect != null ? line.inputRect.GetComponentInParent<NodeDraggable>() : null;
+                if (fromNode != null && toNode != null)
+                {
+                    connectionList.Add(new AiEditor.AiConnectionData
+                    {
+                        fromNodeId = fromNode.nodeId,
+                        fromPortId = "OutputPort",
+                        toNodeId = toNode.nodeId,
+                        toPortId = "InputPort"
+                    });
+                }
+            }            asset.nodes = nodeList;
+            asset.connections = connectionList;
+            
+            // Generate execution data
+            GenerateExecutionData(asset, nodeList, connectionList);
+            
+            string path = Path.Combine("Assets", "AiEditor", "AISaveFiles", folder, assetName + ".asset");
+            UnityEditor.AssetDatabase.CreateAsset(asset, path);
+            UnityEditor.AssetDatabase.SaveAssets();
+            currentAssetPath = path;
+            #endif
+        }
+    }
+
+    // Helper to get the current tree name from FileButtonPanel
+    string GetCurrentTreeName()
+    {
+        // Look for UICanvas>FileButtonPanel>FileNameText
+        var uiCanvas = GameObject.Find("UICanvas");
+        if (uiCanvas != null)
+        {
+            var fileButtonPanel = uiCanvas.transform.Find("FileButtonPanel");
+            if (fileButtonPanel != null)
+            {
+                // Look for FileNameText specifically (not TitleName component)
+                var fileNameText = fileButtonPanel.transform.Find("FileNameText");
+                if (fileNameText != null)
+                {
+                    var tmpText = fileNameText.GetComponent<TMPro.TMP_Text>();
+                    if (tmpText != null && !string.IsNullOrEmpty(tmpText.text))
+                    {
+                        return tmpText.text;
+                    }
+                }
+            }
+        }
+        return "";
+    }
+
+    // Helper to set the current tree name in FileButtonPanel
+    void SetCurrentTreeName(string treeName)
+    {
+        // Look for UICanvas>FileButtonPanel>FileNameText
+        var uiCanvas = GameObject.Find("UICanvas");
+        if (uiCanvas != null)
+        {
+            var fileButtonPanel = uiCanvas.transform.Find("FileButtonPanel");
+            if (fileButtonPanel != null)
+            {
+                // Look for FileNameText specifically
+                var fileNameText = fileButtonPanel.transform.Find("FileNameText");
+                if (fileNameText != null)
+                {
+                    var tmpText = fileNameText.GetComponent<TMPro.TMP_Text>();
+                    if (tmpText != null)
+                    {
+                        tmpText.text = treeName;
+                        return;
+                    }
+                }
+            }
+        }
+        
+        // Fallback: Try to set in old location for backwards compatibility
+        var startNodePanel = GameObject.Find("StartNodePanel");
+        if (startNodePanel != null)
+        {
+            var fileNameTextObj = startNodePanel.transform.Find("FileNameText");
+            if (fileNameTextObj != null)
+            {
+                var tmp = fileNameTextObj.GetComponent<TMPro.TMP_Text>();
+                if (tmp != null)
+                {
+                    tmp.text = treeName;
+                }
+            }
+        }
+    }
+
+    // Helper to get the label from the starting node (LEGACY - keeping for backwards compatibility)
+    string GetStartNodeLabel()
+    {
+        // First try the new location
+        string treeName = GetCurrentTreeName();
+        if (!string.IsNullOrEmpty(treeName))
+            return treeName;
+            
+        // Fallback to old location for backwards compatibility
+        var startNodePanel = GameObject.Find("StartNodePanel");
+        if (startNodePanel != null)
+        {
+            var fileNameText = startNodePanel.GetComponentInChildren<TMPro.TMP_Text>();
+            if (fileNameText != null)
+                return fileNameText.text;
+        }
+        return "";
+    }
+
+    void ShowFilePanel(GameObject scrollView, Transform contentPanel, string folder)
+    {
+        navFileScrollView.SetActive(false);
+        turretFileScrollView.SetActive(false);
+        scrollView.SetActive(true);
+        
+        // Clear previous
+        foreach (Transform child in contentPanel) Destroy(child.gameObject);
+        
+        if (!Directory.Exists(Path.Combine("Assets", "AiEditor", "AISaveFiles", folder))) return;
+        
+        var files = Directory.GetFiles(Path.Combine("Assets", "AiEditor", "AISaveFiles", folder), "*.asset").OrderBy(f => f).ToArray();
+        
+        foreach (var file in files)
+        {
+            var btnObj = Instantiate(fileButtonPrefab, contentPanel);
+            var btn = btnObj.GetComponent<Button>();
+            var txt = btnObj.GetComponentInChildren<TMPro.TMP_Text>();
+            
+            if (txt != null) 
+            {
+                // Load the asset to get the proper title instead of using filename
+                string assetPath = file.Replace("\\", "/");
+#if UNITY_EDITOR
+                var asset = UnityEditor.AssetDatabase.LoadAssetAtPath<AiTreeAsset>(assetPath);
+                if (asset != null && !string.IsNullOrEmpty(asset.TreeName))
+                {
+                    txt.text = asset.TreeName; // Use TreeName property which handles title/treeName fallback
+                }
+                else
+                {
+                    txt.text = Path.GetFileNameWithoutExtension(file); // Fallback to filename
+                }
+#else
+                txt.text = Path.GetFileNameWithoutExtension(file); // Fallback for runtime
+#endif
+            }
+            
+            btn.onClick.AddListener(() => OnFileSelected(file));
+        }
+    }
+
+    void OnFileSelected(string filePath)
+    {
+        // Load AiTreeAsset and reconstruct node graph
+        currentAssetPath = filePath.Replace("\\", "/"); // Track the loaded file for update-only saves
+#if UNITY_EDITOR
+    var asset = UnityEditor.AssetDatabase.LoadAssetAtPath<AiTreeAsset>(currentAssetPath);
+    if (asset != null)
+    {
+        // Sync all tree name fields when loading
+        SyncAllTreeNameFields(asset.TreeName);
+        
+        // Clear existing nodes and lines from the Content panel, except StartNodePanel
+        var content = GameObject.Find("Content");
+        var startPanel = GameObject.Find("StartNodePanel");
+        // Explicitly destroy all node and line prefabs before loading
+        var toDestroy = new List<GameObject>();
+        foreach (Transform child in content.transform)
+        {
+            if (child.gameObject == startPanel) continue;
+            string n = child.gameObject.name;
+            if (n == "UILine(Clone)" || n == "MiddleNode(Clone)" || n == "SubAINode(Clone)" || n == "EndNode(Clone)")
+                toDestroy.Add(child.gameObject);
+        }
+        foreach (var go in toDestroy)
+            DestroyImmediate(go);
+
+        // --- Always run branch label/button hiding logic FIRST ---
+        if (asset.branchType == AiEditor.AiBranchType.Nav)
+        {
+            var turretLabel = GameObject.Find("TurretLabel");
+            if (turretLabel != null) turretLabel.SetActive(false);
+            
+            var navLabel = GameObject.Find("NavLabel");
+            if (navLabel != null) navLabel.SetActive(true);
+            
+            // Find buttons under StartNodePanel (consistent with connection code)
+            if (startPanel != null)
+            {
+                var turretBtn = startPanel.transform.Find("StartTurretButton");
+                if (turretBtn != null) turretBtn.gameObject.SetActive(false);
+                
+                var navBtn = startPanel.transform.Find("StartNavButton");
+                if (navBtn != null) navBtn.gameObject.SetActive(true);
+            }
+        }
+        else if (asset.branchType == AiEditor.AiBranchType.Turret)
+        {
+            var navLabel = GameObject.Find("NavLabel");
+            if (navLabel != null) navLabel.SetActive(false);
+            
+            var turretLabel = GameObject.Find("TurretLabel");
+            if (turretLabel != null) turretLabel.SetActive(true);
+            
+            // Find buttons under StartNodePanel (consistent with connection code)
+            if (startPanel != null)
+            {
+                var navBtn = startPanel.transform.Find("StartNavButton");
+                if (navBtn != null) navBtn.gameObject.SetActive(false);
+                
+                var turretBtn = startPanel.transform.Find("StartTurretButton");
+                if (turretBtn != null) turretBtn.gameObject.SetActive(true);
+            }
+        }
+
+        // Load nodes and connections
+        LoadNodesFromAsset(asset, content, startPanel);
+        LoadConnectionsFromAsset(asset, content, startPanel);
+        
+        loadPanel.SetActive(false);
+    }
+#endif
+    }
+    
+    void LoadNodesFromAsset(AiTreeAsset asset, GameObject content, GameObject startPanel)
+    {
+        // --- NodeId-based mapping ---
+        var nodeIdToGameObject = new Dictionary<string, GameObject>();
+        // --- Handle StartNodePanel and all nodes ---
+        // --- Handle StartNodePanel and all nodes ---
+        foreach (var nodeData in asset.nodes)
+        {
+            GameObject nodeGO = null;            if ((nodeData.nodeType == "Start" || nodeData.nodeLabel == asset.TreeName) && startPanel != null)
+            {
+                // Update StartNodePanel label and position
+                // NEW: Set filename in FileButtonPanel using TitleName component
+                SetCurrentTreeName(asset.TreeName);
+                
+                var rect = startPanel.GetComponent<RectTransform>();
+                rect.anchoredPosition = nodeData.position;
+                var title = startPanel.GetComponentInChildren<TitleName>();
+                if (title != null)
+                    title.SetTitle(nodeData.nodeLabel);                // Set nodeId if possible
+                var nd = startPanel.GetComponent<NodeDraggable>();
+                if (nd != null) nd.nodeId = nodeData.nodeId;
+                // Set TMP_Text child named "Text" to node label
+                var textChild = startPanel.transform.Find("Text");
+                if (textChild != null)
+                {
+                    var tmp = textChild.GetComponent<TMPro.TMP_Text>();
+                    if (tmp != null)
+                        tmp.text = nodeData.nodeLabel;
+                }
+                nodeGO = startPanel;
+            }
+            else
+            {
+                // Instantiate other nodes based on type
+                if (nodeData.nodeType.StartsWith("EndNode"))
+                {
+                    nodeGO = Instantiate(EndNodePrefab, content.transform);
+                }
+                else if (nodeData.nodeType.StartsWith("MiddleNode"))
+                {
+                    nodeGO = Instantiate(MiddleNodePrefab, content.transform);
+                }
+                else if (nodeData.nodeType.StartsWith("SubAINode"))
+                {
+                    nodeGO = Instantiate(SubAINodePrefab, content.transform);
+                }                
+                else
+                {
+                    // Fallback: use EndNodePrefab
+                    nodeGO = Instantiate(EndNodePrefab, content.transform);
+                }
+                var rect = nodeGO.GetComponent<RectTransform>();
+                rect.anchoredPosition = nodeData.position;
+                var title = nodeGO.GetComponentInChildren<TitleName>();
+                if (title != null)
+                    title.SetTitle(nodeData.nodeLabel);
+                // Also set TMP_Text directly if present (for action nodes)
+                var labelText = nodeGO.GetComponentInChildren<TMPro.TMP_Text>();
+                if (labelText != null)
+                    labelText.text = nodeData.nodeLabel;
+                // Set nodeId
+                var nd = nodeGO.GetComponent<NodeDraggable>();
+                if (nd != null) nd.nodeId = nodeData.nodeId;
+                // Set TMP_Text child named "Text" to node label
+                var textChild = nodeGO.transform.Find("Text");
+                if (textChild != null)
+                {
+                    var tmp = textChild.GetComponent<TMPro.TMP_Text>();
+                    if (tmp != null)
+                        tmp.text = nodeData.nodeLabel;                }
+                
+                // Setup click handler for nodes that can have numbers
+                if (CanNodeHaveNumber(nodeData.nodeLabel))
+                {
+                    SetupNodeClickHandler(nodeGO);
+                }
+                
+                // Hide NumberInputButton if it exists (we use the new system now)
+                var numberInputButton = nodeGO.transform.Find("NumberInputButton");
+                if (numberInputButton != null)
+                {
+                    numberInputButton.gameObject.SetActive(false);
+                }
+            }
+              
+            // Setup InlineNumberInput component for nodes that need it
+            if (CanNodeHaveNumber(nodeData.nodeLabel) && nodeGO != null)
+            {
+                var inlineNumberInput = nodeGO.GetComponent<InlineNumberInput>();
+                if (inlineNumberInput == null)
+                {
+                    inlineNumberInput = nodeGO.AddComponent<InlineNumberInput>();
+                }
+                
+                inlineNumberInput.SetTemplate(nodeData.nodeLabel);
+                  
+                // Find the corresponding executable node and set the numeric value
+                var executableNode = asset.executableNodes.Find(n => n.nodeId == nodeData.nodeId);
+                if (executableNode != null)
+                {
+                    // Always set the value from the save file, even if it's 0
+                            string valueToSet = executableNode.numericValue.ToString();
+                            inlineNumberInput.SetCurrentNumber(valueToSet);
+                            
+                            // Ensure the value sticks by setting it again after a frame delay
+                            StartCoroutine(VerifyNumberDisplayAfterDelay(inlineNumberInput, valueToSet, nodeData.nodeLabel));
+                        }
+                    }
+                }
+            }
+            
+            // Register in map
+            if (!string.IsNullOrEmpty(nodeData.nodeId) && nodeGO != null)
+                nodeIdToGameObject[nodeData.nodeId] = nodeGO;
+        }
+    }
+    
+    void LoadConnectionsFromAsset(AiTreeAsset asset, GameObject content, GameObject startPanel)
+    {
+        // --- Create nodeId mapping for connections ---
+        var nodeIdToGameObject = new Dictionary<string, GameObject>();
+        
+        // Add StartNodePanel to mapping
+        if (startPanel != null)
+        {
+            var startDraggable = startPanel.GetComponent<NodeDraggable>();
+            if (startDraggable != null && !string.IsNullOrEmpty(startDraggable.nodeId))
+            {
+                nodeIdToGameObject[startDraggable.nodeId] = startPanel;
+            }
+        }
+        
+        // Add all other nodes to mapping
+        var nodeDraggables = content.GetComponentsInChildren<NodeDraggable>();
+        foreach (var node in nodeDraggables)
+        {
+            if (!string.IsNullOrEmpty(node.nodeId) && node.gameObject != startPanel)
+            {
+                nodeIdToGameObject[node.nodeId] = node.gameObject;
+            }
+        }
+        
+        // --- Recreate connections using nodeId mapping ---
+        foreach (var conn in asset.connections)
+        {
+            // Special handling for StartNavButton/StartTurretButton as origin
+            GameObject fromNode = null;
+            Button outputButton = null;            
+            
+            if (conn.fromNodeId == "StartNavButton")
+            {
+                if (startPanel != null)
+                {
+                    var navBtn = startPanel.transform.Find("StartNavButton");
+                    if (navBtn != null && navBtn.gameObject.activeSelf)
+                        outputButton = navBtn.GetComponent<Button>();
+                }
+                fromNode = startPanel;
+            }
+            else if (conn.fromNodeId == "StartTurretButton")
+            {
+                if (startPanel != null)
+                {
+                    var turretBtn = startPanel.transform.Find("StartTurretButton");
+                    if (turretBtn != null && turretBtn.gameObject.activeSelf)
+                        outputButton = turretBtn.GetComponent<Button>();
+                }
+                fromNode = startPanel;
+            }
+            else if (!string.IsNullOrEmpty(conn.fromNodeId) && nodeIdToGameObject.ContainsKey(conn.fromNodeId))
+            {
+                fromNode = nodeIdToGameObject[conn.fromNodeId];
+            }
+            
+            if (string.IsNullOrEmpty(conn.toNodeId) || !nodeIdToGameObject.ContainsKey(conn.toNodeId)) continue;
+            var toNode = nodeIdToGameObject[conn.toNodeId];
+            
+            // Find input port/button
+            Button inputButton = null;
+            foreach (var btn in toNode.GetComponentsInChildren<Button>())
+                if (btn.CompareTag("InputPort")) { inputButton = btn; break; }
+            
+            // For non-origin, find output port/button
+            if (outputButton == null && fromNode != null)
+            {
+                if (conn.fromPortId == "NavOrigin" || conn.fromPortId == "TurretOrigin")
+                {
+                    foreach (var btn in fromNode.GetComponentsInChildren<Button>())
+                        if (btn.CompareTag(conn.fromPortId)) { outputButton = btn; break; }
+                }
+                else
+                {
+                    foreach (var btn in fromNode.GetComponentsInChildren<Button>())
+                        if (btn.CompareTag("OutputPort")) { outputButton = btn; break; }
+                }
+            }
+            
+            if (outputButton == null || inputButton == null) continue;
+            
+            // Instantiate line using UILinePrefab
+            var lineGO = Instantiate(UILinePrefab, content.transform);
+            var lineRect = lineGO.GetComponent<RectTransform>();
+            
+            // Set up UILineConnector
+            var connector = lineGO.GetComponent<UILineConnector>();
+            if (connector == null) connector = lineGO.AddComponent<UILineConnector>();
+            connector.outputRect = outputButton.GetComponent<RectTransform>();
+            connector.inputRect = inputButton.GetComponent<RectTransform>();
+            connector.canvas = content.GetComponentInParent<Canvas>();
+            connector.UpdateLine();
+            
+            // Add click-to-delete functionality
+            if (lineGO.GetComponent<UILineClickDeleter>() == null)
+                lineGO.AddComponent<UILineClickDeleter>();
+            
+            // Register with NodeDraggable for drag updates
+            var fromDraggable = fromNode != null ? fromNode.GetComponent<NodeDraggable>() : null;
+            var toDraggable = toNode.GetComponent<NodeDraggable>();            
+            if (fromDraggable != null) fromDraggable.RegisterConnectedLine(connector);
+            if (toDraggable != null) toDraggable.RegisterConnectedLine(connector);        
+        }
+    }
+#endif
+        loadPanel.SetActive(false);
+    }
+
+    /// <summary>
+    /// Generates execution data from the visual node graph for AI runtime execution
+    /// </summary>
+    private void GenerateExecutionData(AiEditor.AiTreeAsset asset, List<AiEditor.AiNodeData> nodeList, List<AiEditor.AiConnectionData> connectionList)
+    {
+        asset.executableNodes.Clear();
+        
+        // Find the start node ID (either StartNavButton or StartTurretButton connections)
+        asset.startNodeId = null;
+        foreach (var conn in connectionList)
+        {
+            if (conn.fromNodeId == "StartNavButton" || conn.fromNodeId == "StartTurretButton")
+            {
+                asset.startNodeId = conn.toNodeId;
+                break;
+            }
+        }
+          // Convert each node to executable format
+        foreach (var nodeData in nodeList)
+        {
+            float numericValue = 0f;
+            string methodName = AiEditor.AiMethodConverter.ConvertToMethodName(nodeData.nodeLabel, out numericValue);
+            
+            // Determine node type - check GameObject name first, then label content
+            AiEditor.AiNodeType nodeType;
+            if (nodeData.nodeType.Contains("SubAINode"))
+            {
+                nodeType = AiEditor.AiNodeType.SubAI;
+            }
+            else
+            {
+                nodeType = AiEditor.AiMethodConverter.DetermineNodeType(nodeData.nodeLabel);
+            }
+            
+            // Check if this node has an InlineNumberInput component - extract the actual number
+            var nodeGameObject = FindNodeGameObjectById(nodeData.nodeId);
+            if (nodeGameObject != null)
+            {
+                var inlineNumberInput = nodeGameObject.GetComponent<InlineNumberInput>();
+                if (inlineNumberInput != null)
+                {
+                    string currentNumberStr = inlineNumberInput.GetCurrentNumber();
+                    if (float.TryParse(currentNumberStr, out float parsedNumber))
+                    {
+                        numericValue = parsedNumber;
+                    }
+                }
+            }
+            
+            var executableNode = new AiEditor.AiExecutableNode
+            {
+                nodeId = nodeData.nodeId,
+                methodName = methodName,
+                originalLabel = nodeData.nodeLabel,
+                nodeType = nodeType,
+                numericValue = numericValue,
+                position = nodeData.position,
+                connectedNodeIds = new List<string>()
+            };
+            
+            // Find all nodes this one connects to
+            foreach (var conn in connectionList)
+            {
+                if (conn.fromNodeId == nodeData.nodeId)
+                {
+                    executableNode.connectedNodeIds.Add(conn.toNodeId);
+                }
+            }
+            
+            // Sort connected nodes by Y-position for priority handling
+            executableNode.connectedNodeIds.Sort((id1, id2) => {
+                var node1 = nodeList.Find(n => n.nodeId == id1);
+                var node2 = nodeList.Find(n => n.nodeId == id2);
+                if (node1 == null || node2 == null) return 0;
+                return node1.position.y.CompareTo(node2.position.y); // Higher Y = higher priority
+            });
+            
+            asset.executableNodes.Add(executableNode);
+        }
+    }
+    
+    /// <summary>
+    /// Helper method to find a node GameObject by its nodeId
+    /// </summary>
+    private GameObject FindNodeGameObjectById(string nodeId)
+    {
+        var content = GameObject.Find("Content");
+        if (content == null) return null;
+        
+        var nodeDraggables = content.GetComponentsInChildren<NodeDraggable>();
+        foreach (var node in nodeDraggables)
+        {
+            if (node.nodeId == nodeId)
+                return node.gameObject;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Verifies that the number input displays the correct value after a delay
+    /// This ensures the value persists after Unity's initialization
+    /// </summary>
+    private System.Collections.IEnumerator VerifyNumberDisplayAfterDelay(InlineNumberInput input, string expectedValue, string nodeLabel)
+    {
+        yield return new WaitForEndOfFrame();
+        yield return new WaitForEndOfFrame(); // Wait two frames to be sure
+        
+        if (input != null)
+        {
+            string currentValue = input.GetCurrentNumber();
+            if (currentValue != expectedValue)
+            {
+                input.SetCurrentNumber(expectedValue);
+            }
+        }
+    }
+
+    // Helper to keep FileName field and FileButtonPanel in sync
+    void SyncAllTreeNameFields(string treeName)
+    {
+        // Update FileNameText at UICanvas>Background>FileButtonPanel>FileNameText (primary display)
+        SetCurrentTreeName(treeName);
+        
+        // Update FileName field (legacy/backup) - if it exists in inspector
+        if (FileName != null)
+        {
+            FileName.text = treeName;
+        }
+    }
+
+    /// <summary>
+    /// Determines if a node should show the number input button
+    /// Only condition nodes with numeric comparisons and # placeholder should show it
+    /// </summary>
+    private bool ShouldShowNumberInput(string nodeLabel)
+    {
+        if (string.IsNullOrEmpty(nodeLabel) || !nodeLabel.Contains("#"))
+            return false;
+            
+        string cleanLabel = nodeLabel.Trim().ToLower();
+        
+        // Must be a condition node (starts with "if")
+        if (!cleanLabel.StartsWith("if"))
+            return false;
+            
+        // Must contain numeric comparison operators
+        if (cleanLabel.Contains(">") || cleanLabel.Contains("<") || 
+            cleanLabel.Contains(">=") || cleanLabel.Contains("<=") || 
+            cleanLabel.Contains("=") || cleanLabel.Contains("=="))
+        {
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /// <summary>
+    /// Checks if a node type can have numeric values based on predefined list
+    /// </summary>
+    private bool CanNodeHaveNumber(string nodeLabel)
+    {
+        if (string.IsNullOrEmpty(nodeLabel))
+            return false;
+            
+        string cleanLabel = nodeLabel.Trim().ToLower();
+        
+        foreach (string nodeType in numericNodeTypes)
+        {
+            if (cleanLabel.Contains(nodeType.ToLower()))
+                return true;
+        }
+        
+        return false;
+    }
+    
+    /// <summary>
+    /// Called when a node is clicked - shows the global number input if applicable
+    /// </summary>
+    public void OnNodeClicked(GameObject nodeGO)
+    {
+        // Hide any currently active number input
+        HideGlobalNumberInput();
+        
+        if (nodeGO == null) return;
+        
+        // Get the node label
+        string nodeLabel = GetNodeLabel(nodeGO);
+        
+        // Check if this node can have a number
+        if (!CanNodeHaveNumber(nodeLabel))
+            return;
+            
+        // Get or create InlineNumberInput component
+        var inlineNumberInput = nodeGO.GetComponent<InlineNumberInput>();
+        if (inlineNumberInput == null)
+        {
+            inlineNumberInput = nodeGO.AddComponent<InlineNumberInput>();
+            inlineNumberInput.SetTemplate(nodeLabel);
+        }
+        
+        currentSelectedNode = nodeGO;
+        currentNodeNumberInput = inlineNumberInput;
+        
+        ShowGlobalNumberInput(nodeGO, inlineNumberInput);
+    }
+    
+    /// <summary>
+    /// Shows the global number input field positioned over the selected node
+    /// </summary>
+    private void ShowGlobalNumberInput(GameObject nodeGO, InlineNumberInput numberInput)
+    {
+        if (globalNumberInputField == null || nodeGO == null || numberInput == null)
+            return;
+            
+        // Position the input field over the node
+        var nodeRect = nodeGO.GetComponent<RectTransform>();
+        var inputRect = globalNumberInputField.GetComponent<RectTransform>();
+        
+        if (nodeRect != null && inputRect != null)
+        {
+            // Convert node position to input field's parent coordinate system
+            Vector3 worldPos = nodeRect.TransformPoint(Vector3.zero);
+            Vector3 localPos = inputRect.parent.InverseTransformPoint(worldPos);
+            inputRect.anchoredPosition = new Vector2(localPos.x, localPos.y);
+        }
+        
+        // Set the current number in the input field
+        string currentNumber = numberInput.GetCurrentNumber();
+        globalNumberInputField.text = currentNumber;
+        
+        // Show and focus the input field
+        globalNumberInputField.gameObject.SetActive(true);
+        globalNumberInputField.Select();
+        globalNumberInputField.ActivateInputField();
+    }
+    
+    /// <summary>
+    /// Hides the global number input field
+    /// </summary>
+    private void HideGlobalNumberInput()
+    {
+        if (globalNumberInputField != null)
+        {
+            globalNumberInputField.gameObject.SetActive(false);
+        }
+        
+        currentSelectedNode = null;
+        currentNodeNumberInput = null;
+    }
+    
+    /// <summary>
+    /// Called when editing the global number input field is finished
+    /// </summary>
+    private void OnGlobalNumberInputEndEdit(string newText)
+    {
+        if (currentNodeNumberInput != null)
+        {
+            // Validate the input is a valid number
+            float result;
+            if (!string.IsNullOrEmpty(newText) && float.TryParse(newText, out result))
+            {
+                currentNodeNumberInput.SetCurrentNumber(newText);
+                UpdateNodeLabelWithNumber(currentSelectedNode, newText);
+            }
+            else
+            {
+                Debug.Log("Invalid number input, keeping previous value");
+            }
+        }
+        
+        HideGlobalNumberInput();
+    }
+    
+    /// <summary>
+    /// Updates the node's visual label to include the number
+    /// </summary>
+    private void UpdateNodeLabelWithNumber(GameObject nodeGO, string number)
+    {
+        if (nodeGO == null) return;
+        
+        string originalLabel = GetNodeLabel(nodeGO);
+        string newLabel = ReplaceNumberInLabel(originalLabel, number);
+        SetNodeLabel(nodeGO, newLabel);
+    }
+    
+    /// <summary>
+    /// Gets the current label of a node
+    /// </summary>
+    private string GetNodeLabel(GameObject nodeGO)
+    {
+        if (nodeGO == null) return "";
+        
+        // Try to get from TitleName component
+        var title = nodeGO.GetComponentInChildren<TitleName>();
+        if (title != null)
+            return title.GetTitle();
+            
+        // Try to get from TMP_Text component
+        var labelText = nodeGO.GetComponentInChildren<TMPro.TMP_Text>();
+        if (labelText != null)
+            return labelText.text;
+            
+        // Try to get from child named "Text"
+        var textChild = nodeGO.transform.Find("Text");
+        if (textChild != null)
+        {
+            var tmp = textChild.GetComponent<TMPro.TMP_Text>();
+            if (tmp != null)
+                return tmp.text;
+        }
+        
+        return "";
+    }
+    
+    /// <summary>
+    /// Sets the label of a node
+    /// </summary>
+    private void SetNodeLabel(GameObject nodeGO, string newLabel)
+    {
+        if (nodeGO == null) return;
+        
+        // Update TitleName component
+        var title = nodeGO.GetComponentInChildren<TitleName>();
+        if (title != null)
+            title.SetTitle(newLabel);
+            
+        // Update TMP_Text component
+        var labelText = nodeGO.GetComponentInChildren<TMPro.TMP_Text>();
+        if (labelText != null)
+            labelText.text = newLabel;
+            
+        // Update child named "Text"
+        var textChild = nodeGO.transform.Find("Text");
+        if (textChild != null)
+        {
+            var tmp = textChild.GetComponent<TMPro.TMP_Text>();
+            if (tmp != null)
+                tmp.text = newLabel;
+        }
+    }
+    
+    /// <summary>
+    /// Replaces # or existing number in a label with a new number
+    /// </summary>
+    private string ReplaceNumberInLabel(string label, string number)
+    {
+        if (string.IsNullOrEmpty(label))
+            return number;
+            
+        // If label contains #, replace it with the number
+        if (label.Contains("#"))
+        {
+            return label.Replace("#", number);
+        }
+        
+        // If label already has a number, replace it
+        // Look for patterns like "HP > 50%" or "Range < 10"
+        string result = System.Text.RegularExpressions.Regex.Replace(
+            label, 
+            @"\d+(?:\.\d+)?", 
+            number, 
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase
+        );
+        
+        // If no number was found to replace, add it to the end
+        if (result == label)
+        {
+            result = label + " " + number;
+        }
+        
+        return result;
+    }
+    
+    /// <summary>
+    /// Sets up a click handler for a node that can have numeric input
+    /// </summary>
+    private void SetupNodeClickHandler(GameObject nodeGO)
+    {
+        if (nodeGO == null) return;
+        
+        // Add a Button component if it doesn't exist
+        var button = nodeGO.GetComponent<Button>();
+        if (button == null)
+        {
+            button = nodeGO.AddComponent<Button>();
+        }
+        
+        // Add click listener
+        button.onClick.RemoveAllListeners(); // Clear existing listeners to avoid duplicates
+        button.onClick.AddListener(() => OnNodeClicked(nodeGO));
+        
+        // Make sure the button is interactable
+        button.interactable = true;
+    }
+    
+    void Update()
+    {
+        // Hide global number input if user clicks elsewhere or presses Escape
+        if (globalNumberInputField != null && globalNumberInputField.gameObject.activeInHierarchy)
+        {
+            if (Input.GetKeyDown(KeyCode.Escape) || 
+                (Input.GetMouseButtonDown(0) && !IsMouseOverInput()))
+            {
+                HideGlobalNumberInput();
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Checks if the mouse is over the global input field
+    /// </summary>
+    private bool IsMouseOverInput()
+    {
+        if (globalNumberInputField == null) return false;
+        
+        var inputRect = globalNumberInputField.GetComponent<RectTransform>();
+        if (inputRect == null) return false;
+        
+        Vector2 localMousePosition = inputRect.InverseTransformPoint(Input.mousePosition);
+        return inputRect.rect.Contains(localMousePosition);
+    }
+}

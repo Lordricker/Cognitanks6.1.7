@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 905e2e8ea32ce3148ab3e71d3bf8d1f5, type: 3}
+  m_Name: Rifle
+  m_EditorClassIdentifier: 
+  title: Rifle
+  description: Standard Issue Firearm, Click-Clack-Boom
+  cost: 1000
+  weight: 5
+  modelPrefab: {fileID: 3704434931606161932, guid: dc7582a3f117593469e8d4f4f5624cac, type: 3}
+  category: 0
+  instanceId: 
+  customColor: {r: 1, g: 1, b: 1, a: 1}
+  turretType: 0
+  damage: 10
+  range: 100
+  shotspersec: 1
+  bulletSpeed: 150
+  knockback: Low
+  visionRange: 100
+  visionCone: 45
