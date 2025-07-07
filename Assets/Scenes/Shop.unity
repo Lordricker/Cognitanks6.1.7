@@ -7593,7 +7593,7 @@ PrefabInstance:
       objectReference: {fileID: 11400000, guid: c28b34c0f1ff0cf459f1b89bcc614f78, type: 2}
     - target: {fileID: 406787803395905127, guid: e05a6d67d01ecd74bb28345cf4eb23fc, type: 3}
       propertyPath: slotIndex
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 406787803395905127, guid: e05a6d67d01ecd74bb28345cf4eb23fc, type: 3}
       propertyPath: backgroundImage
@@ -8441,7 +8441,7 @@ MonoBehaviour:
   armorShopComponents:
   - {fileID: 11400000, guid: 9076562c2ed92614c821e258411b85c0, type: 2}
   turretAIShopComponents:
-  - {fileID: 11400000, guid: a60cf4957b6e06c4b99ff27b50b2bdf1, type: 2}
+  - {fileID: 0}
   navAIShopComponents:
   - {fileID: 0}
   aiTreeShopComponents: []
@@ -12787,7 +12787,7 @@ PrefabInstance:
       objectReference: {fileID: 11400000, guid: c28b34c0f1ff0cf459f1b89bcc614f78, type: 2}
     - target: {fileID: 406787803395905127, guid: e05a6d67d01ecd74bb28345cf4eb23fc, type: 3}
       propertyPath: slotIndex
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 406787803395905127, guid: e05a6d67d01ecd74bb28345cf4eb23fc, type: 3}
       propertyPath: backgroundImage

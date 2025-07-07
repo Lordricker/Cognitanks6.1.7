@@ -52,8 +52,6 @@ public class TankHPBar : MonoBehaviour
         canvasRect.localScale = Vector3.one * 0.1f; // Adjusted scale
         canvasRect.localRotation = Quaternion.identity;
         
-        Debug.Log($"[TankHPBar] Created HP bar for {gameObject.name} at position {canvasRect.localPosition}");
-        
         // Create border (white outline) - FIRST (back layer)
         GameObject borderGO = new GameObject("Border");
         borderGO.transform.SetParent(canvasGO.transform, false);
@@ -103,9 +101,6 @@ public class TankHPBar : MonoBehaviour
         borderGO.transform.SetSiblingIndex(0);     // Back
         backgroundGO.transform.SetSiblingIndex(1); // Middle  
         fillGO.transform.SetSiblingIndex(2);       // Front
-        
-        Debug.Log($"[TankHPBar] HP bar components created - Background: {hpBarBackground != null}, Fill: {hpBarFill != null}");
-        Debug.Log($"[TankHPBar] Layer order: Border(0), Background(1), Fill(2)");
     }
     
     void Update()
@@ -128,18 +123,6 @@ public class TankHPBar : MonoBehaviour
             
             // Set the anchorMax.x to control the width (0 = no width, 1 = full width)
             fillRect.anchorMax = new Vector2(healthPercent, 1);
-            
-            // Debug logging every few seconds - MORE DETAILED
-            if (Time.time % 3f < 0.1f) // Log roughly every 3 seconds
-            {
-                Debug.Log($"[TankHPBar] *** {targetTank.name} HP DEBUG *** Current: {targetTank.CurrentHealth}, Total: {targetTank.TotalHP}, Percent: {healthPercent:F2}, AnchorMax: {fillRect.anchorMax.x:F2}");
-                
-                // Check if health is actually changing
-                if (targetTank.CurrentHealth < targetTank.TotalHP)
-                {
-                    Debug.Log($"[TankHPBar] *** {targetTank.name} IS DAMAGED! *** Should show red background now!");
-                }
-            }
         }
         
         // Make HP bar face the camera

@@ -213,14 +213,31 @@ public class TankSlotDataConverter : MonoBehaviour
         if (tankSlotData == null) return;
         
         string jsonFolder = GetTankSlotJsonFolder();
+        
+        // Ensure the folder exists
         if (!Directory.Exists(jsonFolder))
         {
             Directory.CreateDirectory(jsonFolder);
+            Debug.Log($"[TankSlotDataConverter] Created tank slot JSON folder: {jsonFolder}");
         }
         
-        string filePath = Path.Combine(jsonFolder, $"{tankSlotData.slotName}.json");
+        // Use slotIndex to generate consistent filenames
+        string fileName = !string.IsNullOrEmpty(tankSlotData.slotName) 
+            ? $"{tankSlotData.slotName}.json" 
+            : $"TankSlot {tankSlotData.slotIndex}.json";
+            
+        string filePath = Path.Combine(jsonFolder, fileName);
         string jsonContent = JsonUtility.ToJson(tankSlotData, true);
-        File.WriteAllText(filePath, jsonContent);
+        
+        try
+        {
+            File.WriteAllText(filePath, jsonContent);
+            Debug.Log($"[TankSlotDataConverter] Saved tank slot {tankSlotData.slotIndex} to: {filePath}");
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"[TankSlotDataConverter] Failed to save tank slot JSON: {ex.Message}");
+        }
     }
     
     /// <summary>

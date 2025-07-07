@@ -11,12 +11,22 @@ public class ActiveSlotButtonUI : MonoBehaviour
     void Start()
     {
         if (button == null) button = GetComponent<Button>();
-        // Sync isActive with the ScriptableObject's isActive value
-        if (slotButtonUI != null && slotButtonUI.slotData != null)
+        
+        // Sync isActive with the JSON data's isActive value
+        if (slotButtonUI != null)
         {
-            isActive = slotButtonUI.slotData.isActive;
-            UpdateColor();
+            var tankSlotJsonManager = FindFirstObjectByType<TankSlotJsonManager>();
+            if (tankSlotJsonManager != null)
+            {
+                var slotData = tankSlotJsonManager.GetTankSlot(slotButtonUI.slotIndex);
+                if (slotData != null)
+                {
+                    isActive = slotData.isActive;
+                    UpdateColor();
+                }
+            }
         }
+        
         button.onClick.AddListener(ToggleActive);
         UpdateColor();
     }
@@ -44,7 +54,7 @@ public class ActiveSlotButtonUI : MonoBehaviour
     {
         isActive = value;
         UpdateColor();
-        // Update the ScriptableObject's isActive field when called externally
+        // Update the JSON data's isActive field when called externally
         if (slotButtonUI != null)
             slotButtonUI.SetActive(isActive);
     }

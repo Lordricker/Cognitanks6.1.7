@@ -5,15 +5,27 @@ using AiEditor;
 
 /// <summary>
 /// Manager class for handling tank slot configurations in JSON format
-/// This replaces ScriptableObject-based tank slot data for builds where SOs cannot be modified
+/// All tank slot data is stored as JSON files in the persistent data path (AppData)
 /// </summary>
 public class TankSlotJsonManager : MonoBehaviour
 {
-    [Header("Tank Slot Configuration")]
-    public bool useJsonTankSlots = true;
+    public static TankSlotJsonManager Instance { get; private set; }
     
     private List<TankSlotDataJson> tankSlots = new List<TankSlotDataJson>();
     private bool isInitialized = false;
+    
+    void Awake()
+    {
+        if (Instance == null)
+        {
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
+    }
     
     /// <summary>
     /// Initialize the manager and load tank slot data from JSON
@@ -28,16 +40,36 @@ public class TankSlotJsonManager : MonoBehaviour
     /// </summary>
     public void InitializeTankSlots()
     {
-        if (isInitialized) return;
-        
-        if (useJsonTankSlots)
+        if (isInitialized) 
         {
-            tankSlots = TankSlotDataConverter.LoadAllTankSlotsFromJson();
-            Debug.Log($"[TankSlotJsonManager] Loaded {tankSlots.Count} tank slots from JSON");
+            Debug.Log("[TankSlotJsonManager] Already initialized, skipping");
+            return;
+        }
+        
+        Debug.Log("[TankSlotJsonManager] Starting initialization...");
+        
+        tankSlots = LoadAllTankSlotsFromJson();
+        
+        Debug.Log($"[TankSlotJsonManager] Loaded {tankSlots.Count} tank slots from JSON files");
+        
+        // If no tank slots were loaded, create default ones (0-9)
+        if (tankSlots.Count == 0)
+        {
+            Debug.Log("[TankSlotJsonManager] No tank slots found, creating default slots 0-9");
+            CreateDefaultTankSlots();
         }
         else
         {
-            Debug.Log("[TankSlotJsonManager] Using ScriptableObject tank slots (editor only)");
+            // Ensure we have all 10 slots (0-9) - fill in any missing ones
+            EnsureAllSlotsExist();
+        }
+        
+        Debug.Log($"[TankSlotJsonManager] Initialization complete with {tankSlots.Count} tank slots");
+        
+        // Print summary for debugging
+        foreach (var slot in tankSlots)
+        {
+            Debug.Log($"[TankSlotJsonManager] Slot {slot.slotIndex}: isActive={slot.isActive}, hasEngine={!string.IsNullOrEmpty(slot.engineFrameInstanceId)}, name='{slot.displayName}'");
         }
         
         isInitialized = true;
@@ -50,9 +82,23 @@ public class TankSlotJsonManager : MonoBehaviour
     {
         if (!isInitialized) InitializeTankSlots();
         
-        if (slotIndex < 0 || slotIndex >= tankSlots.Count) return null;
+        // Valid slot indices are 0-9
+        if (slotIndex < 0 || slotIndex > 9) 
+        {
+            Debug.LogWarning($"[TankSlotJsonManager] Invalid slot index: {slotIndex}. Valid range is 0-9.");
+            return null;
+        }
         
-        return tankSlots.Find(slot => slot.slotIndex == slotIndex);
+        var slot = tankSlots.Find(slot => slot.slotIndex == slotIndex);
+        if (slot == null)
+        {
+            Debug.LogWarning($"[TankSlotJsonManager] Tank slot {slotIndex} not found! Creating default slot.");
+            // Create the missing slot if it doesn't exist
+            EnsureAllSlotsExist();
+            slot = tankSlots.Find(slot => slot.slotIndex == slotIndex);
+        }
+        
+        return slot;
     }
     
     /// <summary>
@@ -79,7 +125,7 @@ public class TankSlotJsonManager : MonoBehaviour
         }
         
         // Save to JSON file
-        TankSlotDataConverter.SaveTankSlotToJson(updatedSlot);
+        SaveTankSlotToJson(updatedSlot);
         
         Debug.Log($"[TankSlotJsonManager] Updated tank slot {slotIndex}");
     }
@@ -105,12 +151,15 @@ public class TankSlotJsonManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Convert ScriptableObject TankSlotData to JSON format (for migration)
+    /// Get all tank slots (both active and inactive)
     /// </summary>
-    public TankSlotDataJson ConvertScriptableObjectToJson(TankSlotData soData, int slotIndex)
+    public List<TankSlotDataJson> GetAllTankSlots()
     {
-        return TankSlotDataConverter.ConvertToJson(soData, $"TankSlot {slotIndex}", slotIndex);
+        if (!isInitialized) InitializeTankSlots();
+        
+        return tankSlots;
     }
+
     
     /// <summary>
     /// Assign an AI component to a tank slot
@@ -199,5 +248,220 @@ public class TankSlotJsonManager : MonoBehaviour
             Debug.Log($"  Slot {slot.slotIndex}: {(slot.isActive ? "ACTIVE" : "inactive")} " +
                      $"Team {slot.teamId} {aiInfo}");
         }
+    }
+    
+    /// <summary>
+    /// Creates default tank slots (0-9) with basic configuration
+    /// </summary>
+    private void CreateDefaultTankSlots()
+    {
+        for (int i = 0; i < 10; i++)
+        {
+            var defaultSlot = new TankSlotDataJson
+            {
+                slotIndex = i,
+                slotName = $"TankSlot {i}",
+                displayName = $"Tank {i}",
+                isActive = (i == 0), // Make first tank slot active by default for testing
+                teamId = 0,
+                isPlayerControlled = true,
+                
+                // Initialize empty component assignments
+                engineFramePrefabGuid = "",
+                engineFrameInstanceId = (i == 0) ? "test_engine_frame" : "", // Give first tank a test engine for testing
+                armorPrefabGuid = "",
+                armorInstanceId = (i == 0) ? "test_armor" : "", // Give first tank test armor for testing
+                turretPrefabGuid = "",
+                turretInstanceId = (i == 0) ? "test_turret" : "", // Give first tank test turret for testing
+                turretAIInstanceId = "",
+                navAIInstanceId = "",
+                
+                // Initialize default colors (white)
+                engineFrameColor = new ColorJson(1f, 1f, 1f, 1f),
+                armorColor = new ColorJson(1f, 1f, 1f, 1f),
+                turretColor = new ColorJson(1f, 1f, 1f, 1f),
+                
+                // Initialize default stats - give test values to first tank
+                totalWeight = (i == 0) ? 100f : 0f,
+                engineWeightCapacity = (i == 0) ? 200 : 0,
+                enginePower = (i == 0) ? 150 : 0,
+                armorHP = (i == 0) ? 100 : 0,
+                turretDamage = (i == 0) ? 25 : 0,
+                turretRange = (i == 0) ? 50f : 0f,
+                turretShotsPerSec = (i == 0) ? 1f : 0f,
+                turretKnockback = (i == 0) ? "Medium" : "",
+                turretVisionRange = (i == 0) ? 60f : 60f,
+                turretVisionCone = (i == 0) ? 45f : 45f
+            };
+            
+            tankSlots.Add(defaultSlot);
+            SaveTankSlotToJson(defaultSlot);
+        }
+        
+        Debug.Log("[TankSlotJsonManager] Created 10 default tank slots (0-9) with Tank 0 active for testing");
+    }
+    
+    /// <summary>
+    /// Ensures that all tank slots 0-9 exist, creating any missing ones
+    /// </summary>
+    private void EnsureAllSlotsExist()
+    {
+        for (int i = 0; i < 10; i++)
+        {
+            if (!tankSlots.Exists(slot => slot.slotIndex == i))
+            {
+                Debug.Log($"[TankSlotJsonManager] Missing tank slot {i}, creating default");
+                
+                var defaultSlot = new TankSlotDataJson
+                {
+                    slotIndex = i,
+                    slotName = $"TankSlot {i}",
+                    isActive = false,
+                    teamId = 0,
+                    
+                    // Initialize empty component assignments
+                    engineFramePrefabGuid = "",
+                    engineFrameInstanceId = "",
+                    armorPrefabGuid = "",
+                    armorInstanceId = "",
+                    turretPrefabGuid = "",
+                    turretInstanceId = "",
+                    turretAIInstanceId = "",
+                    navAIInstanceId = "",
+                    
+                    // Initialize default colors (white)
+                    engineFrameColor = new ColorJson(1f, 1f, 1f, 1f),
+                    armorColor = new ColorJson(1f, 1f, 1f, 1f),
+                    turretColor = new ColorJson(1f, 1f, 1f, 1f),
+                    
+                    // Initialize default stats
+                    totalWeight = 0f,
+                    engineWeightCapacity = 0,
+                    enginePower = 0,
+                    armorHP = 0,
+                    turretDamage = 0,
+                    turretRange = 0f,
+                    turretShotsPerSec = 0f,
+                    turretKnockback = "",
+                    turretVisionRange = 60f,
+                    turretVisionCone = 45f
+                };
+                
+                tankSlots.Add(defaultSlot);
+                SaveTankSlotToJson(defaultSlot);
+            }
+        }
+        
+        // Sort the list to ensure proper ordering
+        tankSlots.Sort((a, b) => a.slotIndex.CompareTo(b.slotIndex));
+    }
+    
+    // ===== JSON FILE OPERATIONS =====
+    
+    /// <summary>
+    /// Gets the folder path where tank slot JSON files are stored (persistent data path)
+    /// </summary>
+    private static string GetTankSlotJsonFolder()
+    {
+        return Path.Combine(Application.persistentDataPath, "TankSlotData");
+    }
+    
+    /// <summary>
+    /// Loads all tank slot configurations from JSON files in persistent data path
+    /// </summary>
+    private static List<TankSlotDataJson> LoadAllTankSlotsFromJson()
+    {
+        var tankSlots = new List<TankSlotDataJson>();
+        string jsonFolder = GetTankSlotJsonFolder();
+        
+        if (!Directory.Exists(jsonFolder))
+        {
+            Debug.LogWarning($"Tank slot JSON folder does not exist: {jsonFolder}");
+            return tankSlots;
+        }
+        
+        string[] jsonFiles = Directory.GetFiles(jsonFolder, "*.json");
+        
+        foreach (string filePath in jsonFiles)
+        {
+            try
+            {
+                string jsonContent = File.ReadAllText(filePath);
+                TankSlotDataJson tankSlotData = JsonUtility.FromJson<TankSlotDataJson>(jsonContent);
+                
+                if (tankSlotData != null)
+                {
+                    tankSlots.Add(tankSlotData);
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"Failed to load tank slot JSON from {filePath}: {ex.Message}");
+            }
+        }
+        
+        // Sort by slot index for consistent ordering
+        tankSlots.Sort((a, b) => a.slotIndex.CompareTo(b.slotIndex));
+        
+        return tankSlots;
+    }
+    
+    /// <summary>
+    /// Saves a tank slot configuration to JSON
+    /// </summary>
+    private static void SaveTankSlotToJson(TankSlotDataJson tankSlotData)
+    {
+        if (tankSlotData == null) return;
+        
+        string jsonFolder = GetTankSlotJsonFolder();
+        
+        // Ensure the folder exists
+        if (!Directory.Exists(jsonFolder))
+        {
+            Directory.CreateDirectory(jsonFolder);
+            Debug.Log($"[TankSlotJsonManager] Created tank slot JSON folder: {jsonFolder}");
+        }
+        
+        // Use slotIndex to generate consistent filenames
+        string fileName = !string.IsNullOrEmpty(tankSlotData.slotName) 
+            ? $"{tankSlotData.slotName}.json" 
+            : $"TankSlot {tankSlotData.slotIndex}.json";
+            
+        string filePath = Path.Combine(jsonFolder, fileName);
+        string jsonContent = JsonUtility.ToJson(tankSlotData, true);
+        
+        try
+        {
+            File.WriteAllText(filePath, jsonContent);
+            Debug.Log($"[TankSlotJsonManager] Saved tank slot {tankSlotData.slotIndex} to: {filePath}");
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"[TankSlotJsonManager] Failed to save tank slot JSON: {ex.Message}");
+        }
+    }
+    
+    /// <summary>
+    /// Loads a specific tank slot configuration by slot index
+    /// </summary>
+    private static TankSlotDataJson LoadTankSlotFromJson(int slotIndex)
+    {
+        string jsonFolder = GetTankSlotJsonFolder();
+        string filePath = Path.Combine(jsonFolder, $"TankSlot {slotIndex}.json");
+        
+        if (File.Exists(filePath))
+        {
+            try
+            {
+                string jsonContent = File.ReadAllText(filePath);
+                return JsonUtility.FromJson<TankSlotDataJson>(jsonContent);
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"Failed to load tank slot {slotIndex} from JSON: {ex.Message}");
+            }
+        }
+        
+        return null;
     }
 }

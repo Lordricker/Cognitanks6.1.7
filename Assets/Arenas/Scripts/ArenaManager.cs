@@ -2,6 +2,8 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using System.Linq;
+using System.IO;
+using System.Collections.Generic;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
@@ -17,7 +19,7 @@ public class ArenaManager : MonoBehaviour
     [Header("Spawn Points")]
     public Transform[] spawnPoints = new Transform[20]; // Increased to support more spawn points
     public GameObject tankPrefab; // Assign modular tank prefab in Inspector
-    public TankSlotData[] tankSlots = new TankSlotData[10]; // Assign ScriptableObjects in Inspector
+    // Player tanks now loaded from JSON via TankSlotJsonManager
     
     [Header("Dynamic Arena Configuration")]
     [Tooltip("Automatically load enemy tanks based on selected arena")]
@@ -28,8 +30,8 @@ public class ArenaManager : MonoBehaviour
     public string currentRound = "Round1";
     
     [Header("Enemy Tank Configuration")]
-    [Tooltip("Pre-configured enemy tanks for singleplayer mode")]
-    public TankSlotData[] enemyTankSlots = new TankSlotData[10]; // Enemy-only tank configurations
+    [Tooltip("Enemy tanks loaded from JSON files in Resources/Workshop/TankSlotData/Enemies/")]
+    private List<TankSlotDataJson> enemyTankSlots = new List<TankSlotDataJson>(); // Enemy-only tank configurations
     [Tooltip("Enemy spawn points (if different from player spawn points)")]
     public Transform[] enemySpawnPoints = new Transform[10];
     [Tooltip("Manually set enemy folder path (overrides dynamic loading)")]
@@ -56,6 +58,17 @@ public class ArenaManager : MonoBehaviour
     
     void Start()
     {
+        // Ensure TankSlotJsonManager is properly initialized before we use it
+        if (TankSlotJsonManager.Instance == null)
+        {
+            Debug.LogError("[ArenaManager] TankSlotJsonManager.Instance is null! Creating new instance...");
+            GameObject managerGO = new GameObject("TankSlotJsonManager");
+            managerGO.AddComponent<TankSlotJsonManager>();
+        }
+        
+        // Force initialization of tank slots
+        TankSlotJsonManager.Instance.InitializeTankSlots();
+        
         // Load game mode configuration from PlayerPrefs (set by TeamConfigUI)
         LoadGameModeSettings();
         
@@ -120,67 +133,62 @@ public class ArenaManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Load enemy tanks specific to the current league and round
+    /// Load enemy tanks specific to the current league and round from Assets folder
     /// </summary>
     void LoadEnemyTanksForCurrentArena()
     {
-#if UNITY_EDITOR
-        // Determine folder path
-        string enemyFolderPath;
-        if (!string.IsNullOrEmpty(manualEnemyFolderPath))
-        {
-            enemyFolderPath = manualEnemyFolderPath;
-        }
-        else
-        {
-            enemyFolderPath = $"Workshop/TankSlotData/Enemies/{currentLeague}/{currentRound}";
-        }
-        
-        string fullPath = $"Assets/{enemyFolderPath}";
+        Debug.Log($"[ArenaManager] Loading enemy tanks for {currentLeague}/{currentRound}");
         
         // Clear existing enemy tanks
-        System.Array.Clear(enemyTankSlots, 0, enemyTankSlots.Length);
+        enemyTankSlots.Clear();
         
-        // Find all TankSlotData assets in the enemy folder
-        string[] guids = AssetDatabase.FindAssets("t:TankSlotData", new[] { fullPath });
+        // Load enemy tanks from Resources using the league/round structure
+        string enemyResourcePath = $"Workshop/TankSlotData/Enemies/{currentLeague}/{currentRound}";
         
-        if (guids.Length == 0)
+        // Try to load all JSON files from the Resources folder
+        TextAsset[] enemyJsonFiles = Resources.LoadAll<TextAsset>(enemyResourcePath);
+        
+        if (enemyJsonFiles.Length == 0)
         {
-            Debug.LogWarning($"[ArenaManager] No enemy tanks found in {fullPath}. Make sure enemy tanks exist for {currentLeague}/{currentRound}");
+            Debug.LogWarning($"[ArenaManager] No enemy tank JSON files found in Resources/{enemyResourcePath}. Make sure enemy tanks exist for {currentLeague}/{currentRound}");
             return;
         }
         
-        System.Collections.Generic.List<TankSlotData> loadedEnemies = new System.Collections.Generic.List<TankSlotData>();
+        List<TankSlotDataJson> loadedEnemies = new List<TankSlotDataJson>();
         
-        foreach (string guid in guids)
+        foreach (TextAsset jsonFile in enemyJsonFiles)
         {
-            string assetPath = AssetDatabase.GUIDToAssetPath(guid);
-            TankSlotData enemyTank = AssetDatabase.LoadAssetAtPath<TankSlotData>(assetPath);
-            
-            if (enemyTank != null && !enemyTank.isPlayerControlled)
+            try
             {
-                // Ensure enemy tank is properly configured
-                enemyTank.isActive = true;
-                enemyTank.teamId = 1; // Enemy team
+                TankSlotDataJson enemyTank = JsonUtility.FromJson<TankSlotDataJson>(jsonFile.text);
                 
-                loadedEnemies.Add(enemyTank);
-                Debug.Log($"[ArenaManager] Loaded enemy tank: {enemyTank.displayName} ({enemyTank.name})");
+                if (enemyTank != null && !enemyTank.isPlayerControlled)
+                {
+                    // Ensure enemy tank is properly configured
+                    enemyTank.isActive = true;
+                    enemyTank.teamId = 1; // Enemy team
+                    
+                    // Extract spawn point name from file name (e.g., "SpawnPoint10" from "SpawnPoint10.json")
+                    string fileName = jsonFile.name;
+                    enemyTank.spawnPointName = fileName; // Store the spawn point name
+                    
+                    loadedEnemies.Add(enemyTank);
+                    Debug.Log($"[ArenaManager] Loaded enemy tank: {enemyTank.displayName} from {fileName}.json with spawn point {enemyTank.spawnPointName}");
+                }
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[ArenaManager] Failed to load enemy tank from {jsonFile.name}: {e.Message}");
             }
         }
         
-        // Sort enemies by name for consistent ordering
-        loadedEnemies.Sort((a, b) => string.Compare(a.name, b.name));
+        // Sort enemies by spawn point name for consistent ordering
+        loadedEnemies.Sort((a, b) => string.Compare(a.spawnPointName, b.spawnPointName));
         
-        // Assign loaded enemies to enemyTankSlots array
-        for (int i = 0; i < enemyTankSlots.Length && i < loadedEnemies.Count; i++)
-        {
-            enemyTankSlots[i] = loadedEnemies[i];
-        }
+        // Assign loaded enemies to enemyTankSlots list
+        enemyTankSlots.AddRange(loadedEnemies);
         
-        Debug.Log($"[ArenaManager] Loaded {loadedEnemies.Count} enemy tanks for {currentLeague}/{currentRound}");
-#else
-        Debug.LogWarning("[ArenaManager] Dynamic enemy loading only works in the Unity Editor. Please manually assign enemy tanks for builds.");
-#endif
+        Debug.Log($"[ArenaManager] Loaded {enemyTankSlots.Count} enemy tanks from Resources/{enemyResourcePath}");
     }
     
     void LoadGameModeSettings()
@@ -212,86 +220,152 @@ public class ArenaManager : MonoBehaviour
     
     void SpawnSingleplayerTanks()
     {
-        // Spawn player tanks (they will get teamId from their TankSlotData)
-        SpawnTankArray(tankSlots, spawnPoints, "Player");
+        // Load player tanks from JSON
+        var playerTankSlots = TankSlotJsonManager.Instance.GetAllTankSlots();
         
-        // Spawn enemy tanks using their filename to determine spawn point
+        Debug.Log($"[ArenaManager] SpawnSingleplayerTanks: Found {playerTankSlots.Count} tank slots");
+        for (int i = 0; i < playerTankSlots.Count; i++)
+        {
+            var slot = playerTankSlots[i];
+            Debug.Log($"[ArenaManager] Tank slot {i}: isActive={slot.isActive}, hasEngine={!string.IsNullOrEmpty(slot.engineFrameInstanceId)}, engineId='{slot.engineFrameInstanceId}', displayName='{slot.displayName}'");
+        }
+        
+        // Spawn player tanks (they will get teamId from their TankSlotDataJson)
+        SpawnPlayerTanks(playerTankSlots);
+        
+        // Load and spawn enemy tanks
+        if (useDynamicArenaLoading)
+        {
+            LoadEnemyTanksForCurrentArena();
+        }
         SpawnEnemyTanksAtNamedSpawnPoints();
     }
     
     void SpawnMultiplayerTanks()
     {
-        // Just spawn all active tanks - they'll get teamId from TankSlotData
-        SpawnTankArray(tankSlots, spawnPoints, "Player");
+        // Load player tanks from JSON
+        var playerTankSlots = TankSlotJsonManager.Instance.GetAllTankSlots();
+        
+        // Just spawn all active tanks - they'll get teamId from TankSlotDataJson
+        SpawnPlayerTanks(playerTankSlots);
     }
     
-    void SpawnTankArray(TankSlotData[] slots, Transform[] spawns, string tankType, int spawnIndexOffset = 0)
+    void SpawnPlayerTanks(List<TankSlotDataJson> slots)
     {
-        for (int i = 0; i < slots.Length && i < spawns.Length; i++)
+        Debug.Log($"[ArenaManager] SpawnPlayerTanks called with {slots.Count} slots");
+        
+        for (int i = 0; i < slots.Count && i < spawnPoints.Length; i++)
         {
-            if (slots[i] != null && slots[i].isActive && slots[i].engineFramePrefab != null)
+            var slot = slots[i];
+            if (slot == null)
             {
-                int spawnIndex = (i + spawnIndexOffset) % spawns.Length;
-                if (spawns[spawnIndex] == null) continue;
+                Debug.LogWarning($"[ArenaManager] Tank slot {i} is null, skipping");
+                continue;
+            }
+            
+            Debug.Log($"[ArenaManager] Processing slot {i}: isActive={slot.isActive}, hasEngine={!string.IsNullOrEmpty(slot.engineFrameInstanceId)}, engineId='{slot.engineFrameInstanceId}'");
+                 // TEMPORARY DEBUG: Force activate tank slot 0 for testing
+        if (i == 0 && !string.IsNullOrEmpty(slot.engineFrameInstanceId))
+        {
+            Debug.Log($"[ArenaManager] DEBUG: Force activating tank slot 0 for testing");
+            slot.isActive = true;
+            
+            // DEBUG: Print the exact JSON content being used
+            Debug.Log($"[ArenaManager] DEBUG: Tank slot 0 data:");
+            Debug.Log($"  - displayName: '{slot.displayName}'");
+            Debug.Log($"  - isActive: {slot.isActive}");
+            Debug.Log($"  - engineFrameInstanceId: '{slot.engineFrameInstanceId}'");
+            Debug.Log($"  - armorInstanceId: '{slot.armorInstanceId}'");
+            Debug.Log($"  - turretInstanceId: '{slot.turretInstanceId}'");
+            Debug.Log($"  - turretAIInstanceId: '{slot.turretAIInstanceId}'");
+            Debug.Log($"  - navAIInstanceId: '{slot.navAIInstanceId}'");
+        }
+        
+        // TEMPORARY DEBUG: If tank slot 0 has empty engineFrameInstanceId, create test data
+        if (i == 0 && string.IsNullOrEmpty(slot.engineFrameInstanceId))
+        {
+            Debug.Log($"[ArenaManager] DEBUG: Tank slot 0 has no engine frame, creating test data");
+            slot.engineFrameInstanceId = "Heavy Engine_test-123";
+            slot.armorInstanceId = "Light Plate_test-456";
+            slot.turretInstanceId = "Rifle_test-789";
+            slot.isActive = true;
+            
+            Debug.Log($"[ArenaManager] DEBUG: Set test data for tank slot 0:");
+            Debug.Log($"  - engineFrameInstanceId: '{slot.engineFrameInstanceId}'");
+            Debug.Log($"  - armorInstanceId: '{slot.armorInstanceId}'");
+            Debug.Log($"  - turretInstanceId: '{slot.turretInstanceId}'");
+        }
+            
+            if (slot.isActive && !string.IsNullOrEmpty(slot.engineFrameInstanceId))
+            {
+                if (spawnPoints[i] == null) 
+                {
+                    Debug.LogWarning($"[ArenaManager] Spawn point {i} is null, skipping tank spawn");
+                    continue;
+                }
                 
-                GameObject tank = Instantiate(tankPrefab, spawns[spawnIndex].position, spawns[spawnIndex].rotation);
+                Debug.Log($"[ArenaManager] Spawning tank at spawn point {i}: {spawnPoints[i].position}");
+                
+                GameObject tank = Instantiate(tankPrefab, spawnPoints[i].position, spawnPoints[i].rotation);
                 
                 // Set the tank's name to include team and type information
-                string tankName = !string.IsNullOrEmpty(slots[i].displayName) ? slots[i].displayName : $"{tankType}Tank_{i}";
-                tank.name = $"{tankName}_Team{slots[i].teamId}";
+                string tankName = !string.IsNullOrEmpty(slot.displayName) ? slot.displayName : $"PlayerTank_{i}";
+                tank.name = $"{tankName}_Team{slot.teamId}";
                 
                 TankAssembly assembly = tank.GetComponent<TankAssembly>();
                 if (assembly != null)   
                 {
-                    assembly.Assemble(slots[i]);
+                    Debug.Log($"[ArenaManager] Calling TankAssembly.Assemble for tank {tank.name}");
+                    assembly.Assemble(slot);
+                }
+                else
+                {
+                    Debug.LogError($"[ArenaManager] No TankAssembly component found on tank prefab!");
                 }
                 
-                Debug.Log($"Tank {tank.name} ({tankType}, Team {slots[i].teamId}) spawned");
+                Debug.Log($"Tank {tank.name} (Player, Team {slot.teamId}) spawned at {tank.transform.position}");
+            }
+            else
+            {
+                Debug.Log($"[ArenaManager] Skipping slot {i}: isActive={slot.isActive}, hasEngine={!string.IsNullOrEmpty(slot.engineFrameInstanceId)}");
             }
         }
     }
     
     void SpawnEnemyTanksAtNamedSpawnPoints()
     {
-        Debug.Log($"[ArenaManager] SpawnEnemyTanksAtNamedSpawnPoints called. Enemy tank slots count: {enemyTankSlots.Length}");
+        Debug.Log($"[ArenaManager] SpawnEnemyTanksAtNamedSpawnPoints called. Enemy tank slots count: {enemyTankSlots.Count}");
         
-        for (int i = 0; i < enemyTankSlots.Length; i++)
+        for (int i = 0; i < enemyTankSlots.Count; i++)
         {
             if (enemyTankSlots[i] != null)
             {
-                Debug.Log($"[ArenaManager] Enemy slot {i}: {enemyTankSlots[i].name}, isActive: {enemyTankSlots[i].isActive}, hasEngine: {enemyTankSlots[i].engineFramePrefab != null}");
+                Debug.Log($"[ArenaManager] Enemy slot {i}: {enemyTankSlots[i].displayName}, isActive: {enemyTankSlots[i].isActive}, hasEngine: {!string.IsNullOrEmpty(enemyTankSlots[i].engineFrameInstanceId)}, spawnPoint: {enemyTankSlots[i].spawnPointName}");
                 
-                if (enemyTankSlots[i].isActive && enemyTankSlots[i].engineFramePrefab != null)
+                if (enemyTankSlots[i].isActive && !string.IsNullOrEmpty(enemyTankSlots[i].engineFrameInstanceId))
                 {
-                    // Extract spawn point number from the SO name and convert to array index
-                    // SpawnPoint10 -> array index 0, SpawnPoint11 -> array index 1, etc.
-                    string soName = enemyTankSlots[i].name;
-                    int spawnPointIndex = ExtractSpawnPointFromName(soName);
+                    // Find the spawn point by name
+                    Transform spawnPoint = FindSpawnPointByName(enemyTankSlots[i].spawnPointName);
                     
-                    if (spawnPointIndex >= 0 && spawnPointIndex < enemySpawnPoints.Length)
+                    if (spawnPoint != null)
                     {
-                        if (enemySpawnPoints[spawnPointIndex] != null)
+                        GameObject tank = Instantiate(tankPrefab, spawnPoint.position, spawnPoint.rotation);
+                        
+                        // Set the tank's name to include team and spawn point information
+                        string tankName = !string.IsNullOrEmpty(enemyTankSlots[i].displayName) ? enemyTankSlots[i].displayName : $"EnemyTank_{i}";
+                        tank.name = $"{tankName}_Team{enemyTankSlots[i].teamId}_{enemyTankSlots[i].spawnPointName}";
+                        
+                        TankAssembly assembly = tank.GetComponent<TankAssembly>();
+                        if (assembly != null)   
                         {
-                            GameObject tank = Instantiate(tankPrefab, enemySpawnPoints[spawnPointIndex].position, enemySpawnPoints[spawnPointIndex].rotation);
-                            
-                            // Set the tank's name to include team and type information
-                            string tankName = !string.IsNullOrEmpty(enemyTankSlots[i].displayName) ? enemyTankSlots[i].displayName : $"EnemyTank_{i}";
-                            tank.name = $"{tankName}_Team{enemyTankSlots[i].teamId}_Spawn{spawnPointIndex}";
-                            
-                            TankAssembly assembly = tank.GetComponent<TankAssembly>();
-                            if (assembly != null)   
-                            {
-                                assembly.Assemble(enemyTankSlots[i]);
-                            }
+                            assembly.Assemble(enemyTankSlots[i]);
                         }
-                        else
-                        {
-                            Debug.LogWarning($"[ArenaManager] Enemy spawn point {spawnPointIndex} is null in enemySpawnPoints array");
-                        }
+                        
+                        Debug.Log($"Enemy tank {tank.name} (Team {enemyTankSlots[i].teamId}) spawned at {enemyTankSlots[i].spawnPointName}: {tank.transform.position}");
                     }
                     else
                     {
-                        Debug.LogWarning($"[ArenaManager] Invalid enemy spawn point index {spawnPointIndex} for enemy tank {soName}. Array length: {enemySpawnPoints.Length}");
+                        Debug.LogWarning($"[ArenaManager] Could not find spawn point '{enemyTankSlots[i].spawnPointName}' for enemy tank {enemyTankSlots[i].displayName}");
                     }
                 }
             }
@@ -300,6 +374,50 @@ public class ArenaManager : MonoBehaviour
                 Debug.Log($"[ArenaManager] Enemy slot {i} is null");
             }
         }
+    }
+    
+    /// <summary>
+    /// Find a spawn point by name, checking both regular spawn points and enemy spawn points
+    /// </summary>
+    Transform FindSpawnPointByName(string spawnPointName)
+    {
+        if (string.IsNullOrEmpty(spawnPointName))
+            return null;
+            
+        // First check regular spawn points (these might be named in the scene)
+        for (int i = 0; i < spawnPoints.Length; i++)
+        {
+            if (spawnPoints[i] != null && spawnPoints[i].name.Equals(spawnPointName, System.StringComparison.OrdinalIgnoreCase))
+            {
+                Debug.Log($"[ArenaManager] Found spawn point '{spawnPointName}' in spawnPoints array at index {i}");
+                return spawnPoints[i];
+            }
+        }
+        
+        // Then check enemy spawn points
+        for (int i = 0; i < enemySpawnPoints.Length; i++)
+        {
+            if (enemySpawnPoints[i] != null && enemySpawnPoints[i].name.Equals(spawnPointName, System.StringComparison.OrdinalIgnoreCase))
+            {
+                Debug.Log($"[ArenaManager] Found spawn point '{spawnPointName}' in enemySpawnPoints array at index {i}");
+                return enemySpawnPoints[i];
+            }
+        }
+        
+        // If no exact name match, try to extract spawn point number and use array indexing
+        int spawnPointIndex = ExtractSpawnPointFromName(spawnPointName);
+        if (spawnPointIndex >= 0)
+        {
+            // Use enemy spawn points array for extracted indices
+            if (spawnPointIndex < enemySpawnPoints.Length && enemySpawnPoints[spawnPointIndex] != null)
+            {
+                Debug.Log($"[ArenaManager] Using extracted spawn point index {spawnPointIndex} for '{spawnPointName}'");
+                return enemySpawnPoints[spawnPointIndex];
+            }
+        }
+        
+        Debug.LogWarning($"[ArenaManager] Could not find spawn point '{spawnPointName}' in either spawn point array");
+        return null;
     }
     
     int ExtractSpawnPointFromName(string soName)

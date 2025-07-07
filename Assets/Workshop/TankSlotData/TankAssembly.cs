@@ -9,25 +9,37 @@ public class TankAssembly : MonoBehaviour
     [Header("Tank Faction")]
     [SerializeField] private bool isEnemyTank = true; // Set this in inspector or through code
     
-    // AI references - only needed for AI components, not stat data
-    private AiTreeAsset currentTurretAI;
-    private AiTreeAsset currentNavAI;
+    // TankMan component handles all AI and stats - no local references needed
     private TankMan tankMan;
-    
-    // Only AI getters needed - component stats are now in TankSlotData
-    public AiTreeAsset GetTurretAI() => currentTurretAI;
-    public AiTreeAsset GetNavAI() => currentNavAI;
 
-    public void Assemble(TankSlotData data)
+    /// <summary>
+    /// Get the current turret AI from TankMan component
+    /// </summary>
+    public AiTreeAsset GetTurretAI() 
     {
-        Debug.Log($"TankAssembly.Assemble() called on {gameObject.name} with data: {(data != null ? data.name : "NULL")}");
+        if (tankMan == null) tankMan = GetComponent<TankMan>();
+        return tankMan?.AssignedTurretAI;
+    }
+    
+    /// <summary>
+    /// Get the current nav AI from TankMan component
+    /// </summary>
+    public AiTreeAsset GetNavAI() 
+    {
+        if (tankMan == null) tankMan = GetComponent<TankMan>();
+        return tankMan?.AssignedNavAI;
+    }
+
+    public void Assemble(TankSlotDataJson data)
+    {
+        Debug.Log($"TankAssembly.Assemble() called on {gameObject.name} with data: {(data != null ? data.displayName : "NULL")}");
         if (data == null) 
         {
             Debug.LogError($"TankAssembly.Assemble: data is null for {gameObject.name}!");
             return;
         }
         
-        Debug.Log($"TankAssembly.Assemble: Tank data - turretPrefab: {(data.turretPrefab != null ? data.turretPrefab.name : "NULL")}, turretAIInstanceId: '{data.turretAIInstanceId}', isActive: {data.isActive}");
+        Debug.Log($"TankAssembly.Assemble: Tank data - turretInstanceId: '{data.turretInstanceId}', turretAIInstanceId: '{data.turretAIInstanceId}', isActive: {data.isActive}");
         
         // Ensure NavMeshAgent is present for smooth movement
         var navAgent = GetComponent<UnityEngine.AI.NavMeshAgent>();
@@ -64,8 +76,9 @@ public class TankAssembly : MonoBehaviour
         {
             turretPivot.localPosition = new Vector3(0f, 4.5f, 0f); // Lift turret above base
             Debug.Log($"[TankAssembly] Set turretPivot local position to: {turretPivot.localPosition}");
-        }        // Store component data for TankMan (if present) - REMOVED: Using stat-based approach
-        // Component stats are now stored directly in TankSlotData, no ScriptableObject references needed
+        }
+        
+        // Configure component placement relative to NavMesh surface
         Debug.Log($"[TankAssembly] Using stat-based approach - component stats are stored directly in TankSlotData");
               // Ensure TankMan component is present and configured
         tankMan = GetComponent<TankMan>();
@@ -105,63 +118,64 @@ public class TankAssembly : MonoBehaviour
         foreach (Transform child in turretPivot) Destroy(child.gameObject);
         
         // Instantiate engine frame and armor as children of basePivot
-        if (data.engineFramePrefab != null)
+        if (!string.IsNullOrEmpty(data.engineFrameInstanceId))
         {
-            GameObject engineFrame = Instantiate(data.engineFramePrefab, basePivot.position, basePivot.rotation, basePivot);
-            ApplyColorToTreadMount(engineFrame, data.engineFrameColor);
-            // Ensure child objects stay on Default layer (0) to avoid multiple detections
-            SetLayerRecursively(engineFrame, 0);
-        }
-        if (data.armorPrefab != null)
-        {
-            GameObject armor = Instantiate(data.armorPrefab, basePivot.position, basePivot.rotation, basePivot);
-            ApplyColorToModel(armor, data.armorColor);
-            // Ensure child objects stay on Default layer (0) to avoid multiple detections
-            SetLayerRecursively(armor, 0);
-        }
-        
-        // Instantiate turret as child of turretPivot
-        if (data.turretPrefab != null)
-        {
-            Debug.Log($"TankAssembly: Instantiating turret prefab: {data.turretPrefab.name}");
-            GameObject turretInstance = Instantiate(data.turretPrefab, turretPivot.position, turretPivot.rotation, turretPivot);
-            Debug.Log($"TankAssembly: Turret instantiated as: {turretInstance.name}");
-            ApplyColorToModel(turretInstance, data.turretColor);
-            // Ensure child objects stay on Default layer (0) to avoid multiple detections
-            SetLayerRecursively(turretInstance, 0);
-            
-            // Find and assign turret transform and firePoint to TankMan
-            Transform firePoint = FindFirePointRecursive(turretInstance.transform);
-            tankMan.SetTurretComponents(turretInstance.transform, firePoint);
-            
-            // AI references are handled separately from component stats
-            if (data.turretAI != null)
+            Debug.Log($"TankAssembly: Looking up engine frame with instanceId: {data.engineFrameInstanceId}");
+            GameObject engineFramePrefab = FindComponentPrefabByInstanceId(data.engineFrameInstanceId, ComponentCategory.EngineFrame);
+            if (engineFramePrefab != null)
             {
-                currentTurretAI = data.turretAI;
-                Debug.Log($"TankAssembly: Assigned TurretAI from slot data: {data.turretAI.title}");
+                GameObject engineFrame = Instantiate(engineFramePrefab, basePivot.position, basePivot.rotation, basePivot);
+                ApplyColorToTreadMount(engineFrame, data.engineFrameColor.ToUnityColor());
+                SetLayerRecursively(engineFrame, 0);
+                Debug.Log($"TankAssembly: Instantiated engine frame: {engineFramePrefab.name}");
             }
             else
             {
-                Debug.Log("TankAssembly: No TurretAI assigned to this tank slot");
+                Debug.LogWarning($"TankAssembly: Could not find engine frame prefab for instanceId: {data.engineFrameInstanceId}");
             }
         }
-
-        // Store AI references from TankSlotData - now using AiTreeAsset
-        if (data.navAI != null)
+        if (!string.IsNullOrEmpty(data.armorInstanceId))
         {
-            currentNavAI = data.navAI;
-            Debug.Log($"TankAssembly: Assigned NavAI from slot data: {data.navAI.title}");
+            Debug.Log($"TankAssembly: Looking up armor with instanceId: {data.armorInstanceId}");
+            GameObject armorPrefab = FindComponentPrefabByInstanceId(data.armorInstanceId, ComponentCategory.Armor);
+            if (armorPrefab != null)
+            {
+                GameObject armor = Instantiate(armorPrefab, basePivot.position, basePivot.rotation, basePivot);
+                ApplyColorToModel(armor, data.armorColor.ToUnityColor());
+                SetLayerRecursively(armor, 0);
+                Debug.Log($"TankAssembly: Instantiated armor: {armorPrefab.name}");
+            }
+            else
+            {
+                Debug.LogWarning($"TankAssembly: Could not find armor prefab for instanceId: {data.armorInstanceId}");
+            }
         }
-        else
+        
+        // Instantiate turret as child of turretPivot
+        if (!string.IsNullOrEmpty(data.turretInstanceId))
         {
-            Debug.Log("TankAssembly: No NavAI assigned to this tank slot");
+            Debug.Log($"TankAssembly: Looking up turret with instanceId: {data.turretInstanceId}");
+            GameObject turretPrefab = FindComponentPrefabByInstanceId(data.turretInstanceId, ComponentCategory.Turret);
+            if (turretPrefab != null)
+            {
+                GameObject turretInstance = Instantiate(turretPrefab, turretPivot.position, turretPivot.rotation, turretPivot);
+                ApplyColorToModel(turretInstance, data.turretColor.ToUnityColor());
+                SetLayerRecursively(turretInstance, 0);
+                
+                // Find fire point for turret
+                Transform firePoint = FindFirePointRecursive(turretInstance.transform);
+                tankMan.SetTurretComponents(turretInstance.transform, firePoint);
+                
+                Debug.Log($"TankAssembly: Instantiated turret: {turretPrefab.name}");
+            }
+            else
+            {
+                Debug.LogWarning($"TankAssembly: Could not find turret prefab for instanceId: {data.turretInstanceId}");
+            }
         }
-
-        // Initialize TurretAI if present
-        if (currentTurretAI != null)
-        {
-            Debug.Log($"TankAssembly: TurretAI assigned: {currentTurretAI.title}");
-        }
+        
+        // AI references are now loaded by TankMan.SetTankSlotData() using instance IDs
+        Debug.Log($"TankAssembly: AI assignments handled by TankMan - TurretAI: {data.turretAIInstanceId}, NavAI: {data.navAIInstanceId}");
 
         // Add CameraAnchor if not present
         Transform anchor = transform.Find("CameraAnchor");
@@ -258,7 +272,8 @@ public class TankAssembly : MonoBehaviour
     {
         var renderers = model.GetComponentsInChildren<Renderer>();
         foreach (var renderer in renderers)
-        {            foreach (var mat in renderer.materials)
+        {
+            foreach (var mat in renderer.materials)
             {
                 if (mat.HasProperty("_BaseColor"))
                     mat.SetColor("_BaseColor", color);
@@ -266,6 +281,189 @@ public class TankAssembly : MonoBehaviour
                     mat.SetColor("_Color", color);
             }
         }
-    }    
-    // AI execution and gizmo drawing are now handled by TankMan component
+    }
+    
+    /// <summary>
+    /// Find the prefab for a component by its instance ID
+    /// </summary>
+    private GameObject FindComponentPrefabByInstanceId(string instanceId, ComponentCategory category)
+    {
+        if (string.IsNullOrEmpty(instanceId))
+        {
+            Debug.LogWarning($"[TankAssembly] FindComponentPrefabByInstanceId: instanceId is null or empty for category {category}");
+            return null;
+        }
+
+        // Extract the component name from instanceId (format: "ComponentName_guid")
+        string componentName = instanceId;
+        if (instanceId.Contains("_"))
+        {
+            componentName = instanceId.Substring(0, instanceId.LastIndexOf("_"));
+        }
+        
+        Debug.Log($"[TankAssembly] Looking for component '{componentName}' of category {category}");
+        
+        // Load prefab directly from Assets/Models/Prefabs based on component name and category
+        GameObject prefab = LoadPrefabByNameAndCategory(componentName, category);
+        
+        if (prefab != null)
+        {
+            Debug.Log($"[TankAssembly] Successfully loaded prefab for {componentName}");
+            return prefab;
+        }
+        else
+        {
+            Debug.LogWarning($"[TankAssembly] Could not find prefab for {componentName} of category {category}. Creating placeholder.");
+            return CreatePlaceholderPrefab(componentName, category);
+        }
+    }
+    
+    /// <summary>
+    /// Load prefab by component name and category from Resources folder
+    /// </summary>
+    private GameObject LoadPrefabByNameAndCategory(string componentName, ComponentCategory category)
+    {
+        GameObject prefab = null;
+        
+        Debug.Log($"[TankAssembly] LoadPrefabByNameAndCategory: '{componentName}' (Category: {category})");
+        
+        switch (category)
+        {
+            case ComponentCategory.EngineFrame:
+                // Map component names to engine frame prefabs
+                if (componentName.Contains("Heavy Engine") || componentName == "Heavy Engine")
+                {
+                    prefab = Resources.Load<GameObject>("Models/Prefabs/cengineframe");
+                    Debug.Log($"[TankAssembly] Loaded engine frame: {(prefab != null ? "SUCCESS" : "FAILED")} - Models/Prefabs/cengineframe");
+                }
+                // Add more engine frame mappings as needed
+                // else if (componentName.Contains("Light Engine"))
+                // {
+                //     prefab = Resources.Load<GameObject>("Models/Prefabs/lightengineframe");
+                // }
+                break;
+                
+            case ComponentCategory.Armor:
+                // Map component names to armor prefabs
+                if (componentName.Contains("Light Plate") || componentName == "Light Plate")
+                {
+                    prefab = Resources.Load<GameObject>("Models/Prefabs/Armors/barmor");
+                    Debug.Log($"[TankAssembly] Loaded armor: {(prefab != null ? "SUCCESS" : "FAILED")} - Models/Prefabs/Armors/barmor");
+                }
+                // Add more armor mappings as needed
+                // else if (componentName.Contains("Heavy Plate"))
+                // {
+                //     prefab = Resources.Load<GameObject>("Models/Prefabs/Armors/heavyarmor");
+                // }
+                break;
+                
+            case ComponentCategory.Turret:
+                // Map component names to turret prefabs
+                if (componentName == "Rifle" || componentName.Contains("Rifle"))
+                {
+                    prefab = Resources.Load<GameObject>("Models/Prefabs/Turrets/Rifle");
+                    Debug.Log($"[TankAssembly] Loaded turret: {(prefab != null ? "SUCCESS" : "FAILED")} - Models/Prefabs/Turrets/Rifle");
+                }
+                // Add more turret mappings as needed
+                // else if (componentName.Contains("Cannon"))
+                // {
+                //     prefab = Resources.Load<GameObject>("Models/Prefabs/Turrets/Cannon");
+                // }
+                break;
+        }
+        
+        // If Resources.Load failed, try to load from direct asset path using Unity's asset database (Editor only)
+        #if UNITY_EDITOR
+        if (prefab == null)
+        {
+            string assetPath = GetAssetPathForComponent(componentName, category);
+            if (!string.IsNullOrEmpty(assetPath))
+            {
+                prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
+                Debug.Log($"[TankAssembly] Loaded prefab from asset path: {assetPath}");
+            }
+        }
+        #endif
+        
+        if (prefab == null)
+        {
+            Debug.LogWarning($"[TankAssembly] Could not load prefab for component '{componentName}' (Category: {category})");
+        }
+        
+        return prefab;
+    }
+    
+    #if UNITY_EDITOR
+    /// <summary>
+    /// Get the asset path for a component (Editor only)
+    /// </summary>
+    private string GetAssetPathForComponent(string componentName, ComponentCategory category)
+    {
+        switch (category)
+        {
+            case ComponentCategory.EngineFrame:
+                if (componentName.Contains("Heavy Engine") || componentName == "Heavy Engine")
+                    return "Assets/Resources/Models/Prefabs/cengineframe.prefab";
+                break;
+                
+            case ComponentCategory.Armor:
+                if (componentName.Contains("Light Plate") || componentName == "Light Plate")
+                    return "Assets/Resources/Models/Prefabs/Armors/barmor.prefab";
+                break;
+                
+            case ComponentCategory.Turret:
+                if (componentName == "Rifle" || componentName.Contains("Rifle"))
+                    return "Assets/Resources/Models/Prefabs/Turrets/Rifle.prefab";
+                break;
+        }
+        
+        return "";
+    }
+    #endif
+    
+    /// <summary>
+    /// Create a placeholder prefab when the actual component can't be found
+    /// </summary>
+    private GameObject CreatePlaceholderPrefab(string componentName, ComponentCategory category)
+    {
+        GameObject placeholder;
+        
+        switch (category)
+        {
+            case ComponentCategory.EngineFrame:
+                placeholder = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                placeholder.transform.localScale = new Vector3(3f, 1f, 2f);
+                placeholder.name = $"Placeholder_Engine_{componentName}";
+                break;
+                
+            case ComponentCategory.Armor:
+                placeholder = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                placeholder.transform.localScale = new Vector3(2.5f, 1.5f, 2f);
+                placeholder.name = $"Placeholder_Armor_{componentName}";
+                break;
+                
+            case ComponentCategory.Turret:
+                placeholder = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+                placeholder.transform.localScale = new Vector3(0.5f, 1f, 0.5f);
+                placeholder.name = $"Placeholder_Turret_{componentName}";
+                break;
+                
+            default:
+                placeholder = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                placeholder.name = $"Placeholder_{componentName}";
+                break;
+        }
+        
+        // Make placeholder slightly transparent and colored
+        var renderer = placeholder.GetComponent<Renderer>();
+        if (renderer != null)
+        {
+            var material = new Material(Shader.Find("Standard"));
+            material.color = new Color(1f, 0f, 1f, 0.7f); // Magenta, slightly transparent
+            renderer.material = material;
+        }
+        
+        Debug.LogWarning($"[TankAssembly] Created placeholder for missing component: {componentName}");
+        return placeholder;
+    }
 }

@@ -44,6 +44,9 @@ public class WorkshopUIManager : MonoBehaviour
     public List<TankSlotButtonUI> tankSlots;
     private TankSlotButtonUI selectedTankSlot;
     
+    // JSON-based tank slot management
+    private TankSlotJsonManager tankSlotJsonManager;
+    
     public WorkshopModelPreview modelPreview;
     public WorkshopStatsPanel statsPanel;
     
@@ -58,6 +61,14 @@ public class WorkshopUIManager : MonoBehaviour
 
     private void Start()
     {
+        // Initialize JSON tank slot manager
+        tankSlotJsonManager = FindFirstObjectByType<TankSlotJsonManager>();
+        if (tankSlotJsonManager == null)
+        {
+            GameObject managerGO = new GameObject("TankSlotJsonManager");
+            tankSlotJsonManager = managerGO.AddComponent<TankSlotJsonManager>();
+        }
+        
         // Ensure only one of Shop/Inventory is active
         shopToggle.isOn = true;
         inventoryToggle.isOn = false;
@@ -101,15 +112,7 @@ public class WorkshopUIManager : MonoBehaviour
         // Clean up any legacy AI files with old instanceId format
         CleanupLegacyAIFiles();
         
-        // Restore component data references and activation states for all tank slots after loading
-        var allSlotData = new List<TankSlotData>();
-        foreach (var slot in tankSlots)
-        {
-            if (slot.slotData != null)
-                allSlotData.Add(slot.slotData);
-        }
-        
-        PlayerDataManager.Instance.RestoreComponentDataReferences(allSlotData);
+        // Tank slots are now managed entirely via JSON - no need for ScriptableObject restoration
         
         // Load tank slots from ScriptableObjects AFTER restoring activation states
         LoadTankSlotsFromScriptableObjects();
@@ -351,19 +354,20 @@ public class WorkshopUIManager : MonoBehaviour
             var comp = slot.GetComponentByCategory(cat);
             if (comp != null)
             {
-                // Restore color from TankSlotData to component for visual consistency
-                if (slot.slotData != null)
+                // Restore color from JSON data to component for visual consistency
+                var slotData = TankSlotJsonManager.Instance.GetTankSlot(slot.slotIndex);
+                if (slotData != null)
                 {
                     switch (comp.category)
                     {
                         case ComponentCategory.EngineFrame:
-                            comp.customColor = slot.slotData.engineFrameColor;
+                            comp.customColor = slotData.engineFrameColor.ToUnityColor();
                             break;
                         case ComponentCategory.Armor:
-                            comp.customColor = slot.slotData.armorColor;
+                            comp.customColor = slotData.armorColor.ToUnityColor();
                             break;
                         case ComponentCategory.Turret:
-                            comp.customColor = slot.slotData.turretColor;
+                            comp.customColor = slotData.turretColor.ToUnityColor();
                             break;
                     }
                 }
@@ -377,18 +381,16 @@ public class WorkshopUIManager : MonoBehaviour
     {
         foreach (var slot in tankSlots)
         {
-            if (slot.slotData != null)
+            var slotData = TankSlotJsonManager.Instance.GetTankSlot(slot.slotIndex);
+            if (slotData != null)
             {
                 // Check regular components by prefab and instanceId
                 if ((component.category == ComponentCategory.EngineFrame && 
-                     slot.slotData.engineFramePrefab == component.modelPrefab && 
-                     slot.slotData.engineFrameInstanceId == component.instanceId) ||
+                     slotData.engineFrameInstanceId == component.instanceId) ||
                     (component.category == ComponentCategory.Armor && 
-                     slot.slotData.armorPrefab == component.modelPrefab && 
-                     slot.slotData.armorInstanceId == component.instanceId) ||
+                     slotData.armorInstanceId == component.instanceId) ||
                     (component.category == ComponentCategory.Turret && 
-                     slot.slotData.turretPrefab == component.modelPrefab && 
-                     slot.slotData.turretInstanceId == component.instanceId))
+                     slotData.turretInstanceId == component.instanceId))
                 {
                     return slot.TankName;
                 }
@@ -397,9 +399,9 @@ public class WorkshopUIManager : MonoBehaviour
                 if (component.category == ComponentCategory.AITree && component is AiTreeAsset aiAsset)
                 {
                     if ((aiAsset.branchType == AiEditor.AiBranchType.Turret && 
-                         slot.slotData.turretAIInstanceId == component.instanceId) ||
+                         slotData.turretAIInstanceId == component.instanceId) ||
                         (aiAsset.branchType == AiEditor.AiBranchType.Nav && 
-                         slot.slotData.navAIInstanceId == component.instanceId))
+                         slotData.navAIInstanceId == component.instanceId))
                     {
                         return slot.TankName;
                     }
@@ -407,9 +409,9 @@ public class WorkshopUIManager : MonoBehaviour
                 
                 // Legacy AI category support
                 if ((component.category == ComponentCategory.TurretAI && 
-                     slot.slotData.turretAIInstanceId == component.instanceId) ||
+                     slotData.turretAIInstanceId == component.instanceId) ||
                     (component.category == ComponentCategory.NavAI && 
-                     slot.slotData.navAIInstanceId == component.instanceId))
+                     slotData.navAIInstanceId == component.instanceId))
                 {
                     return slot.TankName;
                 }
@@ -575,7 +577,6 @@ public class WorkshopUIManager : MonoBehaviour
                 // Unassign from current slot
                 assignedSlot.UnassignComponent(component);
                 UpdateTankLoadoutSave(assignedSlot, component, remove: true);
-                PlayerDataManager.Instance.SavePlayerData();
                 PopulateComponentList();
             }
             else
@@ -590,7 +591,6 @@ public class WorkshopUIManager : MonoBehaviour
         {
             selectedTankSlot.UnassignComponent(component);
             UpdateTankLoadoutSave(selectedTankSlot, component, remove: true);
-            PlayerDataManager.Instance.SavePlayerData();
             PopulateComponentList();
             RefreshSelectedSlotUI();
             return;
@@ -625,72 +625,131 @@ public class WorkshopUIManager : MonoBehaviour
         // Assign to selected slot
         selectedTankSlot.AssignComponent(assignComponent);
         UpdateTankLoadoutSave(selectedTankSlot, assignComponent);
-        PlayerDataManager.Instance.SavePlayerData();
         PopulateComponentList();
         RefreshSelectedSlotUI();
     }
 
-    // Helper to update the save data for tank loadouts
+    // Helper to update the save data for tank loadouts using JSON system
     private void UpdateTankLoadoutSave(TankSlotButtonUI slot, ComponentData component, bool remove = false)
     {
         int slotIndex = tankSlots.IndexOf(slot);
-        if (slotIndex < 0)
+        if (slotIndex < 0 || tankSlotJsonManager == null)
             return;
-        // Ensure the list is large enough
-        while (PlayerDataManager.Instance.playerData.tankLoadouts.Count <= slotIndex)
-            PlayerDataManager.Instance.playerData.tankLoadouts.Add(new TankLoadoutSave());
-        var loadout = PlayerDataManager.Instance.playerData.tankLoadouts[slotIndex];        if (remove)
+
+        // Get the current tank slot data from JSON
+        TankSlotDataJson slotData = tankSlotJsonManager.GetTankSlot(slotIndex);
+        if (slotData == null)
         {
-            // Remove the component from the loadout
-            switch (component.category)
+            // Create new slot if it doesn't exist
+            slotData = new TankSlotDataJson
             {
-                case ComponentCategory.EngineFrame:
-                    loadout.engineFrameInstanceId = null;
-                    break;
-                case ComponentCategory.Armor:
-                    loadout.armorInstanceId = null;
-                    break;
-                case ComponentCategory.Turret:
-                    loadout.turretInstanceId = null;
-                    break;
-                case ComponentCategory.AITree:
-                    if (component is AiTreeAsset aiAsset)
-                    {
-                        if (aiAsset.branchType == AiEditor.AiBranchType.Turret)
-                            loadout.turretAIInstanceId = null;
-                        else if (aiAsset.branchType == AiEditor.AiBranchType.Nav)
-                            loadout.navAIInstanceId = null;
-                    }
-                    break;
-            }
+                slotIndex = slotIndex,
+                isActive = false,
+                teamId = 0,
+                isPlayerControlled = true,
+                displayName = slot.TankName
+            };
         }
-        else
+
+        if (remove)
         {
-            // Assign the component to the loadout
+            // Remove the component from the slot and clear its stats
             switch (component.category)
             {
                 case ComponentCategory.EngineFrame:
-                    loadout.engineFrameInstanceId = component.instanceId;
+                    slotData.engineFrameInstanceId = "";
+                    slotData.enginePower = 0;
+                    slotData.engineWeightCapacity = 0;
+                    slotData.engineFrameHP = 0;
                     break;
                 case ComponentCategory.Armor:
-                    loadout.armorInstanceId = component.instanceId;
+                    slotData.armorInstanceId = "";
+                    slotData.armorHP = 0;
                     break;
                 case ComponentCategory.Turret:
-                    loadout.turretInstanceId = component.instanceId;
+                    slotData.turretInstanceId = "";
+                    slotData.turretType = TurretTypeJson.DirectFire;
+                    slotData.turretDamage = 0;
+                    slotData.turretRange = 0;
+                    slotData.turretShotsPerSec = 0;
+                    slotData.turretBulletSpeed = 0;
+                    slotData.turretKnockback = "";
+                    slotData.turretVisionRange = 0;
+                    slotData.turretVisionCone = 0;
                     break;
                 case ComponentCategory.AITree:
                     if (component is AiTreeAsset aiAsset)
                     {
                         if (aiAsset.branchType == AiEditor.AiBranchType.Turret)
-                            loadout.turretAIInstanceId = component.instanceId;
+                            slotData.turretAIInstanceId = "";
                         else if (aiAsset.branchType == AiEditor.AiBranchType.Nav)
-                            loadout.navAIInstanceId = component.instanceId;
+                            slotData.navAIInstanceId = "";
                     }
                     break;
             }
             
-            loadout.tankName = slot.TankName;
+            // Recalculate total weight after component removal
+            slotData.totalWeight = CalculateTotalWeight(slotData);
         }
+        else
+        {
+            // Assign the component to the slot
+            switch (component.category)
+            {
+                case ComponentCategory.EngineFrame:
+                    slotData.engineFrameInstanceId = component.instanceId;
+                    // Copy engine stats
+                    if (component is EngineFrameData engineData)
+                    {
+                        slotData.enginePower = engineData.enginePower;
+                        slotData.engineWeightCapacity = engineData.weightCapacity;
+                        slotData.engineFrameHP = 0; // EngineFrameData doesn't have HP property
+                    }
+                    break;
+                case ComponentCategory.Armor:
+                    slotData.armorInstanceId = component.instanceId;
+                    // Copy armor stats
+                    if (component is ArmorData armorData)
+                    {
+                        slotData.armorHP = armorData.HP;
+                    }
+                    break;
+                case ComponentCategory.Turret:
+                    slotData.turretInstanceId = component.instanceId;
+                    // Copy turret stats
+                    if (component is TurretData turretData)
+                    {
+                        slotData.turretType = (TurretTypeJson)turretData.turretType;
+                        slotData.turretDamage = turretData.damage;
+                        slotData.turretRange = turretData.range;
+                        slotData.turretShotsPerSec = turretData.shotspersec;
+                        slotData.turretBulletSpeed = turretData.bulletSpeed;
+                        slotData.turretKnockback = turretData.knockback;
+                        slotData.turretVisionRange = turretData.visionRange;
+                        slotData.turretVisionCone = turretData.visionCone;
+                    }
+                    break;
+                case ComponentCategory.AITree:
+                    if (component is AiTreeAsset aiAsset)
+                    {
+                        if (aiAsset.branchType == AiEditor.AiBranchType.Turret)
+                            slotData.turretAIInstanceId = component.instanceId;
+                        else if (aiAsset.branchType == AiEditor.AiBranchType.Nav)
+                            slotData.navAIInstanceId = component.instanceId;
+                    }
+                    break;
+            }
+            
+            // Recalculate total weight after component assignment
+            slotData.totalWeight = CalculateTotalWeight(slotData);
+            
+            slotData.displayName = slot.TankName;
+        }
+
+        // Save the updated slot data to JSON
+        tankSlotJsonManager.UpdateTankSlot(slotIndex, slotData);
+        
+        Debug.Log($"[WorkshopUIManager] Updated tank slot {slotIndex} JSON with component {component.title}");
     }
 
     private void OnComponentSelected(ComponentData component)
@@ -734,10 +793,11 @@ public class WorkshopUIManager : MonoBehaviour
     {
         foreach (var slot in tankSlots)
         {
-            if (slot.slotData != null)
+            var slotData = TankSlotJsonManager.Instance.GetTankSlot(slot.slotIndex);
+            if (slotData != null)
             {
                 slot.SetSelected(false); // Deselect by default
-                slot.SetActive(slot.slotData.isActive);
+                slot.SetActive(slotData.isActive);
                 slot.UpdateAssignedComponentsFromSlotData();
             }
         }
@@ -779,13 +839,12 @@ public class WorkshopUIManager : MonoBehaviour
                 totalWeight += comp.weight;
         }
         
-        // Save to TankSlotData
-        if (slot.slotData != null)
+        // Save to JSON data
+        var slotData = TankSlotJsonManager.Instance.GetTankSlot(slot.slotIndex);
+        if (slotData != null)
         {
-            slot.slotData.totalWeight = totalWeight;
-            #if UNITY_EDITOR
-            UnityEditor.EditorUtility.SetDirty(slot.slotData);
-            #endif
+            slotData.totalWeight = totalWeight;
+            TankSlotJsonManager.Instance.UpdateTankSlot(slot.slotIndex, slotData);
         }
         
         return totalWeight;
@@ -800,26 +859,25 @@ public class WorkshopUIManager : MonoBehaviour
         {
             if (slot.HasComponent(changedComponent))
             {
-                // Update the color in TankSlotData
-                if (slot.slotData != null)
+                // Update the color in JSON data
+                var slotData = TankSlotJsonManager.Instance.GetTankSlot(slot.slotIndex);
+                if (slotData != null)
                 {
                     switch (changedComponent.category)
                     {
                         case ComponentCategory.EngineFrame:
-                            slot.slotData.engineFrameColor = changedComponent.customColor;
+                            slotData.engineFrameColor = new ColorJson(changedComponent.customColor);
                             break;
                         case ComponentCategory.Armor:
-                            slot.slotData.armorColor = changedComponent.customColor;
+                            slotData.armorColor = new ColorJson(changedComponent.customColor);
                             break;
                         case ComponentCategory.Turret:
-                            slot.slotData.turretColor = changedComponent.customColor;
+                            slotData.turretColor = new ColorJson(changedComponent.customColor);
                             break;
                     }
                     
-                    // Mark the ScriptableObject as dirty for saving
-                    #if UNITY_EDITOR
-                    UnityEditor.EditorUtility.SetDirty(slot.slotData);
-                    #endif
+                    // Save the updated JSON data
+                    TankSlotJsonManager.Instance.UpdateTankSlot(slot.slotIndex, slotData);
                     
                     componentUpdated = true;
                 }
@@ -918,90 +976,111 @@ public class WorkshopUIManager : MonoBehaviour
     {
         var inventoryItems = new List<ComponentData>();
         
-#if UNITY_EDITOR
-        // In editor: Load AI inventory from AISaveFiles folders
+        // Load AI inventory from persistent data path (AppData/AiTrees)
+        string aiTreesPath = System.IO.Path.Combine(Application.persistentDataPath, "AiTrees");
         
-        string navFilesPath = "Assets/AiEditor/AISaveFiles/NavFiles/";
-        string turretFilesPath = "Assets/AiEditor/AISaveFiles/TurretFiles/";
-        
-        // Load Nav AI from AISaveFiles/NavFiles
-        string[] navGuids = AssetDatabase.FindAssets("t:AiTreeAsset", new[] { navFilesPath });
-        foreach (string guid in navGuids)
+        if (System.IO.Directory.Exists(aiTreesPath))
         {
-            string assetPath = AssetDatabase.GUIDToAssetPath(guid);
-            AiTreeAsset aiTreeAsset = AssetDatabase.LoadAssetAtPath<AiTreeAsset>(assetPath);
-            if (aiTreeAsset != null && aiTreeAsset.branchType == AiEditor.AiBranchType.Nav)
+            string[] jsonFiles = System.IO.Directory.GetFiles(aiTreesPath, "*.json", System.IO.SearchOption.AllDirectories);
+            
+            foreach (string filePath in jsonFiles)
             {
-                inventoryItems.Add(aiTreeAsset);
+                try
+                {
+                    string jsonContent = System.IO.File.ReadAllText(filePath);
+                    
+                    // Create a new AiTreeAsset instance and populate it from JSON
+                    var aiTreeAsset = ScriptableObject.CreateInstance<AiTreeAsset>();
+                    JsonUtility.FromJsonOverwrite(jsonContent, aiTreeAsset);
+                    
+                    if (aiTreeAsset != null)
+                    {
+                        // Ensure the instanceId is set (use filename if missing)
+                        if (string.IsNullOrEmpty(aiTreeAsset.instanceId))
+                        {
+                            aiTreeAsset.instanceId = System.IO.Path.GetFileNameWithoutExtension(filePath);
+                        }
+                        
+                        inventoryItems.Add(aiTreeAsset);
+                    }
+                }
+                catch (System.Exception ex)
+                {
+                    Debug.LogWarning($"[LoadAITreeInventoryFromFolders] Could not load AI file {filePath}: {ex.Message}");
+                }
             }
         }
-        
-        // Load Turret AI from AISaveFiles/TurretFiles
-        string[] turretGuids = AssetDatabase.FindAssets("t:AiTreeAsset", new[] { turretFilesPath });
-        foreach (string guid in turretGuids)
+        else
         {
-            string assetPath = AssetDatabase.GUIDToAssetPath(guid);
-            AiTreeAsset aiTreeAsset = AssetDatabase.LoadAssetAtPath<AiTreeAsset>(assetPath);
-            if (aiTreeAsset != null && aiTreeAsset.branchType == AiEditor.AiBranchType.Turret)
-            {
-                inventoryItems.Add(aiTreeAsset);
-            }
+            Debug.LogWarning($"[LoadAITreeInventoryFromFolders] AI trees folder does not exist: {aiTreesPath}");
         }
-#else
-        // In build: AI inventory is managed through playerInventory list (no file system access)
-        
-        foreach (var component in playerInventory)
-        {
-            if (component is AiTreeAsset aiTreeAsset)
-            {
-                inventoryItems.Add(aiTreeAsset);
-            }
-        }
-#endif
         
         return inventoryItems;
     }
 
     /// <summary>
     /// Loads an AI Tree Asset from disk based on instanceId and branch type
+    /// Now loads from persistent data path (AppData) instead of Unity project folders
     /// </summary>
     private AiEditor.AiTreeAsset LoadAITreeAssetFromDisk(string instanceId, AiEditor.AiBranchType branchType)
     {
-#if UNITY_EDITOR
-        // In editor: Load from AISaveFiles folders (where purchased/created AI is stored)
-        string folderPath = branchType == AiEditor.AiBranchType.Turret 
-            ? "Assets/AiEditor/AISaveFiles/TurretFiles/" 
-            : "Assets/AiEditor/AISaveFiles/NavFiles/";
+        // Load from persistent data path (AppData/AiTrees)
+        string aiTreesPath = System.IO.Path.Combine(Application.persistentDataPath, "AiTrees");
         
-        // Search through all files in the folder to find the one with matching instanceId
-        if (System.IO.Directory.Exists(folderPath))
+        if (System.IO.Directory.Exists(aiTreesPath))
         {
-            string[] files = System.IO.Directory.GetFiles(folderPath, "*.asset");
-            foreach (string filePath in files)
+            string[] jsonFiles = System.IO.Directory.GetFiles(aiTreesPath, "*.json", System.IO.SearchOption.AllDirectories);
+            
+            foreach (string filePath in jsonFiles)
             {
-                var asset = UnityEditor.AssetDatabase.LoadAssetAtPath<AiEditor.AiTreeAsset>(filePath);
-                if (asset != null && asset.instanceId == instanceId && asset.branchType == branchType)
+                try
                 {
-                    return asset;
+                    string jsonContent = System.IO.File.ReadAllText(filePath);
+                    
+                    // Create a new AiTreeAsset instance and populate it from JSON
+                    var aiTreeAsset = ScriptableObject.CreateInstance<AiEditor.AiTreeAsset>();
+                    JsonUtility.FromJsonOverwrite(jsonContent, aiTreeAsset);
+                    
+                    if (aiTreeAsset != null && aiTreeAsset.instanceId == instanceId && aiTreeAsset.branchType == branchType)
+                    {
+                        return aiTreeAsset;
+                    }
+                }
+                catch (System.Exception ex)
+                {
+                    Debug.LogWarning($"[LoadAITreeAssetFromDisk] Could not load AI file {filePath}: {ex.Message}");
+                }
+            }
+            
+            // Fallback: try to find by filename if exact instanceId match fails
+            foreach (string filePath in jsonFiles)
+            {
+                try
+                {
+                    string fileName = System.IO.Path.GetFileNameWithoutExtension(filePath);
+                    
+                    if (fileName.Contains(instanceId))
+                    {
+                        string jsonContent = System.IO.File.ReadAllText(filePath);
+                        
+                        // Create a new AiTreeAsset instance and populate it from JSON
+                        var aiTreeAsset = ScriptableObject.CreateInstance<AiEditor.AiTreeAsset>();
+                        JsonUtility.FromJsonOverwrite(jsonContent, aiTreeAsset);
+                        
+                        if (aiTreeAsset != null && aiTreeAsset.branchType == branchType)
+                        {
+                            // Update the asset's instanceId to match what we're looking for
+                            aiTreeAsset.instanceId = instanceId;
+                            return aiTreeAsset;
+                        }
+                    }
+                }
+                catch (System.Exception ex)
+                {
+                    Debug.LogWarning($"[LoadAITreeAssetFromDisk] Could not process AI file {filePath} during fallback: {ex.Message}");
                 }
             }
         }
-        
-        // If not found in specific folder, also check main AISaveFiles folder for legacy assets
-        string mainFolderPath = "Assets/AiEditor/AISaveFiles/";
-        if (System.IO.Directory.Exists(mainFolderPath))
-        {
-            string[] files = System.IO.Directory.GetFiles(mainFolderPath, "*.asset");
-            foreach (string filePath in files)
-            {
-                var asset = UnityEditor.AssetDatabase.LoadAssetAtPath<AiEditor.AiTreeAsset>(filePath);
-                if (asset != null && asset.instanceId == instanceId && asset.branchType == branchType)
-                {
-                    return asset;
-                }
-            }
-        }
-#endif
         
         return null;
     }
@@ -1066,23 +1145,20 @@ public class WorkshopUIManager : MonoBehaviour
         
         foreach (var slot in tankSlots)
         {
-            if (slot.slotData != null)
+            var slotData = TankSlotJsonManager.Instance.GetTankSlot(slot.slotIndex);
+            if (slotData != null)
             {
-                if (branchType == AiEditor.AiBranchType.Turret && slot.slotData.turretAIInstanceId == oldInstanceId)
+                if (branchType == AiEditor.AiBranchType.Turret && slotData.turretAIInstanceId == oldInstanceId)
                 {
-                    slot.slotData.turretAIInstanceId = newInstanceId;
+                    slotData.turretAIInstanceId = newInstanceId;
+                    TankSlotJsonManager.Instance.UpdateTankSlot(slot.slotIndex, slotData);
                     dataChanged = true;
-#if UNITY_EDITOR
-                    UnityEditor.EditorUtility.SetDirty(slot.slotData);
-#endif
                 }
-                else if (branchType == AiEditor.AiBranchType.Nav && slot.slotData.navAIInstanceId == oldInstanceId)
+                else if (branchType == AiEditor.AiBranchType.Nav && slotData.navAIInstanceId == oldInstanceId)
                 {
-                    slot.slotData.navAIInstanceId = newInstanceId;
+                    slotData.navAIInstanceId = newInstanceId;
+                    TankSlotJsonManager.Instance.UpdateTankSlot(slot.slotIndex, slotData);
                     dataChanged = true;
-#if UNITY_EDITOR
-                    UnityEditor.EditorUtility.SetDirty(slot.slotData);
-#endif
                 }
             }
         }
@@ -1123,7 +1199,7 @@ public class WorkshopUIManager : MonoBehaviour
             node.nodeLabel = jsonNode.nodeLabel;
             node.position = jsonNode.position;
             
-            // Convert properties list back to dictionary
+            // Convert properties list to dictionary
             node.properties = new Dictionary<string, string>();
             foreach (var prop in jsonNode.properties)
             {
@@ -1356,5 +1432,45 @@ public class WorkshopUIManager : MonoBehaviour
         {
             Debug.LogError($"[DeleteJsonAiFile] Failed to delete JSON AI file: {ex.Message}");
         }
+    }
+    
+    /// <summary>
+    /// Calculate total weight by looking up components and summing their weights
+    /// </summary>
+    private float CalculateTotalWeight(TankSlotDataJson slotData)
+    {
+        float totalWeight = 0f;
+        
+        // Get engine weight
+        if (!string.IsNullOrEmpty(slotData.engineFrameInstanceId))
+        {
+            var engine = playerInventory.Find(c => c.instanceId == slotData.engineFrameInstanceId && c.category == ComponentCategory.EngineFrame);
+            if (engine is EngineFrameData engineData)
+            {
+                totalWeight += engineData.weight;
+            }
+        }
+        
+        // Get armor weight
+        if (!string.IsNullOrEmpty(slotData.armorInstanceId))
+        {
+            var armor = playerInventory.Find(c => c.instanceId == slotData.armorInstanceId && c.category == ComponentCategory.Armor);
+            if (armor is ArmorData armorData)
+            {
+                totalWeight += armorData.weight;
+            }
+        }
+        
+        // Get turret weight
+        if (!string.IsNullOrEmpty(slotData.turretInstanceId))
+        {
+            var turret = playerInventory.Find(c => c.instanceId == slotData.turretInstanceId && c.category == ComponentCategory.Turret);
+            if (turret is TurretData turretData)
+            {
+                totalWeight += turretData.weight;
+            }
+        }
+        
+        return totalWeight;
     }
 }

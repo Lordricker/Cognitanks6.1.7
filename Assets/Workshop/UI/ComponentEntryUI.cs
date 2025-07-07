@@ -52,14 +52,15 @@ public class ComponentEntryUI : MonoBehaviour
             cachedNormalColor = colors.normalColor;
 
         // If assigned, use selectedColor as normalColor so it stays selected visually
-        // Use ScriptableObject data to determine if this component instance is assigned to any tank slot
+        // Use JSON data to determine if this component instance is assigned to any tank slot
         bool isAssigned = false;        string assignedTankName = "";
         var workshopUI = FindFirstObjectByType<WorkshopUIManager>();
         if (workshopUI != null && !isShopView)
         {
             foreach (var slot in workshopUI.tankSlots)
             {
-                if (slot.slotData != null)
+                var slotData = TankSlotJsonManager.Instance.GetTankSlot(slot.slotIndex);
+                if (slotData != null)
                 {
                     // Check assignment based on component type
                     ComponentData assigned = null;

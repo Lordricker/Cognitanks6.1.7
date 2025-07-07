@@ -22,6 +22,11 @@ public class TankSlotDataJson
     public string armorPrefabGuid;
     public string engineFramePrefabGuid;
     
+    // Additional GUID aliases for compatibility
+    public string engineFrameGuid { get => engineFramePrefabGuid; set => engineFramePrefabGuid = value; }
+    public string armorGuid { get => armorPrefabGuid; set => armorPrefabGuid = value; }
+    public string turretGuid { get => turretPrefabGuid; set => turretPrefabGuid = value; }
+    
     // AI references (stored as instance IDs that correspond to JSON files)
     public string turretAIInstanceId;
     public string navAIInstanceId;
@@ -32,6 +37,7 @@ public class TankSlotDataJson
     public int turretDamage;
     public float turretRange;
     public float turretShotsPerSec;
+    public float turretFireRate { get => turretShotsPerSec; set => turretShotsPerSec = value; } // Alias for compatibility
     public float turretBulletSpeed = 50f;
     public string turretKnockback;
     public float turretVisionRange = 60f;
@@ -43,6 +49,7 @@ public class TankSlotDataJson
     [Header("Engine Stats")]
     public int engineWeightCapacity;
     public int enginePower;
+    public int engineFrameHP; // Engine frame health points
     
     [Header("Calculated Stats")]
     public float totalWeight;
@@ -63,6 +70,7 @@ public class TankSlotDataJson
     // Metadata
     public string slotName; // e.g., "TankSlot 0"
     public int slotIndex;   // 0-9 for the 10 tank slots
+    public string spawnPointName; // For enemy tanks: name of the spawn point to use (e.g., "SpawnPoint10")
 }
 
 /// <summary>

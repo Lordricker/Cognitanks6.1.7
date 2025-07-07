@@ -1,53 +1,51 @@
-# AI System Updates - Number Entry & Flee Logic
+# AI EDITOR FEATURES - QUICK REFERENCE
 
-## Overview
+## RECENT UPDATES (July 2025) ✅
+- **Tank Firing**: Fixed component stats not copying from Workshop to JSON
+- **Debug Cleanup**: Removed Debug.Log statements from TankMan.cs, TankHPBar.cs
+- **Compiler Fixes**: Resolved all type mismatches and property name errors
+- **JSON Integration**: Components now properly update tank combat stats in real-time
 
-This document summarizes the recent improvements to the Cognitanks AI Editor's number entry system and the tank flee logic. Both systems have been simplified and made more modular.
+## NUMBER ENTRY SYSTEM
 
-## Number Entry System Updates
+### Supported Nodes (9 types)
+```
+If Self HP>#    If Self HP<#    If HP < #    If HP > #
+If Tag = #      If Tag < #      If Tag > #   
+If Range<#      If Range>#
+```
 
-### What Changed
-- **Context-sensitive input**: Number input fields only appear when nodes are clicked
-- **Specific node support**: Only 9 specific node types support numeric input
-- **Clean interface**: No permanent input boxes cluttering the UI
+### Usage
+```
+1. Click node → input field appears
+2. Type number + Enter → replaces # in label
+3. Esc/click away → cancel
+```
 
-### Supported Node Types
-1. `If Self HP>#`
-2. `If Self HP<#`
-3. `If HP < #`
-4. `If HP > #`
-5. `If Tag = #`
-6. `If Tag < #`
-7. `If Tag > #`
-8. `If Range<#`
-9. `If Range>#`
+### Implementation
+- `AiEditorFileUI.cs` → context-sensitive input
+- `NodeDeleteUI.cs` → node click detection
 
-### User Experience
-1. Click on a supported node → number input appears
-2. Type a number and press Enter → number replaces # or existing number
-3. Press Escape or click elsewhere → cancel input
+## FLEE LOGIC
 
-### Technical Files Modified
-- `Assets/AiEditor/AISaveFiles/AiEditorFileUI.cs`
-- `Assets/AiEditor/Scripts/NodeDeleteUI.cs`
+### Behavior
+```csharp
+// Simplified flee: move opposite to nearest enemy
+Vector3 fleeDirection = (transform.position - currentTarget.position).normalized;
+navAgent.SetDestination(transform.position + fleeDirection * distance);
+```
 
-## Flee Logic Updates
+### AI Tree Control
+```
+FLEE CONDITIONS (via AI nodes):
+- If Range<10 → Flee (start fleeing when enemy close)
+- If Range>50 → Stop/Wander (stop fleeing when safe)
+- If HP<25 → Flee (flee when low health)
+```
 
-### What Changed
-- **Simplified flee action**: Only handles movement in opposite direction of nearest enemy
-- **Removed hardcoded distance checks**: AI tree now handles all stopping conditions
-- **Exact opposite direction**: Mathematical precision in flee direction calculation
-
-### How It Works
-1. **Target Selection**: `currentTarget` is always the nearest detected enemy
-2. **Direction Calculation**: Tank moves in exact opposite direction using `(transform.position - currentTarget.transform.position).normalized`
-3. **No Built-in Stopping**: Flee continues until AI tree transitions to different action
-
-### AI Tree Integration
-The AI tree uses nodes to control when to start/stop fleeing:
-- **Range nodes**: `If Range<#`, `If Range>#`
-- **Vision nodes**: `If Enemy In Vision`, `If No Enemy In Vision`
-- **Health nodes**: `If Self HP<#`, `If Self HP>#`
+### No Built-in Stopping
+- Flee continues until AI tree changes action
+- AI designer controls all flee logic via nodes
 
 ### Technical Files Modified
 - `Assets/AiEditor/AIScripts/TankMan.cs` (FleeFromTarget method)

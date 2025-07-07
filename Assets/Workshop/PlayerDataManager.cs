@@ -87,22 +87,27 @@ public class PlayerDataManager : MonoBehaviour
         playerData.tankLoadouts.Clear();
         if (workshopUI != null)
         {
-            foreach (var slot in workshopUI.tankSlots)
+            var tankSlotJsonManager = FindFirstObjectByType<TankSlotJsonManager>();
+            if (tankSlotJsonManager != null)
             {
-                var save = new TankLoadoutSave();
-                save.tankName = slot.TankName;
-                if (slot.slotData != null)
+                foreach (var slot in workshopUI.tankSlots)
                 {
-                    save.isActive = slot.slotData.isActive; // Save activation state
-                    save.engineFrameInstanceId = slot.slotData.engineFrameInstanceId;
-                    save.armorInstanceId = slot.slotData.armorInstanceId;
-                    save.turretInstanceId = slot.slotData.turretInstanceId;
-                    save.turretAIInstanceId = slot.slotData.turretAIInstanceId;
-                    save.navAIInstanceId = slot.slotData.navAIInstanceId;
-                    
-                    Debug.Log($"[PlayerDataManager] Saving slot {slot.TankName}: TurretAI={save.turretAIInstanceId}, NavAI={save.navAIInstanceId}");
+                    var save = new TankLoadoutSave();
+                    save.tankName = slot.TankName;
+                    var slotData = tankSlotJsonManager.GetTankSlot(slot.slotIndex);
+                    if (slotData != null)
+                    {
+                        save.isActive = slotData.isActive; // Save activation state
+                        save.engineFrameInstanceId = slotData.engineFrameInstanceId;
+                        save.armorInstanceId = slotData.armorInstanceId;
+                        save.turretInstanceId = slotData.turretInstanceId;
+                        save.turretAIInstanceId = slotData.turretAIInstanceId;
+                        save.navAIInstanceId = slotData.navAIInstanceId;
+                        
+                        Debug.Log($"[PlayerDataManager] Saving slot {slot.TankName}: TurretAI={save.turretAIInstanceId}, NavAI={save.navAIInstanceId}");
+                    }
+                    playerData.tankLoadouts.Add(save);
                 }
-                playerData.tankLoadouts.Add(save);
             }
         }
         
@@ -319,70 +324,70 @@ public class PlayerDataManager : MonoBehaviour
 
     /// <summary>
     /// Loads an AI Tree Asset from disk based on instanceId and branch type
+    /// Now loads from persistent data path (AppData) instead of Unity project folders
     /// </summary>
     private AiEditor.AiTreeAsset LoadAITreeAssetFromDisk(string instanceId, AiEditor.AiBranchType branchType)
     {
-#if UNITY_EDITOR
-        string folderPath = branchType == AiEditor.AiBranchType.Turret 
-            ? "Assets/AiEditor/AISaveFiles/TurretFiles/" 
-            : "Assets/AiEditor/AISaveFiles/NavFiles/";
+        // Load from persistent data path (AppData/AiTrees)
+        string aiTreesPath = System.IO.Path.Combine(Application.persistentDataPath, "AiTrees");
         
-        // Search through all files in the folder to find the one with matching instanceId
-        if (System.IO.Directory.Exists(folderPath))
+        if (System.IO.Directory.Exists(aiTreesPath))
         {
-            string[] files = System.IO.Directory.GetFiles(folderPath, "*.asset");
-            foreach (string filePath in files)
+            string[] jsonFiles = System.IO.Directory.GetFiles(aiTreesPath, "*.json", System.IO.SearchOption.AllDirectories);
+            
+            foreach (string filePath in jsonFiles)
             {
-                var asset = UnityEditor.AssetDatabase.LoadAssetAtPath<AiEditor.AiTreeAsset>(filePath);
-                if (asset != null && asset.instanceId == instanceId && asset.branchType == branchType)
+                try
                 {
-                    return asset;
-                }
-            }
-        }
-        
-        // If not found in specific folder, also check main AISaveFiles folder
-        string mainFolderPath = "Assets/AiEditor/AISaveFiles/";
-        if (System.IO.Directory.Exists(mainFolderPath))
-        {
-            string[] files = System.IO.Directory.GetFiles(mainFolderPath, "*.asset");
-            foreach (string filePath in files)
-            {
-                var asset = UnityEditor.AssetDatabase.LoadAssetAtPath<AiEditor.AiTreeAsset>(filePath);
-                if (asset != null && asset.instanceId == instanceId && asset.branchType == branchType)
-                {
-                    return asset;
-                }
-            }
-        }
-        
-        // If still not found, try to find by title as a fallback (for legacy compatibility)
-        string titleToFind = instanceId.Split('_')[0]; // Extract title from instanceId format
-        string[] allFolders = { folderPath, mainFolderPath };
-        
-        foreach (string folder in allFolders)
-        {
-            if (System.IO.Directory.Exists(folder))
-            {
-                string[] files = System.IO.Directory.GetFiles(folder, "*.asset");
-                foreach (string filePath in files)
-                {
-                    var asset = UnityEditor.AssetDatabase.LoadAssetAtPath<AiEditor.AiTreeAsset>(filePath);
-                    if (asset != null && asset.branchType == branchType && 
-                        !string.IsNullOrEmpty(asset.title) && asset.title.Equals(titleToFind, System.StringComparison.OrdinalIgnoreCase))
+                    string jsonContent = System.IO.File.ReadAllText(filePath);
+                    
+                    // Create a new AiTreeAsset instance and populate it from JSON
+                    var aiTreeAsset = ScriptableObject.CreateInstance<AiEditor.AiTreeAsset>();
+                    JsonUtility.FromJsonOverwrite(jsonContent, aiTreeAsset);
+                    
+                    if (aiTreeAsset != null && aiTreeAsset.instanceId == instanceId && aiTreeAsset.branchType == branchType)
                     {
-                        Debug.LogWarning($"[PlayerDataManager] Found AI asset by title fallback: {asset.title} (expected instanceId: {instanceId}, actual: {asset.instanceId})");
-                        return asset;
+                        return aiTreeAsset;
                     }
                 }
+                catch (System.Exception ex)
+                {
+                    Debug.LogWarning($"[PlayerDataManager] Could not load AI file {filePath}: {ex.Message}");
+                }
+            }
+            
+            // Fallback: try to find by filename if exact instanceId match fails
+            foreach (string filePath in jsonFiles)
+            {
+                try
+                {
+                    string fileName = System.IO.Path.GetFileNameWithoutExtension(filePath);
+                    
+                    if (fileName.Contains(instanceId))
+                    {
+                        string jsonContent = System.IO.File.ReadAllText(filePath);
+                        
+                        // Create a new AiTreeAsset instance and populate it from JSON
+                        var aiTreeAsset = ScriptableObject.CreateInstance<AiEditor.AiTreeAsset>();
+                        JsonUtility.FromJsonOverwrite(jsonContent, aiTreeAsset);
+                        
+                        if (aiTreeAsset != null && aiTreeAsset.branchType == branchType)
+                        {
+                            Debug.LogWarning($"[PlayerDataManager] Found AI asset by filename matching: {aiTreeAsset.title} (expected instanceId: {instanceId}, filename: {fileName})");
+                            // Update the asset's instanceId to match what we're looking for
+                            aiTreeAsset.instanceId = instanceId;
+                            return aiTreeAsset;
+                        }
+                    }
+                }
+                catch (System.Exception ex)
+                {
+                    Debug.LogWarning($"[PlayerDataManager] Could not process AI file {filePath} during fallback: {ex.Message}");
+                }
             }
         }
         
-        Debug.LogWarning($"[PlayerDataManager] Could not load AI Tree asset with instanceId: {instanceId} and branchType: {branchType}");
+        Debug.LogWarning($"[PlayerDataManager] Could not load AI Tree asset with instanceId: {instanceId} and branchType: {branchType} from persistent data path");
         return null;
-#else
-        Debug.LogWarning("[PlayerDataManager] AI Tree asset loading from disk is only supported in editor mode");
-        return null;
-#endif
     }
 }
