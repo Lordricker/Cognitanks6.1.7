@@ -433,8 +433,8 @@ public class WorkshopUIManager : MonoBehaviour
         // Always instantiate a new copy for all component types (including AI SOs)
         ComponentData newComp = Instantiate(component);
         
-        // Generate clean instanceId without title prefix - just a GUID
-        newComp.instanceId = System.Guid.NewGuid().ToString();
+        // Generate instanceId with component name prefix for proper loading
+        newComp.instanceId = $"{component.title}_{System.Guid.NewGuid().ToString()}";
 
         // Handle AI components vs regular components
         if (newComp is AiTreeAsset aiTree)

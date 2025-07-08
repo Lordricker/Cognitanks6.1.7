@@ -1,0 +1,110 @@
+{
+    "branchType": 1,
+    "nodes": [
+        {
+            "nodeId": "b9406aa9-d16b-40de-b0f8-b5d62b2a30ed",
+            "nodeType": "MiddleNode(Clone)",
+            "nodeLabel": "If Enemy",
+            "position": {
+                "x": -2211.42431640625,
+                "y": 13.036865234375
+            },
+            "properties": []
+        },
+        {
+            "nodeId": "155447a5-476b-4cd8-a0d3-968ca5f33c0e",
+            "nodeType": "EndNode(Clone)",
+            "nodeLabel": "Center Target",
+            "position": {
+                "x": -1832.669677734375,
+                "y": 45.9720458984375
+            },
+            "properties": []
+        },
+        {
+            "nodeId": "55af7303-29a1-4434-bf16-1fe126b772d3",
+            "nodeType": "EndNode(Clone)",
+            "nodeLabel": "Fire",
+            "position": {
+                "x": -1840.0,
+                "y": 160.0
+            },
+            "properties": []
+        }
+    ],
+    "connections": [
+        {
+            "fromNodeId": "StartTurretButton",
+            "fromPortId": "TurretOrigin",
+            "toNodeId": "b9406aa9-d16b-40de-b0f8-b5d62b2a30ed",
+            "toPortId": "Input"
+        },
+        {
+            "fromNodeId": "b9406aa9-d16b-40de-b0f8-b5d62b2a30ed",
+            "fromPortId": "Output",
+            "toNodeId": "155447a5-476b-4cd8-a0d3-968ca5f33c0e",
+            "toPortId": "Input"
+        },
+        {
+            "fromNodeId": "b9406aa9-d16b-40de-b0f8-b5d62b2a30ed",
+            "fromPortId": "Output",
+            "toNodeId": "55af7303-29a1-4434-bf16-1fe126b772d3",
+            "toPortId": "Input"
+        }
+    ],
+    "executableNodes": [
+        {
+            "nodeId": "b9406aa9-d16b-40de-b0f8-b5d62b2a30ed",
+            "methodName": "IfEnemy",
+            "originalLabel": "If Enemy",
+            "nodeType": 1,
+            "numericValue": 0.0,
+            "connectedNodeIds": [
+                "155447a5-476b-4cd8-a0d3-968ca5f33c0e",
+                "55af7303-29a1-4434-bf16-1fe126b772d3"
+            ],
+            "position": {
+                "x": -2211.42431640625,
+                "y": 13.036865234375
+            }
+        },
+        {
+            "nodeId": "155447a5-476b-4cd8-a0d3-968ca5f33c0e",
+            "methodName": "CenterTarget",
+            "originalLabel": "Center Target",
+            "nodeType": 2,
+            "numericValue": 0.0,
+            "connectedNodeIds": [],
+            "position": {
+                "x": -1832.669677734375,
+                "y": 45.9720458984375
+            }
+        },
+        {
+            "nodeId": "55af7303-29a1-4434-bf16-1fe126b772d3",
+            "methodName": "Fire",
+            "originalLabel": "Fire",
+            "nodeType": 2,
+            "numericValue": 0.0,
+            "connectedNodeIds": [],
+            "position": {
+                "x": -1840.0,
+                "y": 160.0
+            }
+        }
+    ],
+    "startNodeId": "b9406aa9-d16b-40de-b0f8-b5d62b2a30ed",
+    "title": "Fire test",
+    "description": "AI behavior tree for Turret control",
+    "cost": 150,
+    "weight": 1,
+    "category": 2,
+    "instanceId": "8d5066cb-d1bf-439f-9f70-3a024a6d0db5",
+    "customColor": {
+        "r": 1.0,
+        "g": 1.0,
+        "b": 1.0,
+        "a": 1.0
+    },
+    "treeName": "Fire test"
+}

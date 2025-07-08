@@ -367,8 +367,57 @@ public class TankMan : MonoBehaviour
         {
         }
         
+        // If not found in persistent data, try to find in Resources/ShopAI
+        AiTreeAsset shopAI = LoadShopAIFromInstanceId(instanceId);
+        if (shopAI != null)
+        {
+            return shopAI;
+        }
+        
         return null;
     }    /// <summary>
+    /// Load AI from Resources/ShopAI folders (for enemy tanks referencing shop AI)
+    /// </summary>
+    private AiTreeAsset LoadShopAIFromInstanceId(string instanceId)
+    {
+        if (string.IsNullOrEmpty(instanceId))
+        {
+            return null;
+        }
+        
+        // Search in Resources/ShopAI/NavAI and Resources/ShopAI/TurretAI
+        string[] shopAIFolders = { "ShopAI/NavAI", "ShopAI/TurretAI" };
+        
+        foreach (string folder in shopAIFolders)
+        {
+            // Load all JSON files from the Resources folder
+            TextAsset[] jsonFiles = Resources.LoadAll<TextAsset>(folder);
+            
+            foreach (TextAsset jsonFile in jsonFiles)
+            {
+                try
+                {
+                    // Create a new AiTreeAsset instance and populate it from JSON
+                    var aiTreeData = ScriptableObject.CreateInstance<AiTreeAsset>();
+                    JsonUtility.FromJsonOverwrite(jsonFile.text, aiTreeData);
+                    
+                    // Check if this AI matches the instanceId we're looking for
+                    if (aiTreeData != null && aiTreeData.instanceId == instanceId)
+                    {
+                        return aiTreeData;
+                    }
+                }
+                catch (System.Exception ex)
+                {
+                    Debug.LogWarning($"[LoadShopAIFromInstanceId] Failed to parse shop AI file {jsonFile.name}: {ex.Message}");
+                }
+            }
+        }
+        
+        return null;
+    }
+    
+    /// <summary>
     /// Set the turret and fire point transforms (called by TankAssembly)
     /// </summary>
     public void SetTurretComponents(Transform turret, Transform firePointTransform)
