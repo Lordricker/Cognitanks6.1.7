@@ -29,6 +29,7 @@ public class TankMan : MonoBehaviour
     [SerializeField] private Transform turretTransform;
     [SerializeField] private Transform firePoint;
     [SerializeField] private UnityEngine.AI.NavMeshAgent navAgent;
+    [SerializeField] private Rigidbody tankRigidbody;
     
     [Header("Sensor Settings")]
     [SerializeField] private string tankTag = "Tank";
@@ -83,6 +84,20 @@ public class TankMan : MonoBehaviour
     public float MoveSpeed => Mathf.Max(1f, enginePower - (totalWeight * 0.1f));
     public float TurnSpeed => Mathf.Max(30f, 90f - (totalWeight * 0.5f));
     
+    [Header("Physics Movement Settings")]
+    [SerializeField] private float forceMultiplier = 1000f; // Increased force for better ground movement
+    [SerializeField] private float maxVelocity = 15f; // Reduced max velocity for stability
+    [SerializeField] private float brakingForce = 150f; // Reduced braking to allow more movement
+    [SerializeField] private float turnForceMultiplier = 100f; // Reduced turn force to prevent spinning
+    [SerializeField] private float knockbackMultiplier = 10f;
+    
+    // Physics movement state
+    private Vector3 targetDirection = Vector3.zero;
+    private Vector3 currentKnockbackForce = Vector3.zero;
+    private bool isMoving = false;
+    private bool isGrounded = false;
+    private float groundCheckDistance = 0.5f;
+    
     // Public properties for AI Master scripts
     public Transform turretPivot => turretTransform;
     
@@ -116,17 +131,35 @@ public class TankMan : MonoBehaviour
     
     void Start()
     {
+        // Initialize Rigidbody for physics-based movement
+        if (tankRigidbody == null) 
+        {
+            tankRigidbody = GetComponent<Rigidbody>();
+            if (tankRigidbody == null)
+            {
+                tankRigidbody = gameObject.AddComponent<Rigidbody>();
+            }
+        }
+        
+        // Configure Rigidbody for tank movement
+        tankRigidbody.mass = totalWeight > 0 ? totalWeight : 100f; // Use calculated weight or default
+        tankRigidbody.linearDamping = 0.5f; // Reduced damping for better movement
+        tankRigidbody.angularDamping = 3f; // Reduced angular damping to reduce jitter
+        tankRigidbody.useGravity = true;
+        tankRigidbody.freezeRotation = false;
+        // Constrain rotation to prevent flipping but allow Y-axis rotation for turning
+        tankRigidbody.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
+        
         if (navAgent == null) navAgent = GetComponent<UnityEngine.AI.NavMeshAgent>();
+        
+        // Disable NavMeshAgent since we're using Rigidbody physics
+        if (navAgent != null)
+        {
+            navAgent.enabled = false;
+        }
         
         // Initialize team info - this is critical for enemy detection
         EnsureTeamInfoExists();
-        
-        // Configure NavMeshAgent for manual rotation control
-        if (navAgent != null)
-        {
-            navAgent.updateRotation = false; // We'll handle rotation manually
-            navAgent.speed = MoveSpeed > 0 ? MoveSpeed : 5f; // Set movement speed
-        }
         
         // Load AI from tankSlotData for display/reference
         if (tankSlotData != null)
@@ -199,15 +232,23 @@ public class TankMan : MonoBehaviour
         StartAI();
     }
     
-    void FixedUpdate()
-    {
-        // Keep FixedUpdate empty - we'll do terrain alignment in LateUpdate
-    }
+
     
     void LateUpdate()
     {
         // LateUpdate runs after all other updates, so NavMeshAgent won't override our rotation
         AlignToTerrain();
+    }
+    
+    void FixedUpdate()
+    {
+        if (tankRigidbody == null) return;
+        
+        // Apply physics-based movement forces
+        ApplyMovementForces();
+        
+        // Apply any knockback forces
+        ApplyKnockbackForces();
     }
     
     void Update()
@@ -1393,84 +1434,50 @@ public class TankMan : MonoBehaviour
     
       void StopMovement()
     {
-        if (navAgent != null && navAgent.enabled)
-        {
-            navAgent.ResetPath(); // Stop NavMesh Agent movement
-        }
-        
-        // No need to manually stop rigidbody since we're using NavMeshAgent only
+        StopPhysicsMovement();
     }
       IEnumerator WanderAction()
     {
-        // Wait for NavMeshAgent to be properly initialized and placed on NavMesh
-        float waitStartTime = Time.time;
-        while (navAgent != null && (!navAgent.enabled || !navAgent.isOnNavMesh))
+        // Wait for physics to be ready
+        if (tankRigidbody == null)
         {
-            // Try to warp agent to current position to place it on NavMesh
-            if (navAgent != null && navAgent.enabled)
-            {
-                navAgent.Warp(transform.position);
-            }
-            
-            // Timeout after 2 seconds of waiting
-            if (Time.time - waitStartTime > 2f)
-            {
-                yield break;
-            }
-            
-            yield return new WaitForSeconds(0.1f);
+            yield break;
         }
         
         // Check if we need to set a new wander target
         if (!isWandering || ShouldPickNewWanderTarget())
         {
             SetNewWanderTarget();
-            wanderStartTime = Time.time; // Reset timeout timer when setting new target
+            wanderStartTime = Time.time;
         }
         
-        // Use NavMesh Agent to move to wander target
-        if (navAgent != null && navAgent.enabled && navAgent.isOnNavMesh)
-        {
-            navAgent.SetDestination(currentWanderTarget);
-        }
-        else
-        {
-            yield break;
-        }
+        // Calculate direction to wander target
+        Vector3 directionToTarget = (currentWanderTarget - transform.position).normalized;
+        
+        // Start moving towards the target
+        SetMovementDirection(directionToTarget, true);
         
         // Wait until we reach the target or timeout
-        while (navAgent != null && navAgent.enabled && navAgent.isOnNavMesh)
+        while (Vector3.Distance(transform.position, currentWanderTarget) > wanderReachDistance)
         {
-            // Check if path is still pending
-            if (navAgent.pathPending)
-            {
-                yield return null;
-                continue;
-            }
-            
-            // Check if we've reached the destination
-            if (!navAgent.pathPending && navAgent.remainingDistance < wanderReachDistance)
-            {
-                break;
-            }
-            
-            // Check for timeout - if we've been trying to reach this target for too long, pick a new one
+            // Check for timeout
             if (Time.time - wanderStartTime > wanderTimeout)
             {
                 SetNewWanderTarget();
                 wanderStartTime = Time.time;
-                
-                if (navAgent != null && navAgent.enabled && navAgent.isOnNavMesh)
-                {
-                    navAgent.SetDestination(currentWanderTarget);
-                }
-                continue;
+                directionToTarget = (currentWanderTarget - transform.position).normalized;
+                SetMovementDirection(directionToTarget, true);
             }
             
-            yield return null;
+            // Update direction to target (for moving targets or course correction)
+            directionToTarget = (currentWanderTarget - transform.position).normalized;
+            SetMovementDirection(directionToTarget, true);
+            
+            yield return new WaitForSeconds(0.2f); // Update direction 5 times per second
         }
         
-        // Mark as no longer wandering so a new target will be picked next time
+        // Reached target, stop moving
+        StopPhysicsMovement();
         isWandering = false;
         
         // Wait briefly at the destination
@@ -2049,4 +2056,151 @@ public class TankMan : MonoBehaviour
 
         return connectedNodes.FirstOrDefault(); // Restart from first node
     }
+    
+    #region Physics Movement System
+    
+    /// <summary>
+    /// Applies movement forces based on target direction and movement state
+    /// Tank-style movement: only forward/backward (Z-axis) and Y-rotation
+    /// </summary>
+    void ApplyMovementForces()
+    {
+        if (!isMoving || targetDirection == Vector3.zero)
+        {
+            // TEMPORARILY DISABLE BRAKING FOR TESTING
+            // ApplyBraking();
+            return;
+        }
+        
+        // Project movement direction onto the ground plane
+        Vector3 groundDirection = Vector3.ProjectOnPlane(targetDirection, Vector3.up).normalized;
+        
+        // Calculate tank's forward direction (always Z-axis)
+        Vector3 tankForward = transform.forward;
+        
+        // Determine if we should move forward or backward based on target direction
+        float forwardAlignment = Vector3.Dot(tankForward, groundDirection);
+        
+        // Calculate movement and rotation separately for tank-style movement
+        
+        // 1. MOVEMENT: Only forward/backward along tank's Z-axis
+        Vector3 currentVelocity = tankRigidbody.linearVelocity;
+        float currentForwardSpeed = Vector3.Dot(currentVelocity, tankForward);
+        
+        // Determine desired speed (positive = forward, negative = backward)
+        float desiredForwardSpeed = forwardAlignment * MoveSpeed * 0.5f;
+        
+        // Only apply forward/backward force if needed
+        if (Mathf.Abs(currentForwardSpeed - desiredForwardSpeed) > 0.1f)
+        {
+            float speedDifference = desiredForwardSpeed - currentForwardSpeed;
+            float forceNeeded = speedDifference * tankRigidbody.mass * 2f;
+            
+            // Apply force along tank's forward direction only
+            Vector3 moveForce = tankForward * Mathf.Min(Mathf.Abs(forceNeeded), forceMultiplier * 0.5f) * Mathf.Sign(forceNeeded);
+            
+            // Debug output every 2 seconds
+            if (Time.fixedTime % 2f < Time.fixedDeltaTime)
+            {
+                Debug.Log($"{gameObject.name}: Forward speed: {currentForwardSpeed:F2}, desired: {desiredForwardSpeed:F2}, applying force: {moveForce.magnitude:F1}");
+            }
+            
+            tankRigidbody.AddForce(moveForce, ForceMode.Force);
+        }
+        
+        // 2. ROTATION: Only Y-axis rotation to face target direction
+        float targetAngle = Mathf.Atan2(groundDirection.x, groundDirection.z) * Mathf.Rad2Deg;
+        float currentAngle = transform.eulerAngles.y;
+        float angleDifference = Mathf.DeltaAngle(currentAngle, targetAngle);
+        
+        // Only apply rotation if the angle difference is significant
+        if (Mathf.Abs(angleDifference) > 5f) // Increased dead zone for smoother movement
+        {
+            float effectiveTurnSpeed = Mathf.Max(1f, TurnSpeed);
+            float turnForce = angleDifference * turnForceMultiplier * 0.2f * (effectiveTurnSpeed / 100f) * Time.fixedDeltaTime;
+            tankRigidbody.AddTorque(0, turnForce, 0, ForceMode.Force);
+        }
+        
+        // Clamp velocity to prevent excessive speed
+        if (currentVelocity.magnitude > maxVelocity)
+        {
+            tankRigidbody.linearVelocity = currentVelocity.normalized * maxVelocity;
+        }
+    }
+    
+    /// <summary>
+    /// Applies braking forces to slow down the tank when not actively moving
+    /// </summary>
+    void ApplyBraking()
+    {
+        Vector3 velocity = tankRigidbody.linearVelocity;
+        Vector3 brakeForce = -velocity.normalized * brakingForce;
+        
+        // Only apply braking if we're moving
+        if (velocity.magnitude > 0.1f)
+        {
+            tankRigidbody.AddForce(brakeForce, ForceMode.Force);
+        }
+    }
+    
+    /// <summary>
+    /// Applies knockback forces from weapon impacts
+    /// </summary>
+    void ApplyKnockbackForces()
+    {
+        if (currentKnockbackForce.magnitude > 0.1f)
+        {
+            tankRigidbody.AddForce(currentKnockbackForce, ForceMode.Impulse);
+            
+            // Decay knockback force over time
+            currentKnockbackForce = Vector3.Lerp(currentKnockbackForce, Vector3.zero, Time.fixedDeltaTime * 5f);
+            
+            // Clear very small knockback forces
+            if (currentKnockbackForce.magnitude < 0.1f)
+            {
+                currentKnockbackForce = Vector3.zero;
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Stops all movement by clearing target direction
+    /// </summary>
+    void StopPhysicsMovement()
+    {
+        targetDirection = Vector3.zero;
+        isMoving = false;
+    }
+    
+    /// <summary>
+    /// Sets the movement target direction for physics-based movement
+    /// </summary>
+    void SetMovementDirection(Vector3 direction, bool moving = true)
+    {
+        targetDirection = direction.normalized;
+        isMoving = moving;
+        
+        Debug.Log($"{gameObject.name}: SetMovementDirection - direction: {direction}, moving: {moving}, targetDirection: {targetDirection}");
+        
+        // Clamp movement to map boundaries by adjusting target direction
+        Vector3 futurePosition = transform.position + targetDirection * 10f; // Predict future position
+        
+        // Check bounds and adjust direction if needed
+        if (futurePosition.x < 30f || futurePosition.x > 770f)
+        {
+            targetDirection.x = 0; // Stop horizontal movement
+        }
+        if (futurePosition.z < 30f || futurePosition.z > 770f)
+        {
+            targetDirection.z = 0; // Stop vertical movement
+        }
+        
+        // Renormalize if we modified the direction
+        if (targetDirection.magnitude > 0.1f)
+        {
+            targetDirection.Normalize();
+        }
+    }
+    
+    #endregion
 }
