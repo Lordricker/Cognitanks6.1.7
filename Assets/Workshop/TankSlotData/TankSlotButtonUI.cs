@@ -51,7 +51,8 @@ public class TankSlotButtonUI : MonoBehaviour
             {
                 slotData.engineWeightCapacity = engineData.weightCapacity;
                 slotData.enginePower = engineData.enginePower;
-                Debug.Log($"[TankSlotButtonUI] Copied engine stats: WeightCapacity={engineData.weightCapacity}, Power={engineData.enginePower}");
+                slotData.engineTorque = engineData.turningPower;
+                Debug.Log($"[TankSlotButtonUI] Copied engine stats: WeightCapacity={engineData.weightCapacity}, Power={engineData.enginePower}, TurningPower={engineData.turningPower}");
             }
         } else if (data.category == ComponentCategory.Armor) {
             slotData.armorPrefabGuid = ""; // TODO: Convert prefab to GUID if needed

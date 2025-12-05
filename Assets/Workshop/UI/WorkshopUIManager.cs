@@ -702,6 +702,7 @@ public class WorkshopUIManager : MonoBehaviour
                     if (component is EngineFrameData engineData)
                     {
                         slotData.enginePower = engineData.enginePower;
+                        slotData.engineTorque = engineData.turningPower;
                         slotData.engineWeightCapacity = engineData.weightCapacity;
                         slotData.engineFrameHP = 0; // EngineFrameData doesn't have HP property
                     }

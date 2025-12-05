@@ -121,8 +121,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 8.916044, y: 3.9332423, z: 8.867452}
-  m_Center: {x: 0, y: 2.6168873, z: 0.10185385}
+  m_Size: {x: 8.916044, y: 3.2055721, z: 8.867452}
+  m_Center: {x: 0, y: 2.9807224, z: 0.10185385}
 --- !u!136 &2596441330238194177
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -143,9 +143,9 @@ CapsuleCollider:
   m_Enabled: 1
   serializedVersion: 2
   m_Radius: 0.84024143
-  m_Height: 6.3183184
+  m_Height: 5.663416
   m_Direction: 2
-  m_Center: {x: 0, y: 2.7827296, z: 7.211642}
+  m_Center: {x: 0, y: 2.7827296, z: 7.539093}
 --- !u!4 &4045106980402974902 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: da55bce74faf6dd44a06f1eeefce88e9, type: 3}
