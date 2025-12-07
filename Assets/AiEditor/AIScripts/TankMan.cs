@@ -114,10 +114,22 @@ public class TankMan : MonoBehaviour
     // AI execution state
     private AiExecutableNode currentNavNode;
     private AiExecutableNode currentTurretNode;
-    private AiExecutableNode currentActionNode; // Added for parameter access in actions
+    private AiExecutableNode currentNavActionNode; // Current action for Nav AI
+    private AiExecutableNode currentTurretActionNode; // Current action for Turret AI
     private Coroutine navAiCoroutine;
     private Coroutine turretAiCoroutine;
-    private Coroutine currentActionCoroutine;
+    private Coroutine currentNavActionCoroutine; // Coroutine for Nav AI actions
+    private Coroutine currentTurretActionCoroutine; // Coroutine for Turret AI actions
+    
+    // Track last executed node to prevent duplicate logs
+    private string lastLoggedNavNodeId = "";
+    private string lastLoggedTurretNodeId = "";
+    private string lastLoggedNavActionName = "";
+    private string lastLoggedTurretActionName = "";
+    
+    // Cycle node memory - tracks which child node each Cycle instance is currently executing
+    private Dictionary<string, int> cycleNodeMemory = new Dictionary<string, int>();
+    private Dictionary<string, bool> cycleNodeCompletionFlags = new Dictionary<string, bool>();
     
     // Sensor data
     private GameObject currentTarget;
@@ -148,8 +160,6 @@ public class TankMan : MonoBehaviour
         // Allow X and Z rotation so tank follows terrain, only control Y (turning) with forces
         rb.constraints = RigidbodyConstraints.None;
         rb.centerOfMass = new Vector3(0, -0.5f, 0); // Lower center for stability
-        
-        Debug.Log($"{gameObject.name} Rigidbody initialized: mass={rb.mass}, drag={rb.linearDamping}, angularDrag={rb.angularDamping}");
 
         // Initialize team info - this is critical for enemy detection
         EnsureTeamInfoExists();
@@ -214,13 +224,6 @@ public class TankMan : MonoBehaviour
         if (rb == null)
             return;
 
-        // Debug: Check if forces are being blocked
-        if (!isGrounded)
-        {
-            // Still allow forces even if not grounded (for testing)
-            Debug.LogWarning($"{gameObject.name}: Not grounded - but applying forces anyway for testing");
-        }
-
         // Apply movement forces based on input
         ApplyMovement();
     }
@@ -230,20 +233,11 @@ public class TankMan : MonoBehaviour
     /// </summary>
     private void ApplyMovement()
     {
-        // Debug: Log inputs and forces every 60 frames
-        if (Time.frameCount % 60 == 0)
-        {
-            Debug.Log($"{gameObject.name} Movement - Input: move={currentMoveInput:F2}, turn={currentTurnInput:F2} | EnginePower={enginePower}N, TurningPower={turningPower}N·m | Mass={rb.mass}kg");
-        }
-        
         // Forward/backward movement using engine power
         if (Mathf.Abs(currentMoveInput) > 0.01f)
         {
             float force = enginePower * currentMoveInput;
             rb.AddForce(transform.forward * force);
-            
-            if (Time.frameCount % 60 == 0)
-                Debug.Log($"{gameObject.name} Applying FORWARD force: {force}N");
         }
         
         // Rotation using torque with gradual ramp-up
@@ -265,9 +259,6 @@ public class TankMan : MonoBehaviour
             
             float torque = currentTurningPower * currentTurnInput;
             rb.AddTorque(Vector3.up * torque);
-            
-            if (Time.frameCount % 60 == 0)
-                Debug.Log($"{gameObject.name} Applying TORQUE: {torque}N·m (power%={powerPercent*100:F0}%)");
         }
         else
         {
@@ -348,6 +339,13 @@ public class TankMan : MonoBehaviour
     {
         // LateUpdate runs after all other updates, so NavMeshAgent won't override our rotation
         
+        // Force turret to inherit tank's Z-axis rotation (tilt) - turret is mechanically linked to tank body
+        if (turretTransform != null)
+        {
+            Vector3 turretEuler = turretTransform.eulerAngles;
+            turretEuler.z = transform.eulerAngles.z; // Match parent tank's Z-axis tilt
+            turretTransform.eulerAngles = turretEuler;
+        }
     }
     
     void Update()
@@ -364,11 +362,8 @@ public class TankMan : MonoBehaviour
     {
         if (tankSlotData == null)
         {
-            Debug.LogError($"{gameObject.name} CalculateStats: tankSlotData is NULL!");
             return;
         }
-        
-        Debug.Log($"{gameObject.name} CalculateStats called - reading from TankSlotData");
         
         // Calculate total weight from individual components
         totalWeight = tankSlotData.chassisWeight + tankSlotData.armorWeight + 
@@ -385,8 +380,6 @@ public class TankMan : MonoBehaviour
             rb.mass = totalWeight;
             rb.linearDamping = tankSlotData.dragCoefficient;
             rb.angularDamping = tankSlotData.angularDragCoefficient;
-            
-            Debug.Log($"{gameObject.name} Rigidbody updated: mass={rb.mass}kg, linearDrag={rb.linearDamping}, angularDrag={rb.angularDamping}");
         }
         
         // Get armor stats from TankSlotData stat fields
@@ -413,17 +406,11 @@ public class TankMan : MonoBehaviour
             turnStartPowerPercent = tankSlotData.engineTurnStartPercent > 0 ? tankSlotData.engineTurnStartPercent : 0.5f;
             dragCoefficient = tankSlotData.dragCoefficient > 0 ? tankSlotData.dragCoefficient : 0.5f;
             angularDragCoefficient = tankSlotData.angularDragCoefficient > 0 ? tankSlotData.angularDragCoefficient : 2.0f;
-            
-            Debug.Log($"{gameObject.name} loaded from JSON - EnginePower={enginePower}N, TurningPower={turningPower}N·m");
         }
         else
         {
             // Use inspector values (already set in serialized fields)
-            Debug.Log($"{gameObject.name} USING INSPECTOR OVERRIDES - EnginePower={enginePower}N, TurningPower={turningPower}N·m");
         }
-        
-        // Debug log physics configuration (totalWeight was calculated earlier)
-        Debug.Log($"Tank {gameObject.name} physics: EnginePower={enginePower}N, Mass={totalWeight}kg, Accel={enginePower/totalWeight:F1}m/s\u00b2");
         
         
         // Get turret stats from TankSlotData stat fields
@@ -602,9 +589,6 @@ public class TankMan : MonoBehaviour
     #region AI System
       public void StartAI()
     {
-        
-
-        Debug.Log($"[TankMan] AI started for {gameObject.name}");
         StopAI();
         
         if (enableNavAI && runtimeNavAI != null)
@@ -639,10 +623,16 @@ public class TankMan : MonoBehaviour
             turretAiCoroutine = null;
         }
         
-        if (currentActionCoroutine != null)
+        if (currentNavActionCoroutine != null)
         {
-            StopCoroutine(currentActionCoroutine);
-            currentActionCoroutine = null;
+            StopCoroutine(currentNavActionCoroutine);
+            currentNavActionCoroutine = null;
+        }
+        
+        if (currentTurretActionCoroutine != null)
+        {
+            StopCoroutine(currentTurretActionCoroutine);
+            currentTurretActionCoroutine = null;
         }
         
         // Reset wander state
@@ -706,13 +696,32 @@ public class TankMan : MonoBehaviour
     AiExecutableNode ExecuteNode(AiExecutableNode node, AiTreeAsset tree)
     {
         if (node == null) return null;
+        
+        // Determine if this is Nav or Turret AI
+        bool isNavAI = (tree == runtimeNavAI);
+        ref string lastLoggedActionName = ref (isNavAI ? ref lastLoggedNavActionName : ref lastLoggedTurretActionName);
+        
+        // Log only when action changes (skip conditions)
+        if (node.nodeType == AiNodeType.Action && node.methodName != lastLoggedActionName)
+        {
+            string aiTypeStr = isNavAI ? "Nav" : "Turret";
+            Debug.Log($"[{aiTypeStr}] {gameObject.name} → Action: {node.methodName}");
+            lastLoggedActionName = node.methodName;
+        }
+        
+        // Check if this is a Cycle node (identified by methodName "Cycle")
+        if (node.methodName == "Cycle")
+        {
+            return ExecuteCycleNode(node, tree);
+        }
+        
         switch (node.nodeType)
         {
             case AiNodeType.Condition:
                 bool conditionResult = ExecuteCondition(node);
                 return GetNextNodeFromCondition(node, tree, conditionResult);
             case AiNodeType.Action:
-                ExecuteAction(node);
+                ExecuteAction(node, tree);
                 return GetNextNodeFromAction(node, tree);
             // SubAI support removed
             default:
@@ -740,28 +749,34 @@ public class TankMan : MonoBehaviour
         
         if (conditionResult)
         {
-            // Special handling for turret AI: Try Fire first, fallback to CenterTarget
-            if (conditionNode.methodName == "IfEnemy" && sortedConnections.Count >= 2)
+            // Follow to first connected node (highest Y-position)
+            var nextNode = sortedConnections.FirstOrDefault();
+            
+            // Special handling: If the next node is an action node that is Fire or CenterTarget,
+            // and we have both available, choose based on whether we can fire
+            if (nextNode != null && nextNode.nodeType == AiNodeType.Action)
             {
-                var fireNode = sortedConnections.FirstOrDefault(n => n.methodName == "Fire");
-                var centerNode = sortedConnections.FirstOrDefault(n => n.methodName == "CenterTarget");
-                
-                if (fireNode != null && centerNode != null)
+                if (nextNode.methodName == "Fire" || nextNode.methodName == "CenterTarget")
                 {
-                    // Check if we can fire (turret aimed within 2 degrees)
-                    if (CanFire())
+                    // Check if both Fire and CenterTarget are available as siblings
+                    var fireNode = sortedConnections.FirstOrDefault(n => n.methodName == "Fire");
+                    var centerNode = sortedConnections.FirstOrDefault(n => n.methodName == "CenterTarget");
+                    
+                    if (fireNode != null && centerNode != null)
                     {
-                        return fireNode;
-                    }
-                    else
-                    {
-                        return centerNode;
+                        // Choose based on turret alignment
+                        if (CanFire())
+                        {
+                            return fireNode;
+                        }
+                        else
+                        {
+                            return centerNode;
+                        }
                     }
                 }
             }
             
-            // Default behavior: follow to first connected node (highest Y-position)
-            var nextNode = sortedConnections.FirstOrDefault();
             return nextNode;
         }
         else
@@ -841,7 +856,97 @@ public class TankMan : MonoBehaviour
         
         // No connections - restart from beginning
         return GetFirstNodeFromStart(tree);
-    }    /// <summary>
+    }
+    
+    #endregion
+    
+    #region Cycle Node Logic
+    
+    /// <summary>
+    /// Executes a Cycle node, managing memory to cycle through its connected action nodes
+    /// </summary>
+    AiExecutableNode ExecuteCycleNode(AiExecutableNode cycleNode, AiTreeAsset tree)
+    {
+        if (cycleNode == null || cycleNode.connectedNodeIds.Count == 0)
+        {
+            return GetFirstNodeFromStart(tree);
+        }
+        
+        // Get sorted child nodes by Y position (highest first)
+        var sortedChildren = cycleNode.connectedNodeIds
+            .Select(nodeId => tree.executableNodes.Find(n => n.nodeId == nodeId))
+            .Where(n => n != null)
+            .OrderByDescending(n => n.position.y)
+            .ToList();
+        
+        if (sortedChildren.Count == 0)
+        {
+            return GetFirstNodeFromStart(tree);
+        }
+        
+        // Initialize memory for this cycle node if it doesn't exist
+        if (!cycleNodeMemory.ContainsKey(cycleNode.nodeId))
+        {
+            cycleNodeMemory[cycleNode.nodeId] = 0;
+            cycleNodeCompletionFlags[cycleNode.nodeId] = false;
+        }
+        
+        int currentChildIndex = cycleNodeMemory[cycleNode.nodeId];
+        
+        // Check if the current action is completed
+        if (cycleNodeCompletionFlags.ContainsKey(cycleNode.nodeId) && cycleNodeCompletionFlags[cycleNode.nodeId])
+        {
+            // Move to next child
+            currentChildIndex++;
+            
+            // Wrap around if we've reached the end
+            if (currentChildIndex >= sortedChildren.Count)
+            {
+                currentChildIndex = 0;
+            }
+            
+            // Update memory
+            cycleNodeMemory[cycleNode.nodeId] = currentChildIndex;
+            cycleNodeCompletionFlags[cycleNode.nodeId] = false;
+        }
+        
+        // Execute the current child node
+        var currentChild = sortedChildren[currentChildIndex];
+        return currentChild;
+    }
+    
+    /// <summary>
+    /// Marks the current action in a cycle as completed
+    /// Called by action nodes when they complete their task
+    /// </summary>
+    public void MarkCycleActionComplete(string cycleNodeId)
+    {
+        if (cycleNodeCompletionFlags.ContainsKey(cycleNodeId))
+        {
+            cycleNodeCompletionFlags[cycleNodeId] = true;
+        }
+    }
+    
+    /// <summary>
+    /// Gets the parent cycle node for a given action node
+    /// </summary>
+    AiExecutableNode GetParentCycleNode(AiExecutableNode actionNode, AiTreeAsset tree)
+    {
+        foreach (var node in tree.executableNodes)
+        {
+            if (node.methodName == "Cycle" && node.connectedNodeIds.Contains(actionNode.nodeId))
+            {
+                return node;
+            }
+        }
+        return null;
+    }
+    
+    #endregion
+    
+    #region Sensor Updates
+    
+    /// <summary>
     /// Updates sensor data for decision making
     /// </summary>
     void UpdateSensorData()
@@ -1027,6 +1132,16 @@ public class TankMan : MonoBehaviour
                 else
                     result = healthPercent >= conditionNode.numericValue;
                 break;
+            
+            case "IfSelfHP":
+                // Check self HP as absolute value (not percentage)
+                if (conditionNode.originalLabel.Contains(">"))
+                    result = currentHealth > conditionNode.numericValue;
+                else if (conditionNode.originalLabel.Contains("<"))
+                    result = currentHealth < conditionNode.numericValue;
+                else
+                    result = currentHealth >= conditionNode.numericValue;
+                break;
                 
             case "IfArmor":
                 // Check armor condition
@@ -1075,14 +1190,16 @@ public class TankMan : MonoBehaviour
     /// <summary>
     /// Executes action nodes
     /// </summary>
-    void ExecuteAction(AiExecutableNode actionNode)
+    void ExecuteAction(AiExecutableNode actionNode, AiTreeAsset tree)
     {
+        // Determine if this is Nav or Turret AI
+        bool isNavAI = (tree == runtimeNavAI);
+        
+        // Use appropriate variables based on AI type
+        ref AiExecutableNode currentActionNode = ref (isNavAI ? ref currentNavActionNode : ref currentTurretActionNode);
+        ref Coroutine currentActionCoroutine = ref (isNavAI ? ref currentNavActionCoroutine : ref currentTurretActionCoroutine);
+        
         // Store current action node for parameter access
-        // Only log when a new action is selected (not on repeated calls)
-        if (currentActionNode == null || currentActionNode.methodName != actionNode.methodName)
-        {
-            Debug.Log($"[TankMan] New action selected: {actionNode.methodName}");
-        }
         currentActionNode = actionNode;
 
         // Stop any current action
@@ -1138,6 +1255,18 @@ public class TankMan : MonoBehaviour
                 {
                     currentActionCoroutine = StartCoroutine(TrackTargetAction());
                 }
+                break;
+            case "AlignFront":
+                currentActionCoroutine = StartCoroutine(AlignFrontAction());
+                break;
+            case "AlignRight":
+                currentActionCoroutine = StartCoroutine(AlignRightAction());
+                break;
+            case "AlignLeft":
+                currentActionCoroutine = StartCoroutine(AlignLeftAction());
+                break;
+            case "AlignBack":
+                currentActionCoroutine = StartCoroutine(AlignBackAction());
                 break;
             default:
                 break;
@@ -1576,39 +1705,9 @@ public class TankMan : MonoBehaviour
             targetPosition.x = Mathf.Clamp(targetPosition.x, 30f, 770f);
             targetPosition.z = Mathf.Clamp(targetPosition.z, 30f, 770f);
 
-            Vector3 toTarget = targetPosition - transform.position;
-            toTarget.y = 0f;
-            float distance = toTarget.magnitude;
-
-            if (distance <= range * 0.8f)
-            {
-                // Apply brakes to stop at destination
-                float stopTime = 0.5f;
-                float stopStart = Time.time;
-                while (Time.time - stopStart < stopTime)
-                {
-                    StopMovement();
-                    yield return new WaitForFixedUpdate();
-                }
-                break;
-            }
-
-            // Rotate towards target using input system
-            float targetY = Mathf.Atan2(toTarget.x, toTarget.z) * Mathf.Rad2Deg;
-            float angleDiff = Mathf.DeltaAngle(transform.eulerAngles.y, targetY);
-
-            if (Mathf.Abs(angleDiff) > 5f)
-            {
-                float turnDir = Mathf.Sign(angleDiff);
-                float turnIntensity = Mathf.Clamp01(Mathf.Abs(angleDiff) / 45f);
-                // Turn in place
-                SetMovementInput(0f, turnDir * turnIntensity);
-            }
-            else
-            {
-                // Facing target, move forward
-                SetMovementInput(1f, 0f);
-            }
+            // Chase continuously - AI tree conditions (like IfRange) decide when to stop
+            // Use NavState_MoveToWaypoint for smooth movement toward target
+            NavState_MoveToWaypoint(targetPosition);
 
             yield return new WaitForFixedUpdate();
         }
@@ -1644,39 +1743,9 @@ public class TankMan : MonoBehaviour
             fleeTarget.x = Mathf.Clamp(fleeTarget.x, 30f, 770f);
             fleeTarget.z = Mathf.Clamp(fleeTarget.z, 30f, 770f);
 
-            Vector3 toFlee = fleeTarget - transform.position;
-            toFlee.y = 0f;
-            float distance = Vector3.Distance(transform.position, currentTarget.transform.position);
-
-            if (distance >= range * 2f)
-            {
-                // Apply brakes to stop at destination
-                float stopTime = 0.5f;
-                float stopStart = Time.time;
-                while (Time.time - stopStart < stopTime)
-                {
-                    StopMovement();
-                    yield return new WaitForFixedUpdate();
-                }
-                break;
-            }
-
-            // Rotate away from target (flee direction) using input system
-            float targetY = Mathf.Atan2(toFlee.x, toFlee.z) * Mathf.Rad2Deg;
-            float angleDiff = Mathf.DeltaAngle(transform.eulerAngles.y, targetY);
-
-            if (Mathf.Abs(angleDiff) > 5f)
-            {
-                float turnDir = Mathf.Sign(angleDiff);
-                float turnIntensity = Mathf.Clamp01(Mathf.Abs(angleDiff) / 45f);
-                // Turn in place
-                SetMovementInput(0f, turnDir * turnIntensity);
-            }
-            else
-            {
-                // Facing flee direction, move forward
-                SetMovementInput(1f, 0f);
-            }
+            // Flee continuously - AI tree conditions (like IfRange) decide when to stop
+            // Use NavState_MoveToWaypoint to move toward flee position (away from target)
+            NavState_MoveToWaypoint(fleeTarget);
 
             yield return new WaitForFixedUpdate();
         }
@@ -1906,4 +1975,256 @@ public class TankMan : MonoBehaviour
             yield return null;
         }
     }
+    
+    #region Turret Alignment Actions
+    
+    /// <summary>
+    /// Aligns turret to face forward (Y=0) relative to the tank body
+    /// </summary>
+    IEnumerator AlignFrontAction()
+    {
+        if (turretTransform == null)
+        {
+            Debug.LogWarning("[AlignFront] No turret transform assigned!");
+            yield break;
+        }
+        
+        // Get the parent cycle node if this action is part of a cycle
+        AiExecutableNode parentCycle = null;
+        if (currentTurretActionNode != null)
+        {
+            parentCycle = GetParentCycleNode(currentTurretActionNode, runtimeTurretAI);
+            if (parentCycle == null && runtimeNavAI != null)
+            {
+                parentCycle = GetParentCycleNode(currentTurretActionNode, runtimeNavAI);
+            }
+        }
+        
+        float targetYRotation = 0f; // Front = 0 degrees
+        float threshold = 2f; // Consider aligned when within 2 degrees
+        
+        while (turretTransform != null)
+        {
+            // Get the tank's (parent) world rotation
+            float tankWorldY = transform.eulerAngles.y;
+            
+            // Calculate target world rotation for turret
+            float targetWorldY = tankWorldY + targetYRotation;
+            
+            // Get current turret world rotation
+            float currentTurretY = turretTransform.eulerAngles.y;
+            
+            // Calculate shortest angle difference
+            float angleDiff = Mathf.DeltaAngle(currentTurretY, targetWorldY);
+            
+            // Check if we're aligned
+            if (Mathf.Abs(angleDiff) <= threshold)
+            {
+                // Aligned! Mark cycle as complete if part of a cycle
+                if (parentCycle != null)
+                {
+                    MarkCycleActionComplete(parentCycle.nodeId);
+                }
+                yield break;
+            }
+            
+            // Rotate towards target at 1/4 speed
+            float rotationSpeed = TurnSpeed * 0.5f * Time.deltaTime;
+            float newY = Mathf.MoveTowardsAngle(currentTurretY, targetWorldY, rotationSpeed);
+            
+            // Set X=0 (level pitch) and lock Z to parent tank's Z rotation
+            float tankZ = transform.eulerAngles.z;
+            turretTransform.rotation = Quaternion.Euler(0f, newY, tankZ);
+            
+            yield return null;
+        }
+    }
+    
+    /// <summary>
+    /// Aligns turret to face right (Y=90) relative to the tank body
+    /// </summary>
+    IEnumerator AlignRightAction()
+    {
+        if (turretTransform == null)
+        {
+            Debug.LogWarning("[AlignRight] No turret transform assigned!");
+            yield break;
+        }
+        
+        // Get the parent cycle node if this action is part of a cycle
+        AiExecutableNode parentCycle = null;
+        if (currentTurretActionNode != null)
+        {
+            parentCycle = GetParentCycleNode(currentTurretActionNode, runtimeTurretAI);
+            if (parentCycle == null && runtimeNavAI != null)
+            {
+                parentCycle = GetParentCycleNode(currentTurretActionNode, runtimeNavAI);
+            }
+        }
+        
+        float targetYRotation = 90f; // Right = 90 degrees
+        float threshold = 2f; // Consider aligned when within 2 degrees
+        
+        while (turretTransform != null)
+        {
+            // Get the tank's (parent) world rotation
+            float tankWorldY = transform.eulerAngles.y;
+            
+            // Calculate target world rotation for turret
+            float targetWorldY = tankWorldY + targetYRotation;
+            
+            // Get current turret world rotation
+            float currentTurretY = turretTransform.eulerAngles.y;
+            
+            // Calculate shortest angle difference
+            float angleDiff = Mathf.DeltaAngle(currentTurretY, targetWorldY);
+            
+            // Check if we're aligned
+            if (Mathf.Abs(angleDiff) <= threshold)
+            {
+                // Aligned! Mark cycle as complete if part of a cycle
+                if (parentCycle != null)
+                {
+                    MarkCycleActionComplete(parentCycle.nodeId);
+                }
+                yield break;
+            }
+            
+            // Rotate towards target at 1/4 speed
+            float rotationSpeed = TurnSpeed * 0.5f * Time.deltaTime;
+            float newY = Mathf.MoveTowardsAngle(currentTurretY, targetWorldY, rotationSpeed);
+            
+            // Set X=0 (level pitch) and lock Z to parent tank's Z rotation
+            float tankZ = transform.eulerAngles.z;
+            turretTransform.rotation = Quaternion.Euler(0f, newY, tankZ);
+            
+            yield return null;
+        }
+    }
+    
+    /// <summary>
+    /// Aligns turret to face left (Y=-90) relative to the tank body
+    /// </summary>
+    IEnumerator AlignLeftAction()
+    {
+        if (turretTransform == null)
+        {
+            Debug.LogWarning("[AlignLeft] No turret transform assigned!");
+            yield break;
+        }
+        
+        // Get the parent cycle node if this action is part of a cycle
+        AiExecutableNode parentCycle = null;
+        if (currentTurretActionNode != null)
+        {
+            parentCycle = GetParentCycleNode(currentTurretActionNode, runtimeTurretAI);
+            if (parentCycle == null && runtimeNavAI != null)
+            {
+                parentCycle = GetParentCycleNode(currentTurretActionNode, runtimeNavAI);
+            }
+        }
+        
+        float targetYRotation = -90f; // Left = -90 degrees
+        float threshold = 2f; // Consider aligned when within 2 degrees
+        
+        while (turretTransform != null)
+        {
+            // Get the tank's (parent) world rotation
+            float tankWorldY = transform.eulerAngles.y;
+            
+            // Calculate target world rotation for turret
+            float targetWorldY = tankWorldY + targetYRotation;
+            
+            // Get current turret world rotation
+            float currentTurretY = turretTransform.eulerAngles.y;
+            
+            // Calculate shortest angle difference
+            float angleDiff = Mathf.DeltaAngle(currentTurretY, targetWorldY);
+            
+            // Check if we're aligned
+            if (Mathf.Abs(angleDiff) <= threshold)
+            {
+                // Aligned! Mark cycle as complete if part of a cycle
+                if (parentCycle != null)
+                {
+                    MarkCycleActionComplete(parentCycle.nodeId);
+                }
+                yield break;
+            }
+            
+            // Rotate towards target at 1/4 speed
+            float rotationSpeed = TurnSpeed * 0.5f * Time.deltaTime;
+            float newY = Mathf.MoveTowardsAngle(currentTurretY, targetWorldY, rotationSpeed);
+            
+            // Set X=0 (level pitch) and lock Z to parent tank's Z rotation
+            float tankZ = transform.eulerAngles.z;
+            turretTransform.rotation = Quaternion.Euler(0f, newY, tankZ);
+            
+            yield return null;
+        }
+    }
+    
+    /// <summary>
+    /// Aligns turret to face back (Y=180) relative to the tank body
+    /// </summary>
+    IEnumerator AlignBackAction()
+    {
+        if (turretTransform == null)
+        {
+            Debug.LogWarning("[AlignBack] No turret transform assigned!");
+            yield break;
+        }
+        
+        // Get the parent cycle node if this action is part of a cycle
+        AiExecutableNode parentCycle = null;
+        if (currentTurretActionNode != null)
+        {
+            parentCycle = GetParentCycleNode(currentTurretActionNode, runtimeTurretAI);
+            if (parentCycle == null && runtimeNavAI != null)
+            {
+                parentCycle = GetParentCycleNode(currentTurretActionNode, runtimeNavAI);
+            }
+        }
+        
+        float targetYRotation = 180f; // Back = 180 degrees
+        float threshold = 2f; // Consider aligned when within 2 degrees
+        
+        while (turretTransform != null)
+        {
+            // Get the tank's (parent) world rotation
+            float tankWorldY = transform.eulerAngles.y;
+            
+            // Calculate target world rotation for turret
+            float targetWorldY = tankWorldY + targetYRotation;
+            
+            // Get current turret world rotation
+            float currentTurretY = turretTransform.eulerAngles.y;
+            
+            // Calculate shortest angle difference
+            float angleDiff = Mathf.DeltaAngle(currentTurretY, targetWorldY);
+            
+            // Check if we're aligned
+            if (Mathf.Abs(angleDiff) <= threshold)
+            {
+                // Aligned! Mark cycle as complete if part of a cycle
+                if (parentCycle != null)
+                {
+                    MarkCycleActionComplete(parentCycle.nodeId);
+                }
+                yield break;
+            }
+            
+            // Rotate towards target at 1/4 speed
+            float rotationSpeed = TurnSpeed * 0.5f * Time.deltaTime;
+            float newY = Mathf.MoveTowardsAngle(currentTurretY, targetWorldY, rotationSpeed);
+            
+            // Set X=0 (level pitch) and lock Z to parent tank's Z rotation
+            float tankZ = transform.eulerAngles.z;
+            turretTransform.rotation = Quaternion.Euler(0f, newY, tankZ);
+            
+            yield return null;
+        }
+    }
+    
+    #endregion
 }

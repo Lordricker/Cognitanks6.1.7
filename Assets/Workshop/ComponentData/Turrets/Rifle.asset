@@ -26,5 +26,5 @@ MonoBehaviour:
   shotspersec: 1
   bulletSpeed: 150
   knockback: Low
-  visionRange: 100
-  visionCone: 45
+  visionRange: 300
+  visionCone: 75
