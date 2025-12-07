@@ -5,6 +5,7 @@ public class EngineFrameData : ComponentData
 {
     public int weightCapacity;
     public int enginePower;
+    public int turningPower;
 }
 
 

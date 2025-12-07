@@ -264,37 +264,6 @@ public class ArenaManager : MonoBehaviour
             }
             
             Debug.Log($"[ArenaManager] Processing slot {i}: isActive={slot.isActive}, hasEngine={!string.IsNullOrEmpty(slot.engineFrameInstanceId)}, engineId='{slot.engineFrameInstanceId}'");
-                 // TEMPORARY DEBUG: Force activate tank slot 0 for testing
-        if (i == 0 && !string.IsNullOrEmpty(slot.engineFrameInstanceId))
-        {
-            Debug.Log($"[ArenaManager] DEBUG: Force activating tank slot 0 for testing");
-            slot.isActive = true;
-            
-            // DEBUG: Print the exact JSON content being used
-            Debug.Log($"[ArenaManager] DEBUG: Tank slot 0 data:");
-            Debug.Log($"  - displayName: '{slot.displayName}'");
-            Debug.Log($"  - isActive: {slot.isActive}");
-            Debug.Log($"  - engineFrameInstanceId: '{slot.engineFrameInstanceId}'");
-            Debug.Log($"  - armorInstanceId: '{slot.armorInstanceId}'");
-            Debug.Log($"  - turretInstanceId: '{slot.turretInstanceId}'");
-            Debug.Log($"  - turretAIInstanceId: '{slot.turretAIInstanceId}'");
-            Debug.Log($"  - navAIInstanceId: '{slot.navAIInstanceId}'");
-        }
-        
-        // TEMPORARY DEBUG: If tank slot 0 has empty engineFrameInstanceId, create test data
-        if (i == 0 && string.IsNullOrEmpty(slot.engineFrameInstanceId))
-        {
-            Debug.Log($"[ArenaManager] DEBUG: Tank slot 0 has no engine frame, creating test data");
-            slot.engineFrameInstanceId = "Heavy Engine_test-123";
-            slot.armorInstanceId = "Light Plate_test-456";
-            slot.turretInstanceId = "Rifle_test-789";
-            slot.isActive = true;
-            
-            Debug.Log($"[ArenaManager] DEBUG: Set test data for tank slot 0:");
-            Debug.Log($"  - engineFrameInstanceId: '{slot.engineFrameInstanceId}'");
-            Debug.Log($"  - armorInstanceId: '{slot.armorInstanceId}'");
-            Debug.Log($"  - turretInstanceId: '{slot.turretInstanceId}'");
-        }
             
             if (slot.isActive && !string.IsNullOrEmpty(slot.engineFrameInstanceId))
             {

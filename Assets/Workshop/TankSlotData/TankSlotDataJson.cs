@@ -17,12 +17,13 @@ public class TankSlotDataJson
     public bool isPlayerControlled = true;
     public string displayName = "";
     
-    // Prefab references (stored as GUIDs or resource paths)
-    public string turretPrefabGuid;
-    public string armorPrefabGuid;
-    public string engineFramePrefabGuid;
+    // DEPRECATED: Prefab GUID references (not used - kept for backward compatibility)
+    // Component loading now uses instanceId fields below in "Calculated Stats" section
+    public string turretPrefabGuid = "";
+    public string armorPrefabGuid = "";
+    public string engineFramePrefabGuid = "";
     
-    // Additional GUID aliases for compatibility
+    // DEPRECATED: Additional GUID aliases (not used - kept for backward compatibility)
     public string engineFrameGuid { get => engineFramePrefabGuid; set => engineFramePrefabGuid = value; }
     public string armorGuid { get => armorPrefabGuid; set => armorPrefabGuid = value; }
     public string turretGuid { get => turretPrefabGuid; set => turretPrefabGuid = value; }
@@ -47,29 +48,46 @@ public class TankSlotDataJson
     public int armorHP;
     
     [Header("Engine Stats")]
-    public int engineWeightCapacity;
-    public int enginePower;
-    public int engineFrameHP; // Engine frame health points
+    [HideInInspector] public int engineWeightCapacity;
+    [HideInInspector] public int enginePower; // Legacy stat - kept for compatibility
+    [HideInInspector] public int engineFrameHP; // Engine frame health points
+    
+    // Physics-based engine parameters (hidden from inspector - loaded from component data)
+    [HideInInspector] public float engineForce = 15000f;         // N (Newtons) - force output for forward movement
+    [HideInInspector] public float engineTopSpeed = 15f;         // m/s - maximum forward speed
+    [HideInInspector] public float engineTorque = 20000f;         // N·m (Newton-meters) - torque for rotation
+    [HideInInspector] public float engineMaxTurnRate = 120f;     // deg/s - maximum turn speed
+    [HideInInspector] public float engineTurnRampTime = 1.0f;    // seconds - time to reach full turning power
+    [HideInInspector] public float engineTurnStartPercent = 0.5f; // 0-1 - starting power percentage
+    
+    [Header("Component Weights")]
+    public float chassisWeight = 50f;   // kg - base chassis weight
+    public float armorWeight = 20f;     // kg - armor plating weight
+    public float turretWeight = 15f;    // kg - turret assembly weight
+    public float engineWeight = 15f;    // kg - engine weight
+    
+    [Header("Physics Settings")]
+    public float dragCoefficient = 0.5f;        // Rolling resistance (0.2-1.2)
+    public float angularDragCoefficient = 2.0f; // Turn resistance (1.0-5.0)
     
     [Header("Calculated Stats")]
     public float totalWeight;
     
-    // Instance IDs for saving/loading
-    public string engineFrameInstanceId;
-    public string armorInstanceId;
-    public string turretInstanceId;
+    // ACTIVE COMPONENT REFERENCES: Instance IDs used for loading components
+    public string engineFrameInstanceId;  // Used by TankAssembly to load engine frame prefab
+    public string armorInstanceId;        // Used by TankAssembly to load armor prefab
+    public string turretInstanceId;       // Used by TankAssembly to load turret prefab
     
     // Custom colors for visual customization
     public ColorJson engineFrameColor = new ColorJson(1f, 1f, 1f, 1f);
     public ColorJson armorColor = new ColorJson(1f, 1f, 1f, 1f);
     public ColorJson turretColor = new ColorJson(1f, 1f, 1f, 1f);
     
-    // Unique identifier for this tank slot configuration
-    public string instanceId;
-    
-    // Metadata
-    public string slotName; // e.g., "TankSlot 0"
-    public int slotIndex;   // 0-9 for the 10 tank slots
+    // DEPRECATED: Tank-level instanceId and metadata (use slotIndex instead)
+    // These were used in old system but aren't needed - each tank slot has a fixed index 0-9
+    public string instanceId = "";     // Not actively used
+    public string slotName = "";       // Not actively used (can be derived from slotIndex)
+    public int slotIndex;         // Active: 0-9 for the 10 tank slots
     public string spawnPointName; // For enemy tanks: name of the spawn point to use (e.g., "SpawnPoint10")
 }
 

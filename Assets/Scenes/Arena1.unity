@@ -1758,8 +1758,7 @@ Transform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 1052403349}
+  m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &644926958
@@ -2134,70 +2133,6 @@ Transform:
   - {fileID: 2073857442}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &1052403348
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1052403349}
-  - component: {fileID: 1052403350}
-  m_Layer: 11
-  m_Name: NavMesh Surface
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &1052403349
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1052403348}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 640202592}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1052403350
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1052403348}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 7a5ac11cc976e418e8d13136b07e1f52, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  m_SerializedVersion: 0
-  m_AgentTypeID: 0
-  m_CollectObjects: 0
-  m_Size: {x: 10, y: 10, z: 10}
-  m_Center: {x: 0, y: 2, z: 0}
-  m_LayerMask:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  m_UseGeometry: 0
-  m_DefaultArea: 0
-  m_GenerateLinks: 0
-  m_IgnoreNavMeshAgent: 1
-  m_IgnoreNavMeshObstacle: 1
-  m_OverrideTileSize: 0
-  m_TileSize: 256
-  m_OverrideVoxelSize: 0
-  m_VoxelSize: 0.16666667
-  m_MinRegionArea: 2
-  m_NavMeshData: {fileID: 23800000, guid: ed65638c149bbf641a70ad37c111572c, type: 2}
-  m_BuildHeightMesh: 0
 --- !u!1 &1120989779
 GameObject:
   m_ObjectHideFlags: 0
@@ -4209,31 +4144,9 @@ MonoBehaviour:
   - {fileID: 1919498070}
   - {fileID: 2054875489}
   tankPrefab: {fileID: 5881681357398938143, guid: 6c86ff39594d53b49810d3430d8b3607, type: 3}
-  tankSlots:
-  - {fileID: 11400000, guid: c28b34c0f1ff0cf459f1b89bcc614f78, type: 2}
-  - {fileID: 11400000, guid: 21c576b7250b61942b694cce0d5def27, type: 2}
-  - {fileID: 11400000, guid: a55a4654b8ea67c42895eb6542a01009, type: 2}
-  - {fileID: 11400000, guid: 4e528de23cfe14c449f9fad8bdd31416, type: 2}
-  - {fileID: 11400000, guid: 3e6f2b9d758610f428cf4651c0ea33f5, type: 2}
-  - {fileID: 11400000, guid: 71f3c3b6ef4e8f444b634fa4baf4615d, type: 2}
-  - {fileID: 11400000, guid: cfadaaa38a684044e90eeb055591e812, type: 2}
-  - {fileID: 11400000, guid: c2f0f07f51c3de74aba057000e3ccc59, type: 2}
-  - {fileID: 11400000, guid: 2c23e153a5cfe434095257cc80edc1ae, type: 2}
-  - {fileID: 11400000, guid: 16f3c1575ce994341b78d09f0e0fc9ec, type: 2}
   useDynamicArenaLoading: 1
   currentLeague: League1
   currentRound: Round1
-  enemyTankSlots:
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
   enemySpawnPoints:
   - {fileID: 303189878}
   - {fileID: 1344222760}

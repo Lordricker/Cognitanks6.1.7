@@ -3,12 +3,16 @@ using AiEditor;
 
 public class TankAssembly : MonoBehaviour
 {
-    public Transform basePivot; // Where engine frame and armor won't instantiated
+    public Transform basePivot; // Where engine frame and armor are instantiated
     public Transform turretPivot; // Where turret will be instantiated
-    
+
+    [Header("Tank Visual Offsets")]
+    [Tooltip("Vertical offset for armor relative to engine frame (in local Y units)")]
+    [SerializeField] private float armorYOffset = -1.25f;
+
     [Header("Tank Faction")]
     [SerializeField] private bool isEnemyTank = true; // Set this in inspector or through code
-    
+
     // TankMan component handles all AI and stats - no local references needed
     private TankMan tankMan;
 
@@ -32,54 +36,35 @@ public class TankAssembly : MonoBehaviour
 
     public void Assemble(TankSlotDataJson data)
     {
-        Debug.Log($"TankAssembly.Assemble() called on {gameObject.name} with data: {(data != null ? data.displayName : "NULL")}");
         if (data == null) 
         {
             Debug.LogError($"TankAssembly.Assemble: data is null for {gameObject.name}!");
             return;
         }
-        
-        Debug.Log($"TankAssembly.Assemble: Tank data - turretInstanceId: '{data.turretInstanceId}', turretAIInstanceId: '{data.turretAIInstanceId}', isActive: {data.isActive}");
-        
-        // Ensure NavMeshAgent is present for smooth movement
-        var navAgent = GetComponent<UnityEngine.AI.NavMeshAgent>();
-        if (navAgent == null)
+
+        // Ensure BoxCollider is present for tank physics Ground Grounded detection
+        var boxCollider = GetComponent<BoxCollider>();
+        if (boxCollider == null)
         {
-            navAgent = gameObject.AddComponent<UnityEngine.AI.NavMeshAgent>();
+            boxCollider = gameObject.AddComponent<BoxCollider>();
         }
+        boxCollider.center = new Vector3(0f, -1.86f, 0f);
+        boxCollider.size = new Vector3(7f, 1.5f, 14f);
+        boxCollider.isTrigger = true; // Ensure collider is set as trigger for ground detection
         
-        // Configure NavMeshAgent for tank movement
-        navAgent.speed = Mathf.Max(1f, data.enginePower - (data.totalWeight * 0.1f)); // Use calculated move speed
-        navAgent.angularSpeed = Mathf.Max(30f, 90f - (data.totalWeight * 0.5f)); // Use calculated turn speed
-        navAgent.acceleration = 8f; // Reasonable acceleration
-        navAgent.stoppingDistance = 1f; // Stop close to destination
-        navAgent.radius = 2f; // Tank size
-        navAgent.height = 3f; // Tank height
-        navAgent.baseOffset = 0f; // Keep agent at NavMesh level
-        navAgent.obstacleAvoidanceType = UnityEngine.AI.ObstacleAvoidanceType.HighQualityObstacleAvoidance;
+        // Setup 4-sphere physics contact system for normalized friction
+        SetupWheelColliders();
         
-        // CRITICAL: Configure NavMeshAgent for proper tank movement
-        navAgent.updatePosition = true; // NavMeshAgent controls position
-        navAgent.updateRotation = false; // Disable NavMeshAgent rotation so we can handle terrain following manually
-        navAgent.updateUpAxis = false; // Prevent NavMeshAgent from forcing upright orientation
-        
-        Debug.Log($"[TankAssembly] NavMeshAgent configured - Speed: {navAgent.speed}, AngularSpeed: {navAgent.angularSpeed}");
-        
-        // Ensure basePivot and turretPivot are positioned correctly above the NavMesh surface
-        // The tank model should sit ON the ground, not IN it
+        // positioning components for tank
         if (basePivot != null)
         {
-            basePivot.localPosition = new Vector3(0f, 4f, 0f); // Lift base components 4 units above ground
-            Debug.Log($"[TankAssembly] Set basePivot local position to: {basePivot.localPosition}");
+            basePivot.localPosition = new Vector3(0f, 4f, 0f); // Lift base components 3 units above ground
         }
         if (turretPivot != null)
         {
             turretPivot.localPosition = new Vector3(0f, 4.5f, 0f); // Lift turret above base
-            Debug.Log($"[TankAssembly] Set turretPivot local position to: {turretPivot.localPosition}");
         }
         
-        // Configure component placement relative to NavMesh surface
-        Debug.Log($"[TankAssembly] Using stat-based approach - component stats are stored directly in TankSlotData");
               // Ensure TankMan component is present and configured
         tankMan = GetComponent<TankMan>();
         if (tankMan == null)
@@ -93,7 +78,6 @@ public class TankAssembly : MonoBehaviour
         if (bulletPrefab != null)
         {
             tankMan.SetBulletPrefab(bulletPrefab);
-            Debug.Log($"TankAssembly: Assigned bullet prefab to {gameObject.name}");
         }
         else
         {
@@ -120,14 +104,12 @@ public class TankAssembly : MonoBehaviour
         // Instantiate engine frame and armor as children of basePivot
         if (!string.IsNullOrEmpty(data.engineFrameInstanceId))
         {
-            Debug.Log($"TankAssembly: Looking up engine frame with instanceId: {data.engineFrameInstanceId}");
             GameObject engineFramePrefab = FindComponentPrefabByInstanceId(data.engineFrameInstanceId, ComponentCategory.EngineFrame);
             if (engineFramePrefab != null)
             {
                 GameObject engineFrame = Instantiate(engineFramePrefab, basePivot.position, basePivot.rotation, basePivot);
                 ApplyColorToTreadMount(engineFrame, data.engineFrameColor.ToUnityColor());
                 SetLayerRecursively(engineFrame, 0);
-                Debug.Log($"TankAssembly: Instantiated engine frame: {engineFramePrefab.name}");
             }
             else
             {
@@ -136,14 +118,14 @@ public class TankAssembly : MonoBehaviour
         }
         if (!string.IsNullOrEmpty(data.armorInstanceId))
         {
-            Debug.Log($"TankAssembly: Looking up armor with instanceId: {data.armorInstanceId}");
             GameObject armorPrefab = FindComponentPrefabByInstanceId(data.armorInstanceId, ComponentCategory.Armor);
             if (armorPrefab != null)
             {
                 GameObject armor = Instantiate(armorPrefab, basePivot.position, basePivot.rotation, basePivot);
+                // Apply vertical offset after parenting
+                armor.transform.localPosition += new Vector3(0f, armorYOffset, 0f);
                 ApplyColorToModel(armor, data.armorColor.ToUnityColor());
                 SetLayerRecursively(armor, 0);
-                Debug.Log($"TankAssembly: Instantiated armor: {armorPrefab.name}");
             }
             else
             {
@@ -154,7 +136,6 @@ public class TankAssembly : MonoBehaviour
         // Instantiate turret as child of turretPivot
         if (!string.IsNullOrEmpty(data.turretInstanceId))
         {
-            Debug.Log($"TankAssembly: Looking up turret with instanceId: {data.turretInstanceId}");
             GameObject turretPrefab = FindComponentPrefabByInstanceId(data.turretInstanceId, ComponentCategory.Turret);
             if (turretPrefab != null)
             {
@@ -166,7 +147,6 @@ public class TankAssembly : MonoBehaviour
                 Transform firePoint = FindFirePointRecursive(turretInstance.transform);
                 tankMan.SetTurretComponents(turretInstance.transform, firePoint);
                 
-                Debug.Log($"TankAssembly: Instantiated turret: {turretPrefab.name}");
             }
             else
             {
@@ -175,7 +155,6 @@ public class TankAssembly : MonoBehaviour
         }
         
         // AI references are now loaded by TankMan.SetTankSlotData() using instance IDs
-        Debug.Log($"TankAssembly: AI assignments handled by TankMan - TurretAI: {data.turretAIInstanceId}, NavAI: {data.navAIInstanceId}");
 
         // Add CameraAnchor if not present
         Transform anchor = transform.Find("CameraAnchor");
@@ -185,8 +164,12 @@ public class TankAssembly : MonoBehaviour
             anchorObj.transform.SetParent(transform);
             anchorObj.transform.localPosition = new Vector3(0f, 15f, -30f); // Behind tank (negative Z), elevated
             anchorObj.transform.localRotation = Quaternion.identity; // Y rotation = 0 degrees
-            Debug.Log($"[TankAssembly] Created CameraAnchor at position: {anchorObj.transform.localPosition}, rotation: {anchorObj.transform.localEulerAngles}");
         }
+
+        // Rigidbody configuration is now handled by TankMan.Start() and CalculateStats()
+        // This ensures physics parameters from TankSlotDataJson are properly applied
+        
+        // Old wheel markers removed - using 4-sphere collider system instead
     }
       /// <summary>
     /// Recursively searches for a FirePoint transform in the hierarchy
@@ -300,12 +283,10 @@ public class TankAssembly : MonoBehaviour
         {
             componentName = instanceId.Substring(0, instanceId.LastIndexOf("_"));
         }
-        
-        Debug.Log($"[TankAssembly] Looking for component '{componentName}' of category {category}");
-        
+
         // Load prefab directly from Assets/Models/Prefabs based on component name and category
         GameObject prefab = LoadPrefabByNameAndCategory(componentName, category);
-        
+
         if (prefab != null)
         {
             Debug.Log($"[TankAssembly] Successfully loaded prefab for {componentName}");
@@ -314,8 +295,10 @@ public class TankAssembly : MonoBehaviour
         else
         {
             Debug.LogWarning($"[TankAssembly] Could not find prefab for {componentName} of category {category}. Creating placeholder.");
-            return CreatePlaceholderPrefab(componentName, category);
+            // ...existing code if you want to create a placeholder...
+            // return CreatePlaceholderPrefab(componentName, category);
         }
+        return null;
     }
     
     /// <summary>
@@ -422,48 +405,55 @@ public class TankAssembly : MonoBehaviour
     #endif
     
     /// <summary>
-    /// Create a placeholder prefab when the actual component can't be found
+    /// Creates 4 sphere colliders at the corners for consistent physics contact
+    /// Positioned just above the ground detection trigger box
     /// </summary>
-    private GameObject CreatePlaceholderPrefab(string componentName, ComponentCategory category)
+    private void SetupWheelColliders()
     {
-        GameObject placeholder;
-        
-        switch (category)
+        // Remove any existing wheel colliders
+        Transform existingWheels = transform.Find("WheelColliders");
+        if (existingWheels != null)
         {
-            case ComponentCategory.EngineFrame:
-                placeholder = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                placeholder.transform.localScale = new Vector3(3f, 1f, 2f);
-                placeholder.name = $"Placeholder_Engine_{componentName}";
-                break;
-                
-            case ComponentCategory.Armor:
-                placeholder = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                placeholder.transform.localScale = new Vector3(2.5f, 1.5f, 2f);
-                placeholder.name = $"Placeholder_Armor_{componentName}";
-                break;
-                
-            case ComponentCategory.Turret:
-                placeholder = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-                placeholder.transform.localScale = new Vector3(0.5f, 1f, 0.5f);
-                placeholder.name = $"Placeholder_Turret_{componentName}";
-                break;
-                
-            default:
-                placeholder = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                placeholder.name = $"Placeholder_{componentName}";
-                break;
+            Destroy(existingWheels.gameObject);
         }
         
-        // Make placeholder slightly transparent and colored
-        var renderer = placeholder.GetComponent<Renderer>();
-        if (renderer != null)
-        {
-            var material = new Material(Shader.Find("Standard"));
-            material.color = new Color(1f, 0f, 1f, 0.7f); // Magenta, slightly transparent
-            renderer.material = material;
-        }
+        // Create container for wheel colliders
+        GameObject wheelContainer = new GameObject("WheelColliders");
+        wheelContainer.transform.SetParent(transform);
+        wheelContainer.transform.localPosition = Vector3.zero;
+        wheelContainer.transform.localRotation = Quaternion.identity;
         
-        Debug.LogWarning($"[TankAssembly] Created placeholder for missing component: {componentName}");
-        return placeholder;
+        // Sphere positioning - just above the ground detection box (-1.86 + 0.5 = -1.36)
+        float wheelYPosition = -1.36f;
+        float wheelRadius = 0.4f;
+        
+        // Positioning based on tank dimensions (matching ground detection box size)
+        float frontBack = 5f;  // Front/back distance (half of 14 length minus margin)
+        float leftRight = 2.5f; // Left/right distance (half of 7 width minus margin)
+        
+        // Create 4 sphere colliders at corners
+        CreateWheelSphere("WheelFL", wheelContainer.transform, new Vector3(-leftRight, wheelYPosition, frontBack), wheelRadius);
+        CreateWheelSphere("WheelFR", wheelContainer.transform, new Vector3(leftRight, wheelYPosition, frontBack), wheelRadius);
+        CreateWheelSphere("WheelBL", wheelContainer.transform, new Vector3(-leftRight, wheelYPosition, -frontBack), wheelRadius);
+        CreateWheelSphere("WheelBR", wheelContainer.transform, new Vector3(leftRight, wheelYPosition, -frontBack), wheelRadius);
     }
+    
+    /// <summary>
+    /// Creates a single sphere collider for wheel contact
+    /// </summary>
+    private void CreateWheelSphere(string name, Transform parent, Vector3 localPosition, float radius)
+    {
+        GameObject wheel = new GameObject(name);
+        wheel.transform.SetParent(parent);
+        wheel.transform.localPosition = localPosition;
+        wheel.transform.localRotation = Quaternion.identity;
+        
+        SphereCollider sphereCollider = wheel.AddComponent<SphereCollider>();
+        sphereCollider.radius = radius;
+        sphereCollider.material = null; // Use default physics material (can be customized later)
+        
+        // Set layer to match parent (tank layer)
+        wheel.layer = gameObject.layer;
+    }
+
 }

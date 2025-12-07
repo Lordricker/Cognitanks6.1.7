@@ -33,6 +33,10 @@ namespace AiEditor
             // Convert common condition patterns
             if (cleanLabel.StartsWith("if"))
             {
+                // Check for specific patterns BEFORE more general ones
+                // "If Self HP" must be checked before "If Self" and before "If HP"
+                if ((cleanLabel.Contains("self") && (cleanLabel.Contains("hp") || cleanLabel.Contains("health"))))
+                    return "IfSelfHP";
                 if (cleanLabel.Contains("self"))
                     return "IfSelf";
                 if (cleanLabel.Contains("enemy"))
