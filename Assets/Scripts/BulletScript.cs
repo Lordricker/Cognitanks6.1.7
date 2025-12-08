@@ -6,6 +6,9 @@ using UnityEngine;
 /// </summary>
 public class BulletScript : MonoBehaviour
 {
+    [Header("Explosion Effect")]
+    [SerializeField] private GameObject explosionPrefab; // Assign explosion prefab in bullet prefab inspector
+    
     [Header("Combat Stats")]
     [SerializeField] private int damage;
     [SerializeField] private float maxRange;
@@ -18,6 +21,7 @@ public class BulletScript : MonoBehaviour
     
     /// <summary>
     /// Initialize bullet with combat stats from the firing tank
+    /// Explosion prefab is assigned directly in the bullet prefab inspector
     /// </summary>
     public void Initialize(int bulletDamage, float bulletRange, int teamId, bool artilleryMode = false)
     {
@@ -110,8 +114,16 @@ public class BulletScript : MonoBehaviour
     /// </summary>
     void Explode()
     {
-        // TODO: Add explosion effects here (particles, sound, etc.)
         Debug.Log($"[BulletScript] Bullet exploded at {transform.position}");
+        
+        // Spawn explosion effect if available
+        if (explosionPrefab != null)
+        {
+            GameObject explosion = Instantiate(explosionPrefab, transform.position, Quaternion.identity);
+            // Auto-destroy explosion after 10 frames (~0.167 seconds at 60fps)
+            float duration = 10f / 60f; // 10 frames
+            Destroy(explosion, duration);
+        }
         
         // Destroy the bullet
         Destroy(gameObject);

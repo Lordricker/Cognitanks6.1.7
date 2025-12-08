@@ -126,13 +126,16 @@ public class TankMan : MonoBehaviour
     private string lastLoggedTurretNodeId = "";
     private string lastLoggedNavActionName = "";
     private string lastLoggedTurretActionName = "";
+    private string lastLoggedNavChain = "";
+    private string lastLoggedTurretChain = "";
     
     // Cycle node memory - tracks which child node each Cycle instance is currently executing
     private Dictionary<string, int> cycleNodeMemory = new Dictionary<string, int>();
     private Dictionary<string, bool> cycleNodeCompletionFlags = new Dictionary<string, bool>();
     
     // Sensor data
-    private GameObject currentTarget;
+    private GameObject currentTarget; // Target for actions (flee, chase, fire, etc.)
+    private GameObject evaluationTarget; // Target for condition evaluation (HP, Armor checks)
     private List<GameObject> detectedEnemies = new List<GameObject>();
     private List<GameObject> detectedAllies = new List<GameObject>();
     private float lastFireTime;
@@ -699,15 +702,6 @@ public class TankMan : MonoBehaviour
         
         // Determine if this is Nav or Turret AI
         bool isNavAI = (tree == runtimeNavAI);
-        ref string lastLoggedActionName = ref (isNavAI ? ref lastLoggedNavActionName : ref lastLoggedTurretActionName);
-        
-        // Log only when action changes (skip conditions)
-        if (node.nodeType == AiNodeType.Action && node.methodName != lastLoggedActionName)
-        {
-            string aiTypeStr = isNavAI ? "Nav" : "Turret";
-            Debug.Log($"[{aiTypeStr}] {gameObject.name} → Action: {node.methodName}");
-            lastLoggedActionName = node.methodName;
-        }
         
         // Check if this is a Cycle node (identified by methodName "Cycle")
         if (node.methodName == "Cycle")
@@ -721,6 +715,17 @@ public class TankMan : MonoBehaviour
                 bool conditionResult = ExecuteCondition(node);
                 return GetNextNodeFromCondition(node, tree, conditionResult);
             case AiNodeType.Action:
+                // Build condition chain up to this action
+                string actionChain = BuildConditionChain(node, tree);
+                ref string lastLoggedChain = ref (isNavAI ? ref lastLoggedNavChain : ref lastLoggedTurretChain);
+                
+                if (actionChain != lastLoggedChain)
+                {
+                    string aiTypeStr = isNavAI ? "Nav" : "Turret";
+                    Debug.Log($"[{aiTypeStr}] {gameObject.name} → {actionChain}");
+                    lastLoggedChain = actionChain;
+                }
+                
                 ExecuteAction(node, tree);
                 return GetNextNodeFromAction(node, tree);
             // SubAI support removed
@@ -732,6 +737,38 @@ public class TankMan : MonoBehaviour
                 }
                 return null;
         }
+    }
+    
+    /// <summary>
+    /// Builds a readable condition chain string by traversing back to the start
+    /// </summary>
+    string BuildConditionChain(AiExecutableNode currentNode, AiTreeAsset tree)
+    {
+        var chain = new System.Collections.Generic.List<string>();
+        var visitedNodes = new System.Collections.Generic.HashSet<string>();
+        
+        // Add current node
+        chain.Add(currentNode.originalLabel);
+        visitedNodes.Add(currentNode.nodeId);
+        
+        // Walk backwards to find parent conditions
+        AiExecutableNode node = currentNode;
+        while (node != null && chain.Count < 10) // Limit chain length to prevent infinite loops
+        {
+            AiExecutableNode parent = FindParentNode(node, tree);
+            if (parent != null && !visitedNodes.Contains(parent.nodeId) && parent.nodeType == AiNodeType.Condition)
+            {
+                chain.Insert(0, parent.originalLabel);
+                visitedNodes.Add(parent.nodeId);
+                node = parent;
+            }
+            else
+            {
+                break;
+            }
+        }
+        
+        return string.Join(" → ", chain);
     }    /// <summary>
     /// Gets the next node after a condition based on the result and Y-position priority
     /// </summary>
@@ -834,11 +871,29 @@ public class TankMan : MonoBehaviour
             return nextNode;
         }
         
-        // No more alternatives from this parent, continue backtracking
-        AiExecutableNode grandParent = FindParentNode(parentNode, tree);
-        if (grandParent != null && grandParent != parentNode)
+        // No more alternatives from this parent
+        // Special case: If this parent is IfSelf, skip over it when backtracking
+        // (IfSelf is always true, just switches target context, so when all its children fail, skip it)
+        if (parentNode.methodName == "IfSelf")
         {
-            return GetNextAlternativeFromParent(grandParent, parentNode, tree);
+            // Find grandparent and skip past IfSelf
+            AiExecutableNode grandParent = FindParentNode(parentNode, tree);
+            if (grandParent != null && grandParent != parentNode)
+            {
+                return GetNextAlternativeFromParent(grandParent, parentNode, tree);
+            }
+            else
+            {
+                // IfSelf is top-level, try its next sibling
+                return GetNextAlternativeFromStart(parentNode, tree);
+            }
+        }
+        
+        // Continue normal backtracking
+        AiExecutableNode grandParent2 = FindParentNode(parentNode, tree);
+        if (grandParent2 != null && grandParent2 != parentNode)
+        {
+            return GetNextAlternativeFromParent(grandParent2, parentNode, tree);
         }
         
         return null;
@@ -1004,7 +1059,7 @@ public class TankMan : MonoBehaviour
             {
             }
             
-            // Check if object is within vision cone (use turret direction if available)
+            // Check if object is within vision cone (use turret direction for vision)
             Vector3 visionPosition = turretTransform != null ? turretTransform.position : transform.position;
             Vector3 visionForward = turretTransform != null ? turretTransform.forward : transform.forward;
             
@@ -1081,12 +1136,19 @@ public class TankMan : MonoBehaviour
         switch (conditionNode.methodName)
         {
             case "IfSelf":
-                result = currentTarget == gameObject;
+                // Set evaluation target to self (for HP/armor checks) but keep currentTarget for actions
+                evaluationTarget = gameObject;
+                result = true;
                 break;            case "IfEnemy":
                 bool hasTarget = currentTarget != null;
                 bool targetIsEnemy = hasTarget && detectedEnemies.Contains(currentTarget);
                 result = hasTarget && targetIsEnemy;
                 
+                // Set evaluation target to match current target (for HP/armor checks)
+                if (result)
+                {
+                    evaluationTarget = currentTarget;
+                }
                 
                 // Check if target is alive (ignore dead tanks)
                 if (hasTarget)
@@ -1111,6 +1173,10 @@ public class TankMan : MonoBehaviour
                 
             case "IfAlly":
                 result = currentTarget != null && detectedAllies.Contains(currentTarget);
+                if (result)
+                {
+                    evaluationTarget = currentTarget;
+                }
                 break;
                 
             case "IfAny":
@@ -1118,39 +1184,69 @@ public class TankMan : MonoBehaviour
                 break;
                 
             case "IfRifle":
-                result = currentTarget != null && 
-                       Vector3.Distance(transform.position, currentTarget.transform.position) <= range;
+                // Check if target is detected through vision (uses visionRange and visionCone, not firing range)
+                result = currentTarget != null && detectedEnemies.Contains(currentTarget);
                 break;
                 
             case "IfHP":
-                // Check if current health meets the condition (e.g., "If HP > 50%" -> numericValue = 50)
-                float healthPercent = (currentHealth / totalHP) * 100f;
-                if (conditionNode.originalLabel.Contains(">"))
-                    result = healthPercent > conditionNode.numericValue;
-                else if (conditionNode.originalLabel.Contains("<"))
-                    result = healthPercent < conditionNode.numericValue;
+                // Check evaluation target's HP (set by IfSelf/IfEnemy/IfAlly)
+                if (evaluationTarget == null)
+                {
+                    result = false;
+                }
                 else
-                    result = healthPercent >= conditionNode.numericValue;
-                break;
-            
-            case "IfSelfHP":
-                // Check self HP as absolute value (not percentage)
-                if (conditionNode.originalLabel.Contains(">"))
-                    result = currentHealth > conditionNode.numericValue;
-                else if (conditionNode.originalLabel.Contains("<"))
-                    result = currentHealth < conditionNode.numericValue;
-                else
-                    result = currentHealth >= conditionNode.numericValue;
+                {
+                    TankMan targetTankMan = evaluationTarget.GetComponent<TankMan>();
+                    if (targetTankMan == null)
+                    {
+                        targetTankMan = evaluationTarget.GetComponentInParent<TankMan>();
+                    }
+                    
+                    if (targetTankMan != null)
+                    {
+                        float healthPercent = (targetTankMan.CurrentHealth / targetTankMan.TotalHP) * 100f;
+                        if (conditionNode.originalLabel.Contains(">"))
+                            result = healthPercent > conditionNode.numericValue;
+                        else if (conditionNode.originalLabel.Contains("<"))
+                            result = healthPercent < conditionNode.numericValue;
+                        else
+                            result = healthPercent >= conditionNode.numericValue;
+                    }
+                    else
+                    {
+                        result = false;
+                    }
+                }
                 break;
                 
             case "IfArmor":
-                // Check armor condition
-                if (conditionNode.originalLabel.Contains(">"))
-                    result = armor > conditionNode.numericValue;
-                else if (conditionNode.originalLabel.Contains("<"))
-                    result = armor < conditionNode.numericValue;
+                // Check evaluation target's armor (set by IfSelf/IfEnemy/IfAlly)
+                if (evaluationTarget == null)
+                {
+                    result = false;
+                }
                 else
-                    result = armor >= conditionNode.numericValue;
+                {
+                    TankMan targetTankMan = evaluationTarget.GetComponent<TankMan>();
+                    if (targetTankMan == null)
+                    {
+                        targetTankMan = evaluationTarget.GetComponentInParent<TankMan>();
+                    }
+                    
+                    if (targetTankMan != null)
+                    {
+                        if (conditionNode.originalLabel.Contains(">"))
+                            result = targetTankMan.Armor > conditionNode.numericValue;
+                        else if (conditionNode.originalLabel.Contains("<"))
+                            result = targetTankMan.Armor < conditionNode.numericValue;
+                        else
+                            result = targetTankMan.Armor >= conditionNode.numericValue;
+                    }
+                    else
+                    {
+                        result = false;
+                    }
+                }
                 break;
                 
             case "IfRange":
@@ -1280,6 +1376,36 @@ public class TankMan : MonoBehaviour
     
     #region Combat System
     
+    /// <summary>
+    /// Helper method to find the BasePivot transform for accurate targeting
+    /// Handles cases where target might be a child part (armor, turret, engine) or root tank object
+    /// </summary>
+    Transform GetTargetBasePivot(GameObject targetObject)
+    {
+        if (targetObject == null) return null;
+        
+        // First, try to find BasePivot directly as a child
+        Transform basePivot = targetObject.transform.Find("BasePivot");
+        if (basePivot != null) return basePivot;
+        
+        // If not found, target might be a child part - get the root tank object
+        TankMan targetTankMan = targetObject.GetComponent<TankMan>();
+        if (targetTankMan == null)
+        {
+            targetTankMan = targetObject.GetComponentInParent<TankMan>();
+        }
+        
+        // Now search for BasePivot from the root tank object
+        if (targetTankMan != null)
+        {
+            basePivot = targetTankMan.transform.Find("BasePivot");
+            if (basePivot != null) return basePivot;
+        }
+        
+        // Fallback: return the original transform if BasePivot not found
+        return targetObject.transform;
+    }
+    
     bool CanFire()
     {
         
@@ -1293,15 +1419,16 @@ public class TankMan : MonoBehaviour
         {
             return false;
         }
-        float distanceToTarget = Vector3.Distance(transform.position, currentTarget.transform.position);
-        if (distanceToTarget > range)
-        {
-            return false;
-        }
+        // Range check removed - bullet will explode after traveling its max range
+        // Only check if turret is aligned
         if (turretTransform != null)
         {
+            // Find the BasePivot for accurate aiming
+            Transform basePivot = GetTargetBasePivot(currentTarget);
+            Vector3 targetPosition = basePivot.position;
+            
             Vector3 turretForward = turretTransform.forward;
-            Vector3 directionToTarget = (currentTarget.transform.position - turretTransform.position).normalized;
+            Vector3 directionToTarget = (targetPosition - turretTransform.position).normalized;
             float angleToTarget = Vector3.Angle(turretForward, directionToTarget);
             if (angleToTarget > 2f)
             {
@@ -1329,6 +1456,10 @@ public class TankMan : MonoBehaviour
         // Simple firing - instantiate bullet if prefab exists
         if (bulletPrefab != null)
         {
+            // Find the BasePivot for accurate aiming
+            Transform basePivot = GetTargetBasePivot(currentTarget);
+            Vector3 targetPosition = basePivot.position;
+            
             Vector3 direction;
             float launchAngle = 0f;
             
@@ -1336,12 +1467,12 @@ public class TankMan : MonoBehaviour
             if (turretType == TurretType.Artillery)
             {
                 // Artillery: Calculate ballistic trajectory
-                direction = CalculateArtilleryDirection(out launchAngle);
+                direction = CalculateArtilleryDirection(out launchAngle, targetPosition);
             }
             else
             {
                 // Direct fire: Straight line to target
-                direction = (currentTarget.transform.position - firePoint.position).normalized;
+                direction = (targetPosition - firePoint.position).normalized;
             }
             
             GameObject bullet = Instantiate(bulletPrefab, firePoint.position, Quaternion.LookRotation(direction));
@@ -1366,7 +1497,7 @@ public class TankMan : MonoBehaviour
                 }
             }
             
-            // Pass combat stats to bullet
+            // Pass combat stats to bullet (bullet prefab has its own explosion effect)
             BulletScript bulletScript = bullet.GetComponent<BulletScript>();
             if (bulletScript != null)
             {
@@ -1413,9 +1544,8 @@ public class TankMan : MonoBehaviour
     /// <summary>
     /// Calculates artillery firing direction with ballistic trajectory
     /// </summary>
-    Vector3 CalculateArtilleryDirection(out float launchAngle)
+    Vector3 CalculateArtilleryDirection(out float launchAngle, Vector3 targetPos)
     {
-        Vector3 targetPos = currentTarget.transform.position;
         Vector3 firePos = firePoint.position;
         
         // Calculate horizontal distance and height difference
@@ -1493,7 +1623,8 @@ public class TankMan : MonoBehaviour
     {
         if (lastNavState != newState)
         {
-            Debug.Log($"[TankMan] {gameObject.name} NavState: {newState}");
+            // Commented out to reduce log noise - only show AI action changes
+            // Debug.Log($"[TankMan] {gameObject.name} NavState: {newState}");
             lastNavState = newState;
         }
     }
@@ -1503,7 +1634,8 @@ public class TankMan : MonoBehaviour
     {
         if (lastMoveSubState != newSubState)
         {
-            Debug.Log($"[TankMan] {gameObject.name} MoveToWaypoint: {newSubState}");
+            // Commented out to reduce log noise - only show AI action changes
+            // Debug.Log($"[TankMan] {gameObject.name} MoveToWaypoint: {newSubState}");
             lastMoveSubState = newSubState;
         }
     }
@@ -1961,7 +2093,11 @@ public class TankMan : MonoBehaviour
         // Continuously rotate turret to face the current target
         while (currentTarget != null && turretTransform != null)
         {
-            Vector3 targetDirection = currentTarget.transform.position - turretTransform.position;
+            // Find the BasePivot for accurate aiming at tank center
+            Transform basePivot = GetTargetBasePivot(currentTarget);
+            Vector3 targetPosition = basePivot.position;
+            
+            Vector3 targetDirection = targetPosition - turretTransform.position;
             if (targetDirection.magnitude > 0.1f)
             {
                 targetDirection.Normalize();

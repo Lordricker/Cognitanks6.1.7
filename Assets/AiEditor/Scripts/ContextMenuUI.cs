@@ -45,7 +45,7 @@ public class ContextMenuUI : MonoBehaviour
     public GameObject conditionRangePanel;
     public GameObject conditionTagPanel;
     public GameObject conditionTargetPanel;
-    public GameObject conditionSelfPanel;
+    public GameObject conditionSelfPanel; // Optional - can be null if removed
 
     [Header("Node Prefabs")]
     public GameObject EndNodePrefab;
@@ -89,7 +89,7 @@ public class ContextMenuUI : MonoBehaviour
         conditionRangePanel.SetActive(false);
         conditionTagPanel.SetActive(false);
         conditionTargetPanel.SetActive(false);
-        conditionSelfPanel.SetActive(false);
+        if (conditionSelfPanel != null) conditionSelfPanel.SetActive(false);
 
         // Add listeners
         actionButton.onClick.AddListener(OnActionClicked);
@@ -103,7 +103,7 @@ public class ContextMenuUI : MonoBehaviour
         conditionRangeButton.onClick.AddListener(OnConditionRangeClicked);
         conditionTagButton.onClick.AddListener(OnConditionTagClicked);
         conditionTargetButton.onClick.AddListener(OnConditionTargetClicked);
-        conditionSelfButton.onClick.AddListener(OnConditionSelfClicked);        // --- Fix: Hide both the button and its label/text for the unused branch ---
+        if (conditionSelfButton != null) conditionSelfButton.onClick.AddListener(OnConditionSelfClicked);        // --- Fix: Hide both the button and its label/text for the unused branch ---
         Debug.Log($"ContextMenuUI Start: currentBranch = {currentBranch}");
         if (currentBranch == BranchType.Turret)
         {
@@ -146,7 +146,7 @@ public class ContextMenuUI : MonoBehaviour
         conditionRangePanel.SetActive(false);
         conditionTagPanel.SetActive(false);
         conditionTargetPanel.SetActive(false);
-        conditionSelfPanel.SetActive(false);
+        if (conditionSelfPanel != null) conditionSelfPanel.SetActive(false);
     }
 
     void OnActionClicked()
@@ -240,7 +240,7 @@ public class ContextMenuUI : MonoBehaviour
     void OnConditionSelfClicked()
     {
         HideAllConditionPanels();
-        conditionSelfPanel.SetActive(true);
+        if (conditionSelfPanel != null) conditionSelfPanel.SetActive(true);
     }
 
     /// <summary>
