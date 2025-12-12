@@ -58,6 +58,8 @@ namespace AiEditor
             }
             
             // Convert common action patterns
+            if (cleanLabel.Contains("leadtarget") || cleanLabel.Contains("lead target"))
+                return "LeadTarget";
             if (cleanLabel.Contains("fire") || cleanLabel.Contains("shoot"))
                 return "Fire";
             if (cleanLabel.Contains("wander") || cleanLabel.Contains("roam"))

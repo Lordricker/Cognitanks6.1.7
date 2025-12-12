@@ -41,6 +41,9 @@ public class TankMan : MonoBehaviour
     [SerializeField] private float turnStartPowerPercent = 0.5f; // Starting turn power (0-1)
     [SerializeField] private float dragCoefficient = 0.5f;       // Rolling resistance
     [SerializeField] private float angularDragCoefficient = 2.0f; // Turn resistance
+    
+    [Header("Airborne Physics")]
+    [SerializeField] private float airborneGravityMultiplier = 10f; // Extra downward force when airborne (multiplier of Physics.gravity)
 
     private Rigidbody rb;
     private float currentMoveInput = 0f;
@@ -121,11 +124,7 @@ public class TankMan : MonoBehaviour
     private Coroutine currentNavActionCoroutine; // Coroutine for Nav AI actions
     private Coroutine currentTurretActionCoroutine; // Coroutine for Turret AI actions
     
-    // Track last executed node to prevent duplicate logs
-    private string lastLoggedNavNodeId = "";
-    private string lastLoggedTurretNodeId = "";
-    private string lastLoggedNavActionName = "";
-    private string lastLoggedTurretActionName = "";
+    // Track last executed chain to prevent duplicate logs
     private string lastLoggedNavChain = "";
     private string lastLoggedTurretChain = "";
     
@@ -139,6 +138,7 @@ public class TankMan : MonoBehaviour
     private List<GameObject> detectedEnemies = new List<GameObject>();
     private List<GameObject> detectedAllies = new List<GameObject>();
     private float lastFireTime;
+    private float currentLeadDistance = 0f; // Track the lead distance currently being used by tracking actions
     
     // Wander State Management
     private Vector3 currentWanderTarget;
@@ -226,6 +226,12 @@ public class TankMan : MonoBehaviour
     {
         if (rb == null)
             return;
+
+        // Apply extra gravity when airborne to make tanks fall faster
+        if (!isGrounded)
+        {
+            rb.AddForce(Physics.gravity * (airborneGravityMultiplier - 1f) * rb.mass, ForceMode.Force);
+        }
 
         // Apply movement forces based on input
         ApplyMovement();
@@ -342,11 +348,14 @@ public class TankMan : MonoBehaviour
     {
         // LateUpdate runs after all other updates, so NavMeshAgent won't override our rotation
         
-        // Force turret to inherit tank's Z-axis rotation (tilt) - turret is mechanically linked to tank body
+        // Lock turret to tank body tilt - turret is mechanically fixed to the tank chassis
+        // Only allow Y-axis (horizontal rotation) and X-axis (pitch) freedom for aiming
+        // Z-axis (roll) must match the tank root to tilt with terrain
         if (turretTransform != null)
         {
             Vector3 turretEuler = turretTransform.eulerAngles;
-            turretEuler.z = transform.eulerAngles.z; // Match parent tank's Z-axis tilt
+            Vector3 tankEuler = transform.eulerAngles; // Use tank root rotation
+            turretEuler.z = tankEuler.z; // Lock turret roll to match tank tilt
             turretTransform.eulerAngles = turretEuler;
         }
     }
@@ -789,26 +798,26 @@ public class TankMan : MonoBehaviour
             // Follow to first connected node (highest Y-position)
             var nextNode = sortedConnections.FirstOrDefault();
             
-            // Special handling: If the next node is an action node that is Fire or CenterTarget,
-            // and we have both available, choose based on whether we can fire
+            // Special handling: If the next node is an action node that is Fire, CenterTarget, or LeadTarget,
+            // and we have both Fire and a tracking node available, choose based on whether we can fire
             if (nextNode != null && nextNode.nodeType == AiNodeType.Action)
             {
-                if (nextNode.methodName == "Fire" || nextNode.methodName == "CenterTarget")
+                if (nextNode.methodName == "Fire" || nextNode.methodName == "CenterTarget" || nextNode.methodName == "LeadTarget" || nextNode.methodName == "TrackTarget")
                 {
-                    // Check if both Fire and CenterTarget are available as siblings
+                    // Check if both Fire and a tracking action (CenterTarget/LeadTarget/TrackTarget) are available as siblings
                     var fireNode = sortedConnections.FirstOrDefault(n => n.methodName == "Fire");
-                    var centerNode = sortedConnections.FirstOrDefault(n => n.methodName == "CenterTarget");
+                    var trackingNode = sortedConnections.FirstOrDefault(n => n.methodName == "CenterTarget" || n.methodName == "LeadTarget" || n.methodName == "TrackTarget");
                     
-                    if (fireNode != null && centerNode != null)
+                    if (fireNode != null && trackingNode != null)
                     {
-                        // Choose based on turret alignment
+                        // Choose based on whether we can fire
                         if (CanFire())
                         {
                             return fireNode;
                         }
                         else
                         {
-                            return centerNode;
+                            return trackingNode;
                         }
                     }
                 }
@@ -1345,10 +1354,20 @@ public class TankMan : MonoBehaviour
                 StopMovement();
                 currentActionCoroutine = StartCoroutine(WaitAction());
                 break;
+            case "LeadTarget":
+                if (currentTarget != null)
+                {
+                    // Get lead distance from node's numeric value (default 0 for center targeting)
+                    float leadDistance = actionNode.numericValue;
+                    currentLeadDistance = leadDistance; // Store for CanFire to use
+                    currentActionCoroutine = StartCoroutine(LeadTargetAction(leadDistance));
+                }
+                break;
             case "TrackTarget":
             case "CenterTarget": // Alias for TrackTarget
                 if (currentTarget != null)
                 {
+                    currentLeadDistance = 0f; // Track target center (no lead)
                     currentActionCoroutine = StartCoroutine(TrackTargetAction());
                 }
                 break;
@@ -1419,16 +1438,14 @@ public class TankMan : MonoBehaviour
         {
             return false;
         }
-        // Range check removed - bullet will explode after traveling its max range
-        // Only check if turret is aligned
+        // Range check removed - fire whenever aimed, bullet will explode after traveling its max range
         if (turretTransform != null)
         {
-            // Find the BasePivot for accurate aiming
-            Transform basePivot = GetTargetBasePivot(currentTarget);
-            Vector3 targetPosition = basePivot.position;
+            // Use the current lead distance to calculate the aim point
+            Vector3 aimPoint = CalculateLeadPoint(currentTarget, currentLeadDistance);
             
             Vector3 turretForward = turretTransform.forward;
-            Vector3 directionToTarget = (targetPosition - turretTransform.position).normalized;
+            Vector3 directionToTarget = (aimPoint - turretTransform.position).normalized;
             float angleToTarget = Vector3.Angle(turretForward, directionToTarget);
             if (angleToTarget > 2f)
             {
@@ -1439,7 +1456,69 @@ public class TankMan : MonoBehaviour
         {
         }
         return true;
-    }    void Fire()
+    }
+    
+    /// <summary>
+    /// Checks if turret is aimed at a specific point within specified tolerance
+    /// </summary>
+    bool IsTurretAimedAtPoint(Vector3 targetPoint, float angleTolerance = 1f)
+    {
+        if (turretTransform == null)
+        {
+            return false;
+        }
+        
+        Vector3 turretForward = turretTransform.forward;
+        Vector3 directionToTarget = (targetPoint - turretTransform.position).normalized;
+        float angleToTarget = Vector3.Angle(turretForward, directionToTarget);
+        
+        return angleToTarget <= angleTolerance;
+    }
+    
+    /// <summary>
+    /// Calculates the lead point for targeting - adds lead distance in direction of target's movement
+    /// LeadDistance = 0: aims at target center (replaces CenterTarget)
+    /// LeadDistance > 0: aims ahead of target's movement
+    /// </summary>
+    Vector3 CalculateLeadPoint(GameObject target, float leadDistance)
+    {
+        if (target == null)
+        {
+            return Vector3.zero;
+        }
+        
+        // Find the BasePivot for accurate center position
+        Transform basePivot = GetTargetBasePivot(target);
+        Vector3 targetPosition = basePivot.position;
+        
+        // If lead distance is 0, just return center position
+        if (Mathf.Abs(leadDistance) < 0.01f)
+        {
+            return targetPosition;
+        }
+        
+        // Get target's velocity
+        Rigidbody targetRb = target.GetComponent<Rigidbody>();
+        if (targetRb == null)
+        {
+            targetRb = target.GetComponentInParent<Rigidbody>();
+        }
+        
+        if (targetRb != null && targetRb.linearVelocity.magnitude > 0.1f)
+        {
+            // Target is moving - lead it
+            Vector3 targetVelocityDirection = targetRb.linearVelocity.normalized;
+            Vector3 leadPoint = targetPosition + (targetVelocityDirection * leadDistance);
+            return leadPoint;
+        }
+        else
+        {
+            // Target is stationary - just aim at center
+            return targetPosition;
+        }
+    }
+    
+    void Fire()
     {
         if (currentTarget == null)
         {
@@ -1456,23 +1535,22 @@ public class TankMan : MonoBehaviour
         // Simple firing - instantiate bullet if prefab exists
         if (bulletPrefab != null)
         {
-            // Find the BasePivot for accurate aiming
-            Transform basePivot = GetTargetBasePivot(currentTarget);
-            Vector3 targetPosition = basePivot.position;
-            
             Vector3 direction;
             float launchAngle = 0f;
             
             // Calculate firing direction based on turret type
             if (turretType == TurretType.Artillery)
             {
-                // Artillery: Calculate ballistic trajectory
+                // Artillery: Calculate ballistic trajectory to target base pivot
+                Transform basePivot = GetTargetBasePivot(currentTarget);
+                Vector3 targetPosition = basePivot.position;
                 direction = CalculateArtilleryDirection(out launchAngle, targetPosition);
             }
             else
             {
-                // Direct fire: Straight line to target
-                direction = (targetPosition - firePoint.position).normalized;
+                // Direct fire: Shoot straight along turret's forward axis
+                // The turret is already aimed at the lead point by LeadTargetAction
+                direction = turretTransform.forward;
             }
             
             GameObject bullet = Instantiate(bulletPrefab, firePoint.position, Quaternion.LookRotation(direction));
@@ -2088,28 +2166,45 @@ public class TankMan : MonoBehaviour
         }
     }
 
-    IEnumerator TrackTargetAction()
+    /// <summary>
+    /// Lead target action - aims at a point ahead of the target based on lead distance
+    /// When leadDistance = 0, aims directly at target center (replaces CenterTarget)
+    /// When leadDistance > 0, aims ahead of target's movement direction
+    /// </summary>
+    IEnumerator LeadTargetAction(float leadDistance)
     {
-        // Continuously rotate turret to face the current target
+        // Continuously rotate turret to face the lead point
+        // This keeps running until the action is stopped by the AI system
         while (currentTarget != null && turretTransform != null)
         {
-            // Find the BasePivot for accurate aiming at tank center
-            Transform basePivot = GetTargetBasePivot(currentTarget);
-            Vector3 targetPosition = basePivot.position;
+            // Calculate lead point based on target velocity and lead distance
+            Vector3 leadPoint = CalculateLeadPoint(currentTarget, leadDistance);
             
-            Vector3 targetDirection = targetPosition - turretTransform.position;
+            Vector3 targetDirection = leadPoint - turretTransform.position;
             if (targetDirection.magnitude > 0.1f)
             {
                 targetDirection.Normalize();
                 Quaternion targetRotation = Quaternion.LookRotation(targetDirection);
+                
+                // Smooth rotation using fixed rotation speed
+                float rotationSpeed = TurnSpeed * 2f; // Turret rotates faster than tank body
                 turretTransform.rotation = Quaternion.RotateTowards(
                     turretTransform.rotation,
                     targetRotation,
-                    TurnSpeed * 2f * Time.deltaTime // Turret rotates faster than tank body
+                    rotationSpeed * Time.deltaTime
                 );
             }
+            
             yield return null;
         }
+    }
+    
+    /// <summary>
+    /// Legacy TrackTarget action for backward compatibility - calls LeadTargetAction with 0 lead
+    /// </summary>
+    IEnumerator TrackTargetAction()
+    {
+        yield return StartCoroutine(LeadTargetAction(0f));
     }
     
     #region Turret Alignment Actions

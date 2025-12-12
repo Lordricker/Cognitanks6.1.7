@@ -120,13 +120,67 @@ public class BulletScript : MonoBehaviour
         if (explosionPrefab != null)
         {
             GameObject explosion = Instantiate(explosionPrefab, transform.position, Quaternion.identity);
-            // Auto-destroy explosion after 10 frames (~0.167 seconds at 60fps)
-            float duration = 10f / 60f; // 10 frames
-            Destroy(explosion, duration);
+            explosion.transform.localScale = new Vector3(10f, 5f, 10f); // Scale explosion - width 10x, height 5x for rounder shape
+            
+            // Start fade out coroutine and destroy after 0.3 seconds
+            BulletScript tempScript = explosion.AddComponent<BulletScript>();
+            tempScript.StartCoroutine(tempScript.FadeOutExplosion(explosion, 0.3f));
         }
         
         // Destroy the bullet
         Destroy(gameObject);
+    }
+    
+    /// <summary>
+    /// Fade out explosion effect over specified duration
+    /// </summary>
+    public System.Collections.IEnumerator FadeOutExplosion(GameObject explosion, float duration)
+    {
+        // Get all renderers in the explosion (particles, meshes, etc.)
+        Renderer[] renderers = explosion.GetComponentsInChildren<Renderer>();
+        ParticleSystem[] particleSystems = explosion.GetComponentsInChildren<ParticleSystem>();
+        
+        // Store original colors/alphas
+        var originalColors = new System.Collections.Generic.Dictionary<Material, Color>();
+        foreach (var renderer in renderers)
+        {
+            foreach (var mat in renderer.materials)
+            {
+                if (mat.HasProperty("_Color"))
+                {
+                    originalColors[mat] = mat.color;
+                }
+            }
+        }
+        
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float alpha = 1f - (elapsed / duration); // 1 to 0 over duration
+            
+            // Fade all materials
+            foreach (var kvp in originalColors)
+            {
+                Color color = kvp.Value;
+                color.a = alpha;
+                kvp.Key.color = color;
+            }
+            
+            // Fade particle systems
+            foreach (var ps in particleSystems)
+            {
+                var main = ps.main;
+                Color startColor = main.startColor.color;
+                startColor.a = alpha;
+                main.startColor = startColor;
+            }
+            
+            yield return null;
+        }
+        
+        // Destroy after fade completes
+        Destroy(explosion);
     }
     
     void OnDrawGizmos()

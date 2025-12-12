@@ -177,6 +177,16 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
                 newLabel = $"If Range>{number}";
                 Debug.Log($"Created new label for 'If Range>' pattern: '{newLabel}'");
             }
+            else if (currentLabel.Contains("LeadTarget#") || currentLabel.StartsWith("LeadTarget"))
+            {
+                newLabel = $"LeadTarget{number}";
+                Debug.Log($"Created new label for 'LeadTarget' pattern: '{newLabel}'");
+            }
+            else if (currentLabel.Contains("Lead Target #") || currentLabel.StartsWith("Lead Target "))
+            {
+                newLabel = $"Lead Target {number}";
+                Debug.Log($"Created new label for 'Lead Target ' pattern: '{newLabel}'");
+            }
             
             if (!string.IsNullOrEmpty(newLabel))
             {
@@ -263,6 +273,8 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
                nodeLabel.Contains("If Tag > #") ||
                nodeLabel.Contains("If Range<#") ||
                nodeLabel.Contains("If Range>#") ||
+               nodeLabel.Contains("LeadTarget#") ||
+               nodeLabel.Contains("Lead Target #") ||
                // Also check for patterns that already have numbers (not just #)
                nodeLabel.StartsWith("If Self HP>") ||
                nodeLabel.StartsWith("If Self HP<") ||
@@ -272,7 +284,9 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
                nodeLabel.StartsWith("If Tag < ") ||
                nodeLabel.StartsWith("If Tag > ") ||
                nodeLabel.StartsWith("If Range<") ||
-               nodeLabel.StartsWith("If Range>");
+               nodeLabel.StartsWith("If Range>") ||
+               nodeLabel.StartsWith("LeadTarget") ||
+               nodeLabel.StartsWith("Lead Target ");
     }
     
     private string GetNodeLabel()
@@ -375,6 +389,20 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
         else if (nodeLabel.StartsWith("If Range>"))
         {
             string numberPart = nodeLabel.Substring(9); // Skip "If Range>"
+            if (numberPart == "#" || string.IsNullOrEmpty(numberPart))
+                return "0";
+            return numberPart;
+        }
+        else if (nodeLabel.StartsWith("LeadTarget"))
+        {
+            string numberPart = nodeLabel.Substring(10); // Skip "LeadTarget"
+            if (numberPart == "#" || string.IsNullOrEmpty(numberPart))
+                return "0";
+            return numberPart;
+        }
+        else if (nodeLabel.StartsWith("Lead Target "))
+        {
+            string numberPart = nodeLabel.Substring(12); // Skip "Lead Target "
             if (numberPart == "#" || string.IsNullOrEmpty(numberPart))
                 return "0";
             return numberPart;
