@@ -147,6 +147,9 @@ public class TankMan : MonoBehaviour
     private float wanderStartTime; // Track when we started moving to current wander target
     private float wanderTimeout = 10f; // Timeout in seconds before picking new wander point
     
+    // Spawn/Home tracking
+    private Vector3 spawnPosition; // Store spawn position for Home action
+    
     void Start()
     {
         // Initialize main rigidbody
@@ -191,6 +194,9 @@ public class TankMan : MonoBehaviour
             assignedTurretAITitle = "None";
         }        // Initialize wander origin point
         wanderOrigin = transform.position;
+        
+        // Store spawn position for Home action
+        spawnPosition = transform.position;
         
         CalculateStats();
         currentHealth = totalHP;
@@ -316,6 +322,25 @@ public class TankMan : MonoBehaviour
             rb.angularVelocity = Vector3.Lerp(rb.angularVelocity, Vector3.zero, 0.1f);
         }
     }
+    
+    /// <summary>
+    /// Applies a small upward impulse to unstuck the tank from friction
+    /// Call this at the start of movement actions to prevent getting stuck on terrain or after collisions
+    /// Only applies if tank is grounded and has near-zero horizontal velocity (actually stuck)
+    /// </summary>
+    private void UnstuckTank()
+    {
+        if (rb != null && isGrounded)
+        {
+            // Check if tank is stuck (no horizontal movement)
+            Vector3 horizontalVelocity = new Vector3(rb.linearVelocity.x, 0, rb.linearVelocity.z);
+            if (horizontalVelocity.magnitude < 0.1f)
+            {
+                // Apply small upward impulse (enough to momentarily reduce ground friction)
+                rb.AddForce(Vector3.up * (rb.mass * 2f), ForceMode.Impulse);
+            }
+        }
+    }
 
     // deleted custom gravity stuff, we can just use regular gravity for now
 
@@ -353,10 +378,10 @@ public class TankMan : MonoBehaviour
         // Z-axis (roll) must match the tank root to tilt with terrain
         if (turretTransform != null)
         {
-            Vector3 turretEuler = turretTransform.eulerAngles;
-            Vector3 tankEuler = transform.eulerAngles; // Use tank root rotation
-            turretEuler.z = tankEuler.z; // Lock turret roll to match tank tilt
-            turretTransform.eulerAngles = turretEuler;
+            // Work with local rotation to preserve AI-controlled Y and X rotations
+            Vector3 turretLocalEuler = turretTransform.localEulerAngles;
+            // Z should always be 0 in local space (no roll relative to tank body)
+            turretTransform.localEulerAngles = new Vector3(turretLocalEuler.x, turretLocalEuler.y, 0f);
         }
     }
     
@@ -1383,6 +1408,24 @@ public class TankMan : MonoBehaviour
             case "AlignBack":
                 currentActionCoroutine = StartCoroutine(AlignBackAction());
                 break;
+            case "RotateUp":
+                // Stop BOTH nav and turret actions to prevent conflicts with other rotation actions
+                if (currentNavActionCoroutine != null) { StopCoroutine(currentNavActionCoroutine); currentNavActionCoroutine = null; }
+                if (currentTurretActionCoroutine != null) { StopCoroutine(currentTurretActionCoroutine); currentTurretActionCoroutine = null; }
+                currentActionCoroutine = StartCoroutine(RotateUpAction(actionNode.numericValue));
+                break;
+            case "RotateDown":
+                // Stop BOTH nav and turret actions to prevent conflicts with other rotation actions
+                if (currentNavActionCoroutine != null) { StopCoroutine(currentNavActionCoroutine); currentNavActionCoroutine = null; }
+                if (currentTurretActionCoroutine != null) { StopCoroutine(currentTurretActionCoroutine); currentTurretActionCoroutine = null; }
+                currentActionCoroutine = StartCoroutine(RotateDownAction(actionNode.numericValue));
+                break;
+            case "MapCenter":
+                currentActionCoroutine = StartCoroutine(MapCenterAction());
+                break;
+            case "Home":
+                currentActionCoroutine = StartCoroutine(HomeAction());
+                break;
             default:
                 break;
         }
@@ -1780,6 +1823,10 @@ public class TankMan : MonoBehaviour
             if (Time.time - waitStartTime > 2f)
                 yield break;
         }
+        
+        // Unstuck the tank before starting movement
+        UnstuckTank();
+        yield return new WaitForFixedUpdate();
 
         // Pick a new wander target if needed
         if (!isWandering || ShouldPickNewWanderTarget())
@@ -1835,6 +1882,10 @@ public class TankMan : MonoBehaviour
             if (Time.time - waitStartTime > 2f)
                 yield break;
         }
+        
+        // Unstuck the tank before starting movement
+        UnstuckTank();
+        yield return new WaitForFixedUpdate();
 
         while (currentTarget != null)
         {
@@ -1901,6 +1952,10 @@ public class TankMan : MonoBehaviour
             if (Time.time - waitStartTime > 2f)
                 yield break;
         }
+        
+        // Unstuck the tank before starting movement
+        UnstuckTank();
+        yield return new WaitForFixedUpdate();
 
         while (currentTarget != null)
         {
@@ -1936,6 +1991,10 @@ public class TankMan : MonoBehaviour
             if (Time.time - waitStartTime > 2f)
                 yield break;
         }
+        
+        // Unstuck the tank before starting movement
+        UnstuckTank();
+        yield return new WaitForFixedUpdate();
 
         while (currentTarget != null)
         {
@@ -1961,9 +2020,158 @@ public class TankMan : MonoBehaviour
         }
     }
     
+    IEnumerator MapCenterAction()
+    {
+        // Wait for rigidbody to be ready
+        float waitStartTime = Time.time;
+        while (rb == null)
+        {
+            rb = GetComponent<Rigidbody>();
+            if (rb == null)
+                rb = gameObject.AddComponent<Rigidbody>();
+            yield return new WaitForSeconds(0.1f);
+            if (Time.time - waitStartTime > 2f)
+                yield break;
+        }
+        
+        // Unstuck the tank before starting movement
+        UnstuckTank();
+        yield return new WaitForFixedUpdate();
+
+        // Get the parent cycle node if this action is part of a cycle
+        AiExecutableNode parentCycle = null;
+        if (currentNavActionNode != null)
+        {
+            parentCycle = GetParentCycleNode(currentNavActionNode, runtimeNavAI);
+            if (parentCycle == null && runtimeTurretAI != null)
+            {
+                parentCycle = GetParentCycleNode(currentNavActionNode, runtimeTurretAI);
+            }
+        }
+
+        // Calculate map center from terrain bounds
+        Vector3 mapCenter = GetMapCenter();
+        
+        // Navigate to map center
+        while (true)
+        {
+            if (!isGrounded)
+            {
+                yield return null;
+                continue;
+            }
+
+            float distance = Vector3.Distance(new Vector3(transform.position.x, 0, transform.position.z), 
+                                             new Vector3(mapCenter.x, 0, mapCenter.z));
+            
+            if (distance < wanderReachDistance)
+            {
+                // Reached map center - stop
+                StopMovement();
+                
+                // Mark cycle as complete if part of a cycle
+                if (parentCycle != null)
+                {
+                    MarkCycleActionComplete(parentCycle.nodeId);
+                }
+                break;
+            }
+
+            // Use NavState_MoveToWaypoint to move toward map center
+            NavState_MoveToWaypoint(mapCenter);
+
+            yield return new WaitForFixedUpdate();
+        }
+    }
+    
+    IEnumerator HomeAction()
+    {
+        // Wait for rigidbody to be ready
+        float waitStartTime = Time.time;
+        while (rb == null)
+        {
+            rb = GetComponent<Rigidbody>();
+            if (rb == null)
+                rb = gameObject.AddComponent<Rigidbody>();
+            yield return new WaitForSeconds(0.1f);
+            if (Time.time - waitStartTime > 2f)
+                yield break;
+        }
+        
+        // Unstuck the tank before starting movement
+        UnstuckTank();
+        yield return new WaitForFixedUpdate();
+
+        // Get the parent cycle node if this action is part of a cycle
+        AiExecutableNode parentCycle = null;
+        if (currentNavActionNode != null)
+        {
+            parentCycle = GetParentCycleNode(currentNavActionNode, runtimeNavAI);
+            if (parentCycle == null && runtimeTurretAI != null)
+            {
+                parentCycle = GetParentCycleNode(currentNavActionNode, runtimeTurretAI);
+            }
+        }
+
+        // Navigate to spawn position
+        while (true)
+        {
+            if (!isGrounded)
+            {
+                yield return null;
+                continue;
+            }
+
+            float distance = Vector3.Distance(new Vector3(transform.position.x, 0, transform.position.z), 
+                                             new Vector3(spawnPosition.x, 0, spawnPosition.z));
+            
+            if (distance < wanderReachDistance)
+            {
+                // Reached home - stop
+                StopMovement();
+                
+                // Mark cycle as complete if part of a cycle
+                if (parentCycle != null)
+                {
+                    MarkCycleActionComplete(parentCycle.nodeId);
+                }
+                break;
+            }
+
+            // Use NavState_MoveToWaypoint to move toward home/spawn position
+            NavState_MoveToWaypoint(spawnPosition);
+
+            yield return new WaitForFixedUpdate();
+        }
+    }
+    
             
         
     
+
+    /// <summary>
+    /// Calculates the center of the map from terrain bounds
+    /// </summary>
+    private Vector3 GetMapCenter()
+    {
+        // Try to find terrain in the scene
+        Terrain terrain = Terrain.activeTerrain;
+        
+        if (terrain != null)
+        {
+            // Get terrain bounds and calculate center
+            Vector3 terrainSize = terrain.terrainData.size;
+            Vector3 terrainPos = terrain.transform.position;
+            Vector3 center = terrainPos + new Vector3(terrainSize.x * 0.5f, 0, terrainSize.z * 0.5f);
+            return center;
+        }
+        else
+        {
+            // Fallback: Use hardcoded map boundaries (30-770 range suggests 800x800 map)
+            // Center would be at 400, 400
+            return new Vector3(400f, 0f, 400f);
+        }
+    }
 
     /// <summary>
     /// Sets a new wander target within the allowed range
@@ -2452,6 +2660,142 @@ public class TankMan : MonoBehaviour
             // Set X=0 (level pitch) and lock Z to parent tank's Z rotation
             float tankZ = transform.eulerAngles.z;
             turretTransform.rotation = Quaternion.Euler(0f, newY, tankZ);
+            
+            yield return null;
+        }
+    }
+    
+    /// <summary>
+    /// Rotates turret up by specified degrees relative to current pitch
+    /// </summary>
+    IEnumerator RotateUpAction(float degrees)
+    {
+        if (turretTransform == null)
+        {
+            Debug.LogWarning("[RotateUp] No turret transform assigned!");
+            yield break;
+        }
+        
+        // Get the parent cycle node if this action is part of a cycle
+        AiExecutableNode parentCycle = null;
+        if (currentTurretActionNode != null)
+        {
+            parentCycle = GetParentCycleNode(currentTurretActionNode, runtimeTurretAI);
+            if (parentCycle == null && runtimeNavAI != null)
+            {
+                parentCycle = GetParentCycleNode(currentTurretActionNode, runtimeNavAI);
+            }
+        }
+        
+        // Get current X rotation (pitch)
+        float currentX = turretTransform.eulerAngles.x;
+        // Convert from 0-360 to -180 to 180 range
+        if (currentX > 180f) currentX -= 360f;
+        
+        // Calculate target X rotation (subtract degrees for pitch up)
+        float targetX = currentX - degrees;
+        
+        // Clamp pitch to reasonable limits (e.g., -45 to 45 degrees)
+        targetX = Mathf.Clamp(targetX, -45f, 45f);
+        
+        float threshold = 2f; // Consider reached when within 2 degrees
+        
+        while (turretTransform != null)
+        {
+            // Get current pitch
+            currentX = turretTransform.eulerAngles.x;
+            if (currentX > 180f) currentX -= 360f;
+            
+            // Calculate difference
+            float angleDiff = targetX - currentX;
+            
+            // Check if we've reached the target
+            if (Mathf.Abs(angleDiff) <= threshold)
+            {
+                // Reached! Mark cycle as complete if part of a cycle
+                if (parentCycle != null)
+                {
+                    MarkCycleActionComplete(parentCycle.nodeId);
+                }
+                yield break;
+            }
+            
+            // Rotate towards target
+            float rotationSpeed = TurnSpeed * 0.5f * Time.deltaTime;
+            float newX = Mathf.MoveTowards(currentX, targetX, rotationSpeed);
+            
+            // Maintain current Y (yaw) and lock Z to parent tank's Z rotation
+            float currentY = turretTransform.eulerAngles.y;
+            float tankZ = transform.eulerAngles.z;
+            turretTransform.rotation = Quaternion.Euler(newX, currentY, tankZ);
+            
+            yield return null;
+        }
+    }
+    
+    /// <summary>
+    /// Rotates turret down by specified degrees relative to current pitch
+    /// </summary>
+    IEnumerator RotateDownAction(float degrees)
+    {
+        if (turretTransform == null)
+        {
+            Debug.LogWarning("[RotateDown] No turret transform assigned!");
+            yield break;
+        }
+        
+        // Get the parent cycle node if this action is part of a cycle
+        AiExecutableNode parentCycle = null;
+        if (currentTurretActionNode != null)
+        {
+            parentCycle = GetParentCycleNode(currentTurretActionNode, runtimeTurretAI);
+            if (parentCycle == null && runtimeNavAI != null)
+            {
+                parentCycle = GetParentCycleNode(currentTurretActionNode, runtimeNavAI);
+            }
+        }
+        
+        // Get current X rotation (pitch)
+        float currentX = turretTransform.eulerAngles.x;
+        // Convert from 0-360 to -180 to 180 range
+        if (currentX > 180f) currentX -= 360f;
+        
+        // Calculate target X rotation (add degrees for pitch down)
+        float targetX = currentX + degrees;
+        
+        // Clamp pitch to reasonable limits (e.g., -45 to 45 degrees)
+        targetX = Mathf.Clamp(targetX, -45f, 45f);
+        
+        float threshold = 2f; // Consider reached when within 2 degrees
+        
+        while (turretTransform != null)
+        {
+            // Get current pitch
+            currentX = turretTransform.eulerAngles.x;
+            if (currentX > 180f) currentX -= 360f;
+            
+            // Calculate difference
+            float angleDiff = targetX - currentX;
+            
+            // Check if we've reached the target
+            if (Mathf.Abs(angleDiff) <= threshold)
+            {
+                // Reached! Mark cycle as complete if part of a cycle
+                if (parentCycle != null)
+                {
+                    MarkCycleActionComplete(parentCycle.nodeId);
+                }
+                yield break;
+            }
+            
+            // Rotate towards target
+            float rotationSpeed = TurnSpeed * 0.5f * Time.deltaTime;
+            float newX = Mathf.MoveTowards(currentX, targetX, rotationSpeed);
+            
+            // Maintain current Y (yaw) and lock Z to parent tank's Z rotation
+            float currentY = turretTransform.eulerAngles.y;
+            float tankZ = transform.eulerAngles.z;
+            turretTransform.rotation = Quaternion.Euler(newX, currentY, tankZ);
             
             yield return null;
         }

@@ -65,6 +65,16 @@ public class AiEditorFileUI : MonoBehaviour
                nodeLabel.Contains("If Tag > #") ||
                nodeLabel.Contains("If Range<#") ||
                nodeLabel.Contains("If Range>#") ||
+               nodeLabel.Contains("LeadTarget#") ||
+               nodeLabel.Contains("Lead Target #") ||
+               nodeLabel.Contains("RotateUp") ||
+               nodeLabel.Contains("Rotate Up") ||
+               nodeLabel.Contains("RotateDown") ||
+               nodeLabel.Contains("Rotate Down") ||
+               nodeLabel.Contains("RotateLeft") ||
+               nodeLabel.Contains("Rotate Left") ||
+               nodeLabel.Contains("RotateRight") ||
+               nodeLabel.Contains("Rotate Right") ||
                // Also check for patterns that already have numbers (not just #)
                nodeLabel.StartsWith("If Self HP>") ||
                nodeLabel.StartsWith("If Self HP<") ||
@@ -74,7 +84,9 @@ public class AiEditorFileUI : MonoBehaviour
                nodeLabel.StartsWith("If Tag < ") ||
                nodeLabel.StartsWith("If Tag > ") ||
                nodeLabel.StartsWith("If Range<") ||
-               nodeLabel.StartsWith("If Range>");
+               nodeLabel.StartsWith("If Range>") ||
+               nodeLabel.StartsWith("LeadTarget") ||
+               nodeLabel.StartsWith("Lead Target ");
     }
 
     void ToggleLoadPanel()

@@ -76,6 +76,14 @@ namespace AiEditor
                 return "Patrol";
             if (cleanLabel.Contains("guard") || cleanLabel.Contains("defend"))
                 return "Guard";
+            if (cleanLabel.Contains("rotateup") || cleanLabel.Contains("rotate up"))
+                return "RotateUp";
+            if (cleanLabel.Contains("rotatedown") || cleanLabel.Contains("rotate down"))
+                return "RotateDown";
+            if (cleanLabel.Contains("rotateleft") || cleanLabel.Contains("rotate left"))
+                return "RotateLeft";
+            if (cleanLabel.Contains("rotateright") || cleanLabel.Contains("rotate right"))
+                return "RotateRight";
             
             // For SubAI nodes, return the label as method name (will be handled separately)
             if (cleanLabel.Contains("subai") || cleanLabel.Contains("sub-ai") || cleanLabel.Contains("sub ai"))

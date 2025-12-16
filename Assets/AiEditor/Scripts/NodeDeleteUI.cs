@@ -187,6 +187,26 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
                 newLabel = $"Lead Target {number}";
                 Debug.Log($"Created new label for 'Lead Target ' pattern: '{newLabel}'");
             }
+            else if (currentLabel.Contains("RotateUp") || currentLabel.Contains("Rotate Up"))
+            {
+                newLabel = $"Rotate Up {number}°";
+                Debug.Log($"Created new label for 'Rotate Up' pattern: '{newLabel}'");
+            }
+            else if (currentLabel.Contains("RotateDown") || currentLabel.Contains("Rotate Down"))
+            {
+                newLabel = $"Rotate Down {number}°";
+                Debug.Log($"Created new label for 'Rotate Down' pattern: '{newLabel}'");
+            }
+            else if (currentLabel.Contains("RotateLeft") || currentLabel.Contains("Rotate Left"))
+            {
+                newLabel = $"Rotate Left {number}°";
+                Debug.Log($"Created new label for 'Rotate Left' pattern: '{newLabel}'");
+            }
+            else if (currentLabel.Contains("RotateRight") || currentLabel.Contains("Rotate Right"))
+            {
+                newLabel = $"Rotate Right {number}°";
+                Debug.Log($"Created new label for 'Rotate Right' pattern: '{newLabel}'");
+            }
             
             if (!string.IsNullOrEmpty(newLabel))
             {
@@ -275,6 +295,14 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
                nodeLabel.Contains("If Range>#") ||
                nodeLabel.Contains("LeadTarget#") ||
                nodeLabel.Contains("Lead Target #") ||
+               nodeLabel.Contains("RotateUp") ||
+               nodeLabel.Contains("Rotate Up") ||
+               nodeLabel.Contains("RotateDown") ||
+               nodeLabel.Contains("Rotate Down") ||
+               nodeLabel.Contains("RotateLeft") ||
+               nodeLabel.Contains("Rotate Left") ||
+               nodeLabel.Contains("RotateRight") ||
+               nodeLabel.Contains("Rotate Right") ||
                // Also check for patterns that already have numbers (not just #)
                nodeLabel.StartsWith("If Self HP>") ||
                nodeLabel.StartsWith("If Self HP<") ||
