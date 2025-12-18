@@ -96,13 +96,15 @@ public class TankMan : MonoBehaviour
     public float VisionRange => visionRange;
     public float CurrentHealth => currentHealth;
     public float Armor => armor;
+    public TurretType TurretType => turretType;
     public AiTreeAsset AssignedNavAI => runtimeNavAI;
     public AiTreeAsset AssignedTurretAI => runtimeTurretAI;
 
 
     // Physics-based movement properties (for AI reference)
-    public float MoveSpeed => topSpeed; // Max speed the tank can reach
-    public float TurnSpeed => maxTurnRate; // Max turn rate in deg/s
+    // Apply Coms penalty if currently using Coms intel (simulates distracted driving)
+    public float MoveSpeed => isCurrentlyUsingComs ? topSpeed * COMS_SPEED_PENALTY : topSpeed;
+    public float TurnSpeed => isCurrentlyUsingComs ? maxTurnRate * COMS_SPEED_PENALTY : maxTurnRate;
     
     // Public properties for AI Master scripts
     public Transform turretPivot => turretTransform;
@@ -136,9 +138,20 @@ public class TankMan : MonoBehaviour
     private GameObject currentTarget; // Target for actions (flee, chase, fire, etc.)
     private GameObject evaluationTarget; // Target for condition evaluation (HP, Armor checks)
     private List<GameObject> detectedEnemies = new List<GameObject>();
+    private List<GameObject> previousDetectedEnemies = new List<GameObject>(); // Track previous frame's enemies for AllyTargetList cleanup
     private List<GameObject> detectedAllies = new List<GameObject>();
+    private GameObject comsTarget; // Target acquired via Coms (AllyTargetList) when on a Coms branch
     private float lastFireTime;
     private float currentLeadDistance = 0f; // Track the lead distance currently being used by tracking actions
+    
+    // Coms penalty tracking
+    private bool isCurrentlyUsingComs = false; // True when the current AI iteration is using Coms intel
+    private const float COMS_SPEED_PENALTY = 0.5f; // 50% speed reduction when using Coms
+    private const float COMS_ALLY_DELAY_PER_TANK = 0.2f; // Additional AI delay per ally
+    
+    // Debug tracking
+    private Quaternion lastTurretRotation = Quaternion.identity; // For turret rotation speed debug
+    private float lastDebugLogTime = 0f; // Track time for debug interval
     
     // Wander State Management
     private Vector3 currentWanderTarget;
@@ -285,16 +298,20 @@ public class TankMan : MonoBehaviour
         // Store previous turn input for next frame
         previousTurnInput = currentTurnInput;
         
-        // Limit speeds to engine's mechanical limits
-        if (rb.linearVelocity.magnitude > topSpeed)
+        // Aggressively limit speeds to engine's mechanical limits (with Coms penalties if applicable)
+        float currentSpeed = rb.linearVelocity.magnitude;
+        if (currentSpeed > MoveSpeed)
         {
-            rb.linearVelocity = rb.linearVelocity.normalized * topSpeed;
+            // Clamp more aggressively to counteract physics solver overshooting
+            rb.linearVelocity = rb.linearVelocity.normalized * Mathf.Min(currentSpeed * 0.95f, MoveSpeed);
         }
         
-        float maxAngularSpeedRad = maxTurnRate * Mathf.Deg2Rad;
-        if (rb.angularVelocity.magnitude > maxAngularSpeedRad)
+        float maxAngularSpeedRad = TurnSpeed * Mathf.Deg2Rad;
+        float currentAngularSpeed = rb.angularVelocity.magnitude;
+        if (currentAngularSpeed > maxAngularSpeedRad)
         {
-            rb.angularVelocity = rb.angularVelocity.normalized * maxAngularSpeedRad;
+            // Clamp more aggressively to counteract physics solver overshooting
+            rb.angularVelocity = rb.angularVelocity.normalized * Mathf.Min(currentAngularSpeed * 0.95f, maxAngularSpeedRad);
         }
     }
     
@@ -387,7 +404,27 @@ public class TankMan : MonoBehaviour
     
     void Update()
     {
-    
+        // Debug logging for velocity and turret rotation (every 1 second)
+        if (Time.time - lastDebugLogTime >= 1.0f)
+        {
+            float elapsedTime = Time.time - lastDebugLogTime;
+            
+            if (rb != null)
+            {
+                float currentVelocity = rb.linearVelocity.magnitude;
+                Debug.Log($"[{gameObject.name}] Velocity: {currentVelocity:F2} m/s | Max: {MoveSpeed:F2} m/s | Coms: {isCurrentlyUsingComs}");
+            }
+            
+            if (turretTransform != null && lastTurretRotation != Quaternion.identity)
+            {
+                float angleDiff = Quaternion.Angle(lastTurretRotation, turretTransform.rotation);
+                float anglesPerSecond = angleDiff / elapsedTime; // Use actual elapsed time, not frame deltaTime
+                Debug.Log($"[{gameObject.name}] Turret Rotation: {anglesPerSecond:F2} deg/s | Max: {TurnSpeed:F2} deg/s | Coms: {isCurrentlyUsingComs}");
+            }
+            
+            lastTurretRotation = turretTransform != null ? turretTransform.rotation : Quaternion.identity;
+            lastDebugLogTime = Time.time;
+        }
     }
     
     #region Tank Parameters System
@@ -691,14 +728,27 @@ public class TankMan : MonoBehaviour
         
         while (currentNavNode != null)
         {
-            yield return new WaitForSeconds(aiUpdateInterval);
+            // Calculate AI update delay based on Coms usage and ally count
+            float currentUpdateInterval = CalculateAIUpdateInterval();
+            yield return new WaitForSeconds(currentUpdateInterval);
             
-            // Update sensor data
-            UpdateSensorData();
-            
-            // Execute current node and get next node
-            currentNavNode = ExecuteNode(currentNavNode, navAiTree);
+            try
+            {
+                // Update sensor data
+                UpdateSensorData();
+                
+                // Execute current node and get next node
+                currentNavNode = ExecuteNode(currentNavNode, navAiTree);
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"[Nav AI] Exception in {gameObject.name}: {ex.Message}\n{ex.StackTrace}");
+                // Restart from beginning on error
+                currentNavNode = GetFirstNodeFromStart(navAiTree);
+            }
         }
+        
+        Debug.LogWarning($"[Nav AI] {gameObject.name} - AI loop ended (currentNavNode is null)");
     }
       /// <summary>
     /// Main turret AI execution loop  
@@ -716,14 +766,27 @@ public class TankMan : MonoBehaviour
         
         while (currentTurretNode != null)
         {
-            yield return new WaitForSeconds(aiUpdateInterval);
+            // Calculate AI update delay based on Coms usage and ally count
+            float currentUpdateInterval = CalculateAIUpdateInterval();
+            yield return new WaitForSeconds(currentUpdateInterval);
             
-            // Update sensor data
-            UpdateSensorData();
-            
-            // Execute current node and get next node
-            currentTurretNode = ExecuteNode(currentTurretNode, turretAiTree);
+            try
+            {
+                // Update sensor data
+                UpdateSensorData();
+                
+                // Execute current node and get next node
+                currentTurretNode = ExecuteNode(currentTurretNode, turretAiTree);
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"[Turret AI] Exception in {gameObject.name}: {ex.Message}\n{ex.StackTrace}");
+                // Restart from beginning on error
+                currentTurretNode = GetFirstNodeFromStart(turretAiTree);
+            }
         }
+        
+        Debug.LogWarning($"[Turret AI] {gameObject.name} - AI loop ended (currentTurretNode is null)");
     }
     
     /// <summary>
@@ -746,7 +809,7 @@ public class TankMan : MonoBehaviour
         switch (node.nodeType)
         {
             case AiNodeType.Condition:
-                bool conditionResult = ExecuteCondition(node);
+                bool conditionResult = ExecuteCondition(node, tree);
                 return GetNextNodeFromCondition(node, tree, conditionResult);
             case AiNodeType.Action:
                 // Build condition chain up to this action
@@ -901,11 +964,22 @@ public class TankMan : MonoBehaviour
         int failedIndex = sortedConnections.FindIndex(n => n.nodeId == failedChild.nodeId);
         if (failedIndex >= 0 && failedIndex + 1 < sortedConnections.Count)
         {
-            var nextNode = sortedConnections[failedIndex + 1];            // ...existing code...
+            var nextNode = sortedConnections[failedIndex + 1];
             return nextNode;
         }
         
         // No more alternatives from this parent
+        // Check if the parent is a top-level node (connected to Start)
+        bool parentIsTopLevel = tree.connections.Any(c => 
+            (c.fromNodeId == "StartNavButton" || c.fromNodeId == "StartTurretButton") && 
+            c.toNodeId == parentNode.nodeId);
+        
+        if (parentIsTopLevel)
+        {
+            // Parent is top-level - get its next sibling from Start
+            return GetNextAlternativeFromStart(parentNode, tree);
+        }
+        
         // Special case: If this parent is IfSelf, skip over it when backtracking
         // (IfSelf is always true, just switches target context, so when all its children fail, skip it)
         if (parentNode.methodName == "IfSelf")
@@ -923,27 +997,25 @@ public class TankMan : MonoBehaviour
             }
         }
         
-        // Continue normal backtracking
+        // Continue normal backtracking to grandparent
         AiExecutableNode grandParent2 = FindParentNode(parentNode, tree);
         if (grandParent2 != null && grandParent2 != parentNode)
         {
             return GetNextAlternativeFromParent(grandParent2, parentNode, tree);
         }
         
-        return null;
+        // No grandparent found - restart from beginning
+        return GetFirstNodeFromStart(tree);
     }
       /// <summary>
     /// Gets the next node after an action
+    /// Actions always restart from the beginning so the tree is re-evaluated every cycle
     /// </summary>
     AiExecutableNode GetNextNodeFromAction(AiExecutableNode actionNode, AiTreeAsset tree)
     {
-        if (actionNode.connectedNodeIds.Count > 0)
-        {
-            string nextNodeId = actionNode.connectedNodeIds[0];
-            return tree.executableNodes.Find(n => n.nodeId == nextNodeId);
-        }
-        
-        // No connections - restart from beginning
+        // Always restart from beginning after executing an action
+        // This ensures the AI re-evaluates all conditions every update cycle (0.1s)
+        // and can properly backtrack when conditions become false
         return GetFirstNodeFromStart(tree);
     }
     
@@ -1040,6 +1112,10 @@ public class TankMan : MonoBehaviour
     /// </summary>
     void UpdateSensorData()
     {
+        // Store previous detected enemies before clearing (for AllyTargetList cleanup)
+        previousDetectedEnemies.Clear();
+        previousDetectedEnemies.AddRange(detectedEnemies);
+        
         detectedEnemies.Clear();
         detectedAllies.Clear();
         currentTarget = null;
@@ -1136,6 +1212,9 @@ public class TankMan : MonoBehaviour
             }
         }
         
+        // Update AllyTargetList with currently detected enemies (in vision cone)
+        UpdateAllyTargetList();
+        
         // Set current target to closest enemy
         if (detectedEnemies.Count > 0)
         {
@@ -1156,6 +1235,151 @@ public class TankMan : MonoBehaviour
         }
     }
     
+    /// <summary>
+    /// Calculates the AI update interval based on Coms usage and number of allies.
+    /// Base interval + (0.2s * number of alive allies) when using Coms.
+    /// Simulates the processing delay from managing allied intel.
+    /// </summary>
+    float CalculateAIUpdateInterval()
+    {
+        if (!isCurrentlyUsingComs)
+        {
+            // Not using Coms - use base interval
+            return aiUpdateInterval;
+        }
+        
+        // Count alive allies on the same team
+        int aliveAllyCount = 0;
+        if (myTeamInfo != null)
+        {
+            TankMan[] allTanks = FindObjectsByType<TankMan>(FindObjectsSortMode.None);
+            foreach (var tank in allTanks)
+            {
+                if (tank == this) continue; // Skip self
+                
+                TankTeamInfo otherTeamInfo = tank.GetComponent<TankTeamInfo>();
+                if (otherTeamInfo != null && 
+                    otherTeamInfo.teamId == myTeamInfo.teamId && 
+                    tank.CurrentHealth > 0)
+                {
+                    aliveAllyCount++;
+                }
+            }
+        }
+        
+        // Base interval + 0.2s per ally
+        float interval = aiUpdateInterval + (COMS_ALLY_DELAY_PER_TANK * aliveAllyCount);
+        return interval;
+    }
+    
+    /// <summary>
+    /// Updates the shared AllyTargetList with enemies this tank can see.
+    /// Reports new targets and removes targets that are no longer visible.
+    /// </summary>
+    void UpdateAllyTargetList()
+    {
+        if (AllyTargetList.Instance == null) return;
+        
+        // Report all currently detected enemies to AllyTargetList
+        foreach (var enemy in detectedEnemies)
+        {
+            if (enemy != null)
+            {
+                AllyTargetList.Instance.ReportTarget(this, enemy);
+            }
+        }
+        
+        // Remove enemies that were visible last frame but aren't anymore
+        foreach (var previousEnemy in previousDetectedEnemies)
+        {
+            if (previousEnemy != null && !detectedEnemies.Contains(previousEnemy))
+            {
+                AllyTargetList.Instance.RemoveTarget(this, previousEnemy);
+            }
+        }
+    }
+    
+    #endregion
+    
+    #region Coms Branch Detection
+    
+    /// <summary>
+    /// Checks if a given node is on a Coms branch by traversing up the AI tree.
+    /// If any parent node is "IfComs" or "Coms", this node is on a Coms branch.
+    /// </summary>
+    /// <param name="node">The node to check</param>
+    /// <param name="tree">The AI tree containing the node</param>
+    /// <returns>True if the node is on a Coms branch, false otherwise</returns>
+    bool IsOnComsBranch(AiExecutableNode node, AiTreeAsset tree)
+    {
+        if (node == null || tree == null) return false;
+        
+        try
+        {
+            var visitedNodes = new HashSet<string>();
+            AiExecutableNode currentNode = node;
+            
+            // Traverse up the tree to find any Coms parent
+            while (currentNode != null)
+            {
+                // Prevent infinite loops
+                if (visitedNodes.Contains(currentNode.nodeId))
+                    break;
+                visitedNodes.Add(currentNode.nodeId);
+                
+                // Check if this node is a Coms node
+                if (currentNode.methodName == "IfComs" || 
+                    currentNode.methodName == "Coms" ||
+                    (currentNode.originalLabel != null && 
+                     (currentNode.originalLabel.ToLower().Contains("coms") || 
+                      currentNode.originalLabel.ToLower().Contains("comms"))))
+                {
+                    return true;
+                }
+                
+                // Find parent node
+                currentNode = FindParentNode(currentNode, tree);
+            }
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogWarning($"[IsOnComsBranch] Error checking Coms branch: {ex.Message}");
+        }
+        
+        return false;
+    }
+    
+    /// <summary>
+    /// Gets a target from the AllyTargetList (Coms) for this tank's team.
+    /// Returns the closest known enemy from allied intel.
+    /// </summary>
+    /// <returns>Closest enemy from ally intel, or null if none available</returns>
+    GameObject GetComsTarget()
+    {
+        if (AllyTargetList.Instance == null || myTeamInfo == null) return null;
+        
+        try
+        {
+            return AllyTargetList.Instance.GetClosestTargetForTeam(myTeamInfo.teamId, transform.position);
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogWarning($"[GetComsTarget] Error getting Coms target: {ex.Message}");
+            return null;
+        }
+    }
+    
+    /// <summary>
+    /// Gets all targets from the AllyTargetList (Coms) for this tank's team.
+    /// </summary>
+    /// <returns>List of all known enemies from allied intel</returns>
+    List<GameObject> GetAllComsTargets()
+    {
+        if (AllyTargetList.Instance == null || myTeamInfo == null) return new List<GameObject>();
+        
+        return AllyTargetList.Instance.GetAllTargetsForTeam(myTeamInfo.teamId);
+    }
+    
     #endregion
     
     #region Condition Execution
@@ -1163,9 +1387,14 @@ public class TankMan : MonoBehaviour
     /// <summary>
     /// Executes condition nodes and returns true/false result
     /// </summary>
-    bool ExecuteCondition(AiExecutableNode conditionNode)
+    /// <param name="conditionNode">The condition node to evaluate</param>
+    /// <param name="tree">The AI tree for Coms branch checking</param>
+    bool ExecuteCondition(AiExecutableNode conditionNode, AiTreeAsset tree)
     {
         bool result = false;
+        
+        // Check if this node is on a Coms branch (can use AllyTargetList)
+        bool isOnComs = IsOnComsBranch(conditionNode, tree);
         
         switch (conditionNode.methodName)
         {
@@ -1173,34 +1402,74 @@ public class TankMan : MonoBehaviour
                 // Set evaluation target to self (for HP/armor checks) but keep currentTarget for actions
                 evaluationTarget = gameObject;
                 result = true;
-                break;            case "IfEnemy":
-                bool hasTarget = currentTarget != null;
-                bool targetIsEnemy = hasTarget && detectedEnemies.Contains(currentTarget);
-                result = hasTarget && targetIsEnemy;
+                break;
                 
-                // Set evaluation target to match current target (for HP/armor checks)
-                if (result)
+            case "IfComs":
+                // Coms condition - always returns true (it's a flag for child nodes)
+                // It enables child nodes to use AllyTargetList for targeting
+                result = true;
+                break;
+                
+            case "IfEnemy":
+                // First check personal vision (detected enemies)
+                bool hasPersonalTarget = currentTarget != null && detectedEnemies.Contains(currentTarget);
+                
+                if (hasPersonalTarget)
                 {
+                    // Personal vision target found - NOT using Coms
+                    result = true;
                     evaluationTarget = currentTarget;
+                    comsTarget = null; // Clear coms target since we're using personal vision
+                    isCurrentlyUsingComs = false; // Using personal vision, no Coms penalty
+                }
+                else if (isOnComs)
+                {
+                    // On a Coms branch - check AllyTargetList for targets
+                    comsTarget = GetComsTarget();
+                    if (comsTarget != null)
+                    {
+                        // Found target via Coms - apply Coms penalties
+                        result = true;
+                        evaluationTarget = comsTarget;
+                        currentTarget = comsTarget; // Update currentTarget for actions
+                        isCurrentlyUsingComs = true; // Set flag to apply speed/delay penalties
+                    }
+                    else
+                    {
+                        result = false;
+                        comsTarget = null;
+                        isCurrentlyUsingComs = false;
+                    }
+                }
+                else
+                {
+                    // Not on Coms branch and no personal target
+                    result = false;
+                    comsTarget = null;
+                    isCurrentlyUsingComs = false;
                 }
                 
-                // Check if target is alive (ignore dead tanks)
-                if (hasTarget)
+                // Validate target is alive and is actually an enemy
+                if (result && currentTarget != null)
                 {
                     TankMan targetTankMan = currentTarget.GetComponent<TankMan>();
+                    if (targetTankMan == null)
+                    {
+                        targetTankMan = currentTarget.GetComponentInParent<TankMan>();
+                    }
+                    
                     if (targetTankMan != null && targetTankMan.CurrentHealth <= 0)
                     {
                         result = false; // Don't target dead tanks
                     }
-                }
-                
-                TankTeamInfo targetTeamInfo = null;
-                if (hasTarget && result) // Only check team if target is alive
-                {
-                    targetTeamInfo = currentTarget.GetComponent<TankTeamInfo>();
-                    if (targetTeamInfo != null)
+                    
+                    if (myTeamInfo != null)
                     {
-                        result = result && myTeamInfo.IsEnemy(targetTeamInfo);
+                        TankTeamInfo targetTeamInfo = currentTarget.GetComponent<TankTeamInfo>();
+                        if (targetTeamInfo != null && !myTeamInfo.IsEnemy(targetTeamInfo))
+                        {
+                            result = false; // Not actually an enemy
+                        }
                     }
                 }
                 break;
@@ -1214,7 +1483,33 @@ public class TankMan : MonoBehaviour
                 break;
                 
             case "IfAny":
-                result = currentTarget != null;
+                // First check personal vision
+                if (currentTarget != null)
+                {
+                    result = true;
+                    isCurrentlyUsingComs = false; // Using personal vision
+                }
+                else if (isOnComs)
+                {
+                    // On a Coms branch - check AllyTargetList for any targets
+                    comsTarget = GetComsTarget();
+                    if (comsTarget != null)
+                    {
+                        result = true;
+                        currentTarget = comsTarget; // Update currentTarget for actions
+                        isCurrentlyUsingComs = true; // Set flag to apply speed/delay penalties
+                    }
+                    else
+                    {
+                        result = false;
+                        isCurrentlyUsingComs = false;
+                    }
+                }
+                else
+                {
+                    result = false;
+                    isCurrentlyUsingComs = false;
+                }
                 break;
                 
             case "IfRifle":
@@ -1325,6 +1620,9 @@ public class TankMan : MonoBehaviour
         // Determine if this is Nav or Turret AI
         bool isNavAI = (tree == runtimeNavAI);
         
+        // Check if this action is on a Coms branch (can use AllyTargetList targets)
+        bool isOnComs = IsOnComsBranch(actionNode, tree);
+        
         // Use appropriate variables based on AI type
         ref AiExecutableNode currentActionNode = ref (isNavAI ? ref currentNavActionNode : ref currentTurretActionNode);
         ref Coroutine currentActionCoroutine = ref (isNavAI ? ref currentNavActionCoroutine : ref currentTurretActionCoroutine);
@@ -1337,6 +1635,18 @@ public class TankMan : MonoBehaviour
         {
             StopCoroutine(currentActionCoroutine);
             currentActionCoroutine = null;
+        }
+        
+        // For actions that need a target, ensure we have one (either from personal vision or Coms)
+        // Note: currentTarget is already set by IfEnemy/IfAny conditions which check Coms if on a Coms branch
+        // If we're on a Coms branch and still don't have a target, try to get one now
+        if (isOnComs && currentTarget == null)
+        {
+            GameObject comsTargetNow = GetComsTarget();
+            if (comsTargetNow != null)
+            {
+                currentTarget = comsTargetNow;
+            }
         }
 
         switch (actionNode.methodName)
@@ -1364,12 +1674,16 @@ public class TankMan : MonoBehaviour
                 StopMovement();
                 break;
             case "Chase":
+                // Chase works with both personal vision and Coms targets
+                // currentTarget was set by IfEnemy or refreshed above if on Coms branch
                 if (currentTarget != null)
                 {
                     currentActionCoroutine = StartCoroutine(ChaseTarget());
                 }
                 break;
             case "Flee":
+                // Flee works with both personal vision and Coms targets
+                // currentTarget was set by IfEnemy or refreshed above if on Coms branch
                 if (currentTarget != null)
                 {
                     currentActionCoroutine = StartCoroutine(FleeFromTarget());
@@ -1380,6 +1694,8 @@ public class TankMan : MonoBehaviour
                 currentActionCoroutine = StartCoroutine(WaitAction());
                 break;
             case "LeadTarget":
+                // LeadTarget works with both personal vision and Coms targets
+                // currentTarget was set by IfEnemy or refreshed above if on Coms branch
                 if (currentTarget != null)
                 {
                     // Get lead distance from node's numeric value (default 0 for center targeting)

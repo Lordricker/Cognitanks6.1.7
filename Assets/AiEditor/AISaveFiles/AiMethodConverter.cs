@@ -39,6 +39,8 @@ namespace AiEditor
                     return "IfSelfHP";
                 if (cleanLabel.Contains("self"))
                     return "IfSelf";
+                if (cleanLabel.Contains("coms") || cleanLabel.Contains("comms") || cleanLabel.Contains("communication"))
+                    return "IfComs";
                 if (cleanLabel.Contains("enemy"))
                     return "IfEnemy";
                 if (cleanLabel.Contains("ally"))
@@ -56,6 +58,10 @@ namespace AiEditor
                 if (cleanLabel.Contains("tag"))
                     return "IfTag";
             }
+            
+            // Check for condition keywords even without "if" prefix (like "coms", "enemy", etc.)
+            if (cleanLabel.Contains("coms") || cleanLabel.Contains("comms") || cleanLabel.Contains("communication"))
+                return "IfComs";
             
             // Convert common action patterns
             if (cleanLabel.Contains("leadtarget") || cleanLabel.Contains("lead target"))
@@ -102,6 +108,10 @@ namespace AiEditor
                 return AiNodeType.Action;
                 
             string cleanLabel = nodeLabel.Trim().ToLower();
+            
+            // Special case: "coms" is always a condition even without "if" prefix
+            if (cleanLabel.Contains("coms") || cleanLabel.Contains("comms") || cleanLabel.Contains("communication"))
+                return AiNodeType.Condition;
             
             if (cleanLabel.StartsWith("if") || cleanLabel.Contains("condition") || 
                 cleanLabel.Contains("check") || cleanLabel.Contains("when"))
