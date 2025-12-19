@@ -1118,7 +1118,8 @@ public class TankMan : MonoBehaviour
         
         detectedEnemies.Clear();
         detectedAllies.Clear();
-        currentTarget = null;
+        // NOTE: Do NOT clear currentTarget here - it needs to persist between condition evaluations
+        // The conditions (IfEnemy, IfAlly, IfAny) will set currentTarget as needed
         
         // Debug log every 2 seconds to avoid spam
         bool shouldDebug = Time.time % 2.0f < 0.1f;
@@ -1193,9 +1194,15 @@ public class TankMan : MonoBehaviour
                 
                 if (enemyTankMan != null && enemyTankMan.CurrentHealth > 0)
                 {
-                    detectedEnemies.Add(collider.gameObject);
-                    if (shouldDebug)
+                    // Use the tank's root GameObject to avoid duplicates from tank parts
+                    GameObject tankRoot = enemyTankMan.gameObject;
+                    if (!detectedEnemies.Contains(tankRoot))
                     {
+                        detectedEnemies.Add(tankRoot);
+                        if (shouldDebug)
+                        {
+                            Debug.Log($"[{gameObject.name}] Detected ENEMY: {tankRoot.name} at distance {Vector3.Distance(transform.position, tankRoot.transform.position):F2}");
+                        }
                     }
                 }
                 else if (enemyTankMan != null)
@@ -1208,31 +1215,37 @@ public class TankMan : MonoBehaviour
             }
             else if (isAlly && inVisionCone)
             {
-                detectedAllies.Add(collider.gameObject);
+                // Check if ally tank is alive before adding to detected allies
+                TankMan allyTankMan = collider.GetComponent<TankMan>();
+                if (allyTankMan == null)
+                {
+                    allyTankMan = collider.GetComponentInParent<TankMan>();
+                }
+                
+                if (allyTankMan != null && allyTankMan.CurrentHealth > 0)
+                {
+                    // Use the tank's root GameObject to avoid duplicates from tank parts
+                    GameObject tankRoot = allyTankMan.gameObject;
+                    if (!detectedAllies.Contains(tankRoot))
+                    {
+                        detectedAllies.Add(tankRoot);
+                        Debug.Log($"[{gameObject.name}] Detected ALLY: {tankRoot.name} at distance {Vector3.Distance(transform.position, tankRoot.transform.position):F2}");
+                    }
+                }
             }
         }
         
         // Update AllyTargetList with currently detected enemies (in vision cone)
         UpdateAllyTargetList();
         
-        // Set current target to closest enemy
-        if (detectedEnemies.Count > 0)
+        // Debug log detected counts
+        if (detectedEnemies.Count > 0 || detectedAllies.Count > 0)
         {
-            currentTarget = detectedEnemies
-                .OrderBy(e => Vector3.Distance(transform.position, e.transform.position))
-                .FirstOrDefault();
-                
-            if (shouldDebug)
-            {
-            }
+            Debug.Log($"[{gameObject.name}] [Time: {Time.time:F2}] Detection - Enemies: {detectedEnemies.Count}, Allies: {detectedAllies.Count}");
         }
-        else
-        {
-            currentTarget = null;
-            if (shouldDebug)
-            {
-            }
-        }
+        
+        // NOTE: We no longer set currentTarget here - let the AI conditions (IfEnemy, IfAny, IfAlly) set it
+        // This prevents the target from being cleared/overwritten between condition evaluations in the same branch
     }
     
     /// <summary>
@@ -1396,6 +1409,8 @@ public class TankMan : MonoBehaviour
         // Check if this node is on a Coms branch (can use AllyTargetList)
         bool isOnComs = IsOnComsBranch(conditionNode, tree);
         
+        Debug.Log($"[{gameObject.name}] Evaluating condition: {conditionNode.originalLabel} ({conditionNode.methodName})");
+        
         switch (conditionNode.methodName)
         {
             case "IfSelf":
@@ -1411,16 +1426,41 @@ public class TankMan : MonoBehaviour
                 break;
                 
             case "IfEnemy":
-                // First check personal vision (detected enemies)
-                bool hasPersonalTarget = currentTarget != null && detectedEnemies.Contains(currentTarget);
-                
-                if (hasPersonalTarget)
+                // Check personal vision for enemies
+                if (detectedEnemies.Count > 0)
                 {
-                    // Personal vision target found - NOT using Coms
-                    result = true;
-                    evaluationTarget = currentTarget;
-                    comsTarget = null; // Clear coms target since we're using personal vision
-                    isCurrentlyUsingComs = false; // Using personal vision, no Coms penalty
+                    // Find closest enemy from detected list
+                    GameObject closestEnemy = detectedEnemies
+                        .Where(e => e != null)
+                        .OrderBy(e => Vector3.Distance(transform.position, e.transform.position))
+                        .FirstOrDefault();
+                    
+                    if (closestEnemy != null)
+                    {
+                        // Validate target is alive
+                        TankMan targetTankMan = closestEnemy.GetComponent<TankMan>();
+                        if (targetTankMan == null)
+                        {
+                            targetTankMan = closestEnemy.GetComponentInParent<TankMan>();
+                        }
+                        
+                        if (targetTankMan != null && targetTankMan.CurrentHealth > 0)
+                        {
+                            result = true;
+                            currentTarget = closestEnemy;
+                            evaluationTarget = closestEnemy;
+                            comsTarget = null;
+                            isCurrentlyUsingComs = false;
+                        }
+                        else
+                        {
+                            result = false;
+                        }
+                    }
+                    else
+                    {
+                        result = false;
+                    }
                 }
                 else if (isOnComs)
                 {
@@ -1443,51 +1483,107 @@ public class TankMan : MonoBehaviour
                 }
                 else
                 {
-                    // Not on Coms branch and no personal target
+                    // No enemies in personal vision and not on Coms branch
                     result = false;
                     comsTarget = null;
                     isCurrentlyUsingComs = false;
                 }
-                
-                // Validate target is alive and is actually an enemy
-                if (result && currentTarget != null)
-                {
-                    TankMan targetTankMan = currentTarget.GetComponent<TankMan>();
-                    if (targetTankMan == null)
-                    {
-                        targetTankMan = currentTarget.GetComponentInParent<TankMan>();
-                    }
-                    
-                    if (targetTankMan != null && targetTankMan.CurrentHealth <= 0)
-                    {
-                        result = false; // Don't target dead tanks
-                    }
-                    
-                    if (myTeamInfo != null)
-                    {
-                        TankTeamInfo targetTeamInfo = currentTarget.GetComponent<TankTeamInfo>();
-                        if (targetTeamInfo != null && !myTeamInfo.IsEnemy(targetTeamInfo))
-                        {
-                            result = false; // Not actually an enemy
-                        }
-                    }
-                }
                 break;
                 
             case "IfAlly":
-                result = currentTarget != null && detectedAllies.Contains(currentTarget);
-                if (result)
+                // Check personal vision for allies
+                if (detectedAllies.Count > 0)
                 {
-                    evaluationTarget = currentTarget;
+                    // Find closest ally from detected list
+                    GameObject closestAlly = detectedAllies
+                        .Where(a => a != null)
+                        .OrderBy(a => Vector3.Distance(transform.position, a.transform.position))
+                        .FirstOrDefault();
+                    
+                    if (closestAlly != null)
+                    {
+                        // Validate ally is alive
+                        TankMan allyTankMan = closestAlly.GetComponent<TankMan>();
+                        if (allyTankMan == null)
+                        {
+                            allyTankMan = closestAlly.GetComponentInParent<TankMan>();
+                        }
+                        
+                        if (allyTankMan != null && allyTankMan.CurrentHealth > 0)
+                        {
+                            result = true;
+                            currentTarget = closestAlly;
+                            evaluationTarget = closestAlly;
+                            isCurrentlyUsingComs = false;
+                        }
+                        else
+                        {
+                            result = false;
+                        }
+                    }
+                    else
+                    {
+                        result = false;
+                    }
+                }
+                else
+                {
+                    result = false;
                 }
                 break;
                 
             case "IfAny":
-                // First check personal vision
-                if (currentTarget != null)
+                // Check personal vision for ANY tank (enemy OR ally)
+                bool hasEnemyInVision = detectedEnemies.Count > 0;
+                bool hasAllyInVision = detectedAllies.Count > 0;
+                
+                string allyNames = detectedAllies.Count > 0 ? string.Join(", ", detectedAllies.Select(a => a?.name ?? "null")) : "none";
+                string enemyNames = detectedEnemies.Count > 0 ? string.Join(", ", detectedEnemies.Select(e => e?.name ?? "null")) : "none";
+                
+                Debug.Log($"[{gameObject.name}] [Time: {Time.time:F2}] IfAny ENTRY - hasEnemy: {hasEnemyInVision} (count: {detectedEnemies.Count}, names: {enemyNames}), hasAlly: {hasAllyInVision} (count: {detectedAllies.Count}, names: {allyNames})");
+                
+                if (hasEnemyInVision || hasAllyInVision)
                 {
                     result = true;
                     isCurrentlyUsingComs = false; // Using personal vision
+                    
+                    // Find the closest tank from BOTH lists combined
+                    GameObject selectedTarget = null;
+                    float closestDistance = float.MaxValue;
+                    
+                    // Check all enemies
+                    foreach (var enemy in detectedEnemies)
+                    {
+                        if (enemy != null)
+                        {
+                            float dist = Vector3.Distance(transform.position, enemy.transform.position);
+                            if (dist < closestDistance)
+                            {
+                                closestDistance = dist;
+                                selectedTarget = enemy;
+                            }
+                        }
+                    }
+                    
+                    // Check all allies
+                    foreach (var ally in detectedAllies)
+                    {
+                        if (ally != null)
+                        {
+                            float dist = Vector3.Distance(transform.position, ally.transform.position);
+                            if (dist < closestDistance)
+                            {
+                                closestDistance = dist;
+                                selectedTarget = ally;
+                            }
+                        }
+                    }
+                    
+                    // Set BOTH evaluationTarget and currentTarget to the closest tank
+                    evaluationTarget = selectedTarget;
+                    currentTarget = selectedTarget; // Critical: IfRange and actions need this!
+                    
+                    Debug.Log($"[{gameObject.name}] IfAny selected CLOSEST target: {selectedTarget?.name}, distance: {closestDistance:F2}");
                 }
                 else if (isOnComs)
                 {
@@ -1497,6 +1593,7 @@ public class TankMan : MonoBehaviour
                     {
                         result = true;
                         currentTarget = comsTarget; // Update currentTarget for actions
+                        evaluationTarget = comsTarget;
                         isCurrentlyUsingComs = true; // Set flag to apply speed/delay penalties
                     }
                     else
@@ -1583,6 +1680,7 @@ public class TankMan : MonoBehaviour
                 if (currentTarget == null) 
                 {
                     result = false;
+                    Debug.Log($"[{gameObject.name}] IfRange - No currentTarget, result: false");
                 }
                 else
                 {
@@ -1593,6 +1691,8 @@ public class TankMan : MonoBehaviour
                         result = distance < conditionNode.numericValue;
                     else
                         result = distance <= conditionNode.numericValue;
+                    
+                    Debug.Log($"[{gameObject.name}] IfRange {conditionNode.originalLabel} - Target: {currentTarget.name}, Distance: {distance:F2}, Threshold: {conditionNode.numericValue}, Result: {result}");
                 }
                 break;
                     
@@ -1604,6 +1704,8 @@ public class TankMan : MonoBehaviour
                 result = false;
                 break;
         }
+        
+        Debug.Log($"[{gameObject.name}] Condition {conditionNode.originalLabel} result: {result}");
         
         return result;
     }
