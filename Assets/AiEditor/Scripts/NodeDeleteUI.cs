@@ -10,6 +10,7 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
 
     private NodeDraggable nodeDraggable;
     private Canvas parentCanvas;
+    private static GameObject nodeDetailsPanel; // Reference to the NodeDetails panel (shared across all nodes)
 
     private Vector2 pointerDownPos;
     private float pointerDownTime;
@@ -24,6 +25,24 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
             deleteButton.gameObject.SetActive(false);
         if (deleteButton != null)
             deleteButton.onClick.AddListener(OnDeleteClicked);
+            
+        // Find the NodeDetails panel if we haven't already (it's under FileButtonPanel)
+        if (nodeDetailsPanel == null)
+        {
+            var uiCanvas = GameObject.Find("UICanvas");
+            if (uiCanvas != null)
+            {
+                var fileButtonPanel = uiCanvas.transform.Find("FileButtonPanel");
+                if (fileButtonPanel != null)
+                {
+                    var nodeDetails = fileButtonPanel.Find("NodeDetails");
+                    if (nodeDetails != null)
+                    {
+                        nodeDetailsPanel = nodeDetails.gameObject;
+                    }
+                }
+            }
+        }
     }
 
     void Update()
@@ -63,6 +82,9 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
             
         // Also show number input for range comparison nodes
         ShowNumberInputIfApplicable();
+        
+        // Show NodeDetails panel with description
+        ShowNodeDetails();
     }
 
     public void HideDeleteButton()
@@ -73,6 +95,9 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
             
         // Also hide number input
         HideNumberInput();
+        
+        // Hide NodeDetails panel
+        HideNodeDetails();
     }
     
     private void ShowNumberInputIfApplicable()
@@ -437,6 +462,42 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
         }
         
         return "0";
+    }
+    
+    /// <summary>
+    /// Shows the NodeDetails panel and populates it with the description for this node
+    /// </summary>
+    private void ShowNodeDetails()
+    {
+        if (nodeDetailsPanel == null)
+            return;
+            
+        // Activate the panel
+        nodeDetailsPanel.SetActive(true);
+        
+        // Get the node's label
+        string nodeLabel = GetNodeLabel();
+        
+        // Get the description from NodeDescriptions
+        string description = AiEditor.NodeDescriptions.GetDescription(nodeLabel);
+        
+        // Find the TextMeshPro child and set the description
+        var descriptionText = nodeDetailsPanel.GetComponentInChildren<TMPro.TMP_Text>();
+        if (descriptionText != null)
+        {
+            descriptionText.text = description;
+        }
+    }
+    
+    /// <summary>
+    /// Hides the NodeDetails panel
+    /// </summary>
+    private void HideNodeDetails()
+    {
+        if (nodeDetailsPanel != null)
+        {
+            nodeDetailsPanel.SetActive(false);
+        }
     }
 
     public void OnDeleteClicked()

@@ -412,14 +412,12 @@ public class TankMan : MonoBehaviour
             if (rb != null)
             {
                 float currentVelocity = rb.linearVelocity.magnitude;
-                Debug.Log($"[{gameObject.name}] Velocity: {currentVelocity:F2} m/s | Max: {MoveSpeed:F2} m/s | Coms: {isCurrentlyUsingComs}");
             }
             
             if (turretTransform != null && lastTurretRotation != Quaternion.identity)
             {
                 float angleDiff = Quaternion.Angle(lastTurretRotation, turretTransform.rotation);
                 float anglesPerSecond = angleDiff / elapsedTime; // Use actual elapsed time, not frame deltaTime
-                Debug.Log($"[{gameObject.name}] Turret Rotation: {anglesPerSecond:F2} deg/s | Max: {TurnSpeed:F2} deg/s | Coms: {isCurrentlyUsingComs}");
             }
             
             lastTurretRotation = turretTransform != null ? turretTransform.rotation : Quaternion.identity;
@@ -633,7 +631,6 @@ public class TankMan : MonoBehaviour
                 }
                 catch (System.Exception ex)
                 {
-                    Debug.LogWarning($"[LoadShopAIFromInstanceId] Failed to parse shop AI file {jsonFile.name}: {ex.Message}");
                 }
             }
         }
@@ -742,13 +739,10 @@ public class TankMan : MonoBehaviour
             }
             catch (System.Exception ex)
             {
-                Debug.LogError($"[Nav AI] Exception in {gameObject.name}: {ex.Message}\n{ex.StackTrace}");
                 // Restart from beginning on error
                 currentNavNode = GetFirstNodeFromStart(navAiTree);
             }
         }
-        
-        Debug.LogWarning($"[Nav AI] {gameObject.name} - AI loop ended (currentNavNode is null)");
     }
       /// <summary>
     /// Main turret AI execution loop  
@@ -780,13 +774,10 @@ public class TankMan : MonoBehaviour
             }
             catch (System.Exception ex)
             {
-                Debug.LogError($"[Turret AI] Exception in {gameObject.name}: {ex.Message}\n{ex.StackTrace}");
                 // Restart from beginning on error
                 currentTurretNode = GetFirstNodeFromStart(turretAiTree);
             }
         }
-        
-        Debug.LogWarning($"[Turret AI] {gameObject.name} - AI loop ended (currentTurretNode is null)");
     }
     
     /// <summary>
@@ -886,7 +877,7 @@ public class TankMan : MonoBehaviour
             // Follow to first connected node (highest Y-position)
             var nextNode = sortedConnections.FirstOrDefault();
             
-            // Special handling: If the next node is an action node that is Fire, CenterTarget, or LeadTarget,
+            // Special handling: If the next node is an action node that is Fire and LeadTarget
             // and we have both Fire and a tracking node available, choose based on whether we can fire
             if (nextNode != null && nextNode.nodeType == AiNodeType.Action)
             {
@@ -1199,10 +1190,6 @@ public class TankMan : MonoBehaviour
                     if (!detectedEnemies.Contains(tankRoot))
                     {
                         detectedEnemies.Add(tankRoot);
-                        if (shouldDebug)
-                        {
-                            Debug.Log($"[{gameObject.name}] Detected ENEMY: {tankRoot.name} at distance {Vector3.Distance(transform.position, tankRoot.transform.position):F2}");
-                        }
                     }
                 }
                 else if (enemyTankMan != null)
@@ -1229,7 +1216,6 @@ public class TankMan : MonoBehaviour
                     if (!detectedAllies.Contains(tankRoot))
                     {
                         detectedAllies.Add(tankRoot);
-                        Debug.Log($"[{gameObject.name}] Detected ALLY: {tankRoot.name} at distance {Vector3.Distance(transform.position, tankRoot.transform.position):F2}");
                     }
                 }
             }
@@ -1237,12 +1223,6 @@ public class TankMan : MonoBehaviour
         
         // Update AllyTargetList with currently detected enemies (in vision cone)
         UpdateAllyTargetList();
-        
-        // Debug log detected counts
-        if (detectedEnemies.Count > 0 || detectedAllies.Count > 0)
-        {
-            Debug.Log($"[{gameObject.name}] [Time: {Time.time:F2}] Detection - Enemies: {detectedEnemies.Count}, Allies: {detectedAllies.Count}");
-        }
         
         // NOTE: We no longer set currentTarget here - let the AI conditions (IfEnemy, IfAny, IfAlly) set it
         // This prevents the target from being cleared/overwritten between condition evaluations in the same branch
@@ -1356,7 +1336,6 @@ public class TankMan : MonoBehaviour
         }
         catch (System.Exception ex)
         {
-            Debug.LogWarning($"[IsOnComsBranch] Error checking Coms branch: {ex.Message}");
         }
         
         return false;
@@ -1377,7 +1356,6 @@ public class TankMan : MonoBehaviour
         }
         catch (System.Exception ex)
         {
-            Debug.LogWarning($"[GetComsTarget] Error getting Coms target: {ex.Message}");
             return null;
         }
     }
@@ -1408,8 +1386,6 @@ public class TankMan : MonoBehaviour
         
         // Check if this node is on a Coms branch (can use AllyTargetList)
         bool isOnComs = IsOnComsBranch(conditionNode, tree);
-        
-        Debug.Log($"[{gameObject.name}] Evaluating condition: {conditionNode.originalLabel} ({conditionNode.methodName})");
         
         switch (conditionNode.methodName)
         {
@@ -1537,11 +1513,6 @@ public class TankMan : MonoBehaviour
                 bool hasEnemyInVision = detectedEnemies.Count > 0;
                 bool hasAllyInVision = detectedAllies.Count > 0;
                 
-                string allyNames = detectedAllies.Count > 0 ? string.Join(", ", detectedAllies.Select(a => a?.name ?? "null")) : "none";
-                string enemyNames = detectedEnemies.Count > 0 ? string.Join(", ", detectedEnemies.Select(e => e?.name ?? "null")) : "none";
-                
-                Debug.Log($"[{gameObject.name}] [Time: {Time.time:F2}] IfAny ENTRY - hasEnemy: {hasEnemyInVision} (count: {detectedEnemies.Count}, names: {enemyNames}), hasAlly: {hasAllyInVision} (count: {detectedAllies.Count}, names: {allyNames})");
-                
                 if (hasEnemyInVision || hasAllyInVision)
                 {
                     result = true;
@@ -1582,8 +1553,6 @@ public class TankMan : MonoBehaviour
                     // Set BOTH evaluationTarget and currentTarget to the closest tank
                     evaluationTarget = selectedTarget;
                     currentTarget = selectedTarget; // Critical: IfRange and actions need this!
-                    
-                    Debug.Log($"[{gameObject.name}] IfAny selected CLOSEST target: {selectedTarget?.name}, distance: {closestDistance:F2}");
                 }
                 else if (isOnComs)
                 {
@@ -1680,7 +1649,6 @@ public class TankMan : MonoBehaviour
                 if (currentTarget == null) 
                 {
                     result = false;
-                    Debug.Log($"[{gameObject.name}] IfRange - No currentTarget, result: false");
                 }
                 else
                 {
@@ -1691,8 +1659,6 @@ public class TankMan : MonoBehaviour
                         result = distance < conditionNode.numericValue;
                     else
                         result = distance <= conditionNode.numericValue;
-                    
-                    Debug.Log($"[{gameObject.name}] IfRange {conditionNode.originalLabel} - Target: {currentTarget.name}, Distance: {distance:F2}, Threshold: {conditionNode.numericValue}, Result: {result}");
                 }
                 break;
                     
@@ -1704,8 +1670,6 @@ public class TankMan : MonoBehaviour
                 result = false;
                 break;
         }
-        
-        Debug.Log($"[{gameObject.name}] Condition {conditionNode.originalLabel} result: {result}");
         
         return result;
     }
