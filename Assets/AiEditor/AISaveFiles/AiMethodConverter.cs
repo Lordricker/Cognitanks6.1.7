@@ -55,6 +55,10 @@ namespace AiEditor
                     return "IfArmor";
                 if (cleanLabel.Contains("range") || cleanLabel.Contains("distance"))
                     return "IfRange";
+                if (cleanLabel.Contains("mytag") || cleanLabel.Contains("my tag"))
+                    return "IfMyTag";
+                if (cleanLabel.Contains("teamtag") || cleanLabel.Contains("team tag"))
+                    return "IfTeamTag";
                 if (cleanLabel.Contains("tag"))
                     return "IfTag";
             }
@@ -90,6 +94,10 @@ namespace AiEditor
                 return "RotateLeft";
             if (cleanLabel.Contains("rotateright") || cleanLabel.Contains("rotate right"))
                 return "RotateRight";
+            if (cleanLabel.Contains("mytag") || cleanLabel.Contains("my tag"))
+                return "MyTag";
+            if (cleanLabel.Contains("teamtag") || cleanLabel.Contains("team tag"))
+                return "TeamTag";
             
             // For SubAI nodes, return the label as method name (will be handled separately)
             if (cleanLabel.Contains("subai") || cleanLabel.Contains("sub-ai") || cleanLabel.Contains("sub ai"))

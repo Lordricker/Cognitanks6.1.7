@@ -108,6 +108,8 @@ public class TankAssembly : MonoBehaviour
             if (engineFramePrefab != null)
             {
                 GameObject engineFrame = Instantiate(engineFramePrefab, basePivot.position, basePivot.rotation, basePivot);
+                // Force reset local rotation to fix rotation issues in builds
+                engineFrame.transform.localRotation = Quaternion.identity;
                 ApplyColorToTreadMount(engineFrame, data.engineFrameColor.ToUnityColor());
                 SetLayerRecursively(engineFrame, 0);
             }

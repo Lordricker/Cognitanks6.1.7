@@ -7,9 +7,11 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
 {
     public Button deleteButton;
     public Image nodeImage;
+    public GameObject nodeDetailsPanel; // Assign in inspector - the NodeDetails GameObject
 
     private NodeDraggable nodeDraggable;
     private Canvas parentCanvas;
+    private static NodeDeleteUI currentActiveNode; // Track which node is currently showing details
 
     private Vector2 pointerDownPos;
     private float pointerDownTime;
@@ -24,6 +26,26 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
             deleteButton.gameObject.SetActive(false);
         if (deleteButton != null)
             deleteButton.onClick.AddListener(OnDeleteClicked);
+        
+        // Find NodeDetails panel if not assigned
+        if (nodeDetailsPanel == null)
+        {
+            GameObject uiCanvas = GameObject.Find("UICanvas");
+            if (uiCanvas != null)
+            {
+                Transform nodeDetails = uiCanvas.transform.Find("NodeDetails");
+                if (nodeDetails != null)
+                {
+                    nodeDetailsPanel = nodeDetails.gameObject;
+                }
+            }
+        }
+        
+        // Ensure NodeDetails starts deactivated
+        if (nodeDetailsPanel != null && currentActiveNode != this)
+        {
+            nodeDetailsPanel.SetActive(false);
+        }
     }
 
     void Update()
@@ -44,9 +66,15 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
         if (dist < clickThreshold && t < clickTime && eventData.pointerPress == nodeImage.gameObject)
         {
             if (deleteButton != null && deleteButton.gameObject.activeSelf)
+            {
                 HideDeleteButton();
+                HideNodeDetails();
+            }
             else
+            {
                 ShowDeleteButton();
+                ShowNodeDetails();
+            }
         }
         else
         {
@@ -73,6 +101,9 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
             
         // Also hide number input
         HideNumberInput();
+        
+        // Also hide node details
+        HideNodeDetails();
     }
     
     private void ShowNumberInputIfApplicable()
@@ -442,6 +473,10 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
     public void OnDeleteClicked()
     {
         Debug.Log($"OnDeleteClicked called on {gameObject.name}");
+        
+        // Hide node details when deleting
+        HideNodeDetails();
+        
         var nd = GetComponent<NodeDraggable>();
         if (nd != null)
         {
@@ -453,5 +488,132 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
             Debug.Log($"No NodeDraggable found on {gameObject.name}");
         }
         Destroy(gameObject);
+    }
+    
+    private void ShowNodeDetails()
+    {
+        if (nodeDetailsPanel == null)
+            return;
+        
+        // Hide details from any previously active node
+        if (currentActiveNode != null && currentActiveNode != this)
+        {
+            currentActiveNode.HideNodeDetails();
+        }
+        
+        // Set this as the active node
+        currentActiveNode = this;
+        
+        // Show the panel
+        nodeDetailsPanel.SetActive(true);
+        
+        // Get the node label and description
+        string nodeLabel = GetNodeLabel();
+        string description = GetNodeDescription(nodeLabel);
+        
+        // Find and update the TextMeshPro child
+        TMPro.TMP_Text descriptionText = nodeDetailsPanel.GetComponentInChildren<TMPro.TMP_Text>();
+        if (descriptionText != null)
+        {
+            descriptionText.text = description;
+        }
+    }
+    
+    private void HideNodeDetails()
+    {
+        if (nodeDetailsPanel != null && currentActiveNode == this)
+        {
+            nodeDetailsPanel.SetActive(false);
+            currentActiveNode = null;
+        }
+    }
+    
+    private string GetNodeDescription(string nodeLabel)
+    {
+        if (string.IsNullOrEmpty(nodeLabel))
+            return "Unknown node type.";
+        
+        string lowerLabel = nodeLabel.ToLower();
+        
+        // Conditions
+        if (lowerLabel.Contains("if self"))
+            return "Sets itself as the target for any nodes down this branch e.g. Ifself - Ifhp<90";
+        if (lowerLabel.Contains("if coms") || lowerLabel.Contains("if comms"))
+            return "Target nodes used after this will have access to an ally target list in addition to thier own vision";
+        if (lowerLabel.Contains("if enemy"))
+            return "Checks for enemies in vision range. Passes if an enemy is detected and sets it as the current target.";
+        if (lowerLabel.Contains("if ally"))
+            return "Checks for allies in vision range. Passes if an ally is detected and sets it as the current target.";
+        if (lowerLabel.Contains("if any"))
+            return "Checks for any tank (enemy or ally) in vision range. Selects the closest tank as the target.";
+        if (lowerLabel.Contains("if rifle"))
+            return "Checks if your tank has a rifle turret type.";
+        if (lowerLabel.Contains("if hp"))
+            return "Checks the HP of the current target. Passes if target's HP meets the condition.";
+        if (lowerLabel.Contains("if armor"))
+            return "Checks the armor value of the current target. Passes if target's armor meets the condition.";
+        if (lowerLabel.Contains("if range"))
+            return "Checks the distance to the current target. Passes if distance meets the condition.";
+        if (lowerLabel.Contains("ifmytag") || lowerLabel.Contains("if my tag"))
+            return "Checks your personal tag on the current target. Passes if the tag value meets the condition. Personal tags are only visible to you.";
+        if (lowerLabel.Contains("ifteamtag") || lowerLabel.Contains("if team tag"))
+            return "Checks the team tag on the current target. Passes if the tag value meets the condition. Team tags are shared across all teammates.";
+        if (lowerLabel.Contains("if tag"))
+            return "Checks if the current target has a specific Unity tag.";
+        
+        // Actions - Movement
+        
+        if (lowerLabel.Contains("wander"))
+            return "Moves randomly within the wander range, exploring the map.";
+        if (lowerLabel.Contains("move"))
+            return "Moves directly toward the current target's position.";
+        if (lowerLabel.Contains("stop"))
+            return "Stops all movement. Tank remains stationary.";
+        if (lowerLabel.Contains("chase"))
+            return "Continuously pursues the current target, closing distance. Useful for aggressive behavior.";
+        if (lowerLabel.Contains("flee"))
+            return "Moves away from the current target, maintaining or increasing distance.";
+        if (lowerLabel.Contains("wait"))
+            return "Pauses briefly (0.2 seconds) without moving. Tank can still rotate turret.";
+        if (lowerLabel.Contains("mapcenter"))
+            return "Navigates to the center of the map. Useful for controlling key positions.";
+        if (lowerLabel.Contains("home"))
+            return "Returns to your spawn position.";
+        
+        // Actions - Turret
+        if (lowerLabel.Contains("fire"))
+            return "Fires your weapon at the current target if aiming requirements are met.";
+        if (lowerLabel.Contains("leadtarget") || lowerLabel.Contains("lead target"))
+            return "Using this under a Fire node will force it to verify aim before shooting. 0 will point right at target, any other numbers will predict enemy position e.g. leadtarget 15";
+        if (lowerLabel.Contains("tracktarget") || lowerLabel.Contains("centertarget"))
+            return "Aims turret directly at the target's center position.";
+        if (lowerLabel.Contains("alignfront"))
+            return "Rotates turret to face forward (0°) relative to the tank body.";
+        if (lowerLabel.Contains("alignright"))
+            return "Rotates turret to face right (90°) relative to the tank body.";
+        if (lowerLabel.Contains("alignleft"))
+            return "Rotates turret to face left (-90°) relative to the tank body.";
+        if (lowerLabel.Contains("alignback"))
+            return "Rotates turret to face backward (180°) relative to the tank body.";
+        if (lowerLabel.Contains("rotateup"))
+            return "Tilts turret upward by the specified degrees. Useful for artillery trajectories.";
+        if (lowerLabel.Contains("rotatedown"))
+            return "Tilts turret downward by the specified degrees.";
+        
+        // Actions - Tagging
+        if (lowerLabel.Contains("mytag") || lowerLabel.Contains("my tag"))
+            return "Tags the current target with a number (personal tag). Only you can see and use this tag. Useful for marking priority targets.";
+        if (lowerLabel.Contains("teamtag") || lowerLabel.Contains("team tag"))
+            return "Tags the current target with a number (team tag). All teammates can see and use this tag. Useful for coordinated attacks.";
+        
+        // Special nodes
+        if (lowerLabel.Contains("start"))
+            return "Starting point for AI execution. Connect your first condition nodes here.";
+        if (lowerLabel.Contains("end"))
+            return "Marks the end of an AI branch. No further execution occurs after this node.";
+        if (lowerLabel.Contains("cycle"))
+            return "Cycles through connected action nodes in sequence (top to bottom). Enter a number to determine seconds spent on each action";
+        
+        return "Custom node. Check the node label for behavior details.";
     }
 }

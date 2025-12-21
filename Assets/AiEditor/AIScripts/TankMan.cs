@@ -134,6 +134,10 @@ public class TankMan : MonoBehaviour
     private Dictionary<string, int> cycleNodeMemory = new Dictionary<string, int>();
     private Dictionary<string, bool> cycleNodeCompletionFlags = new Dictionary<string, bool>();
     
+    // Tag system - tanks can tag each other with numbers
+    private Dictionary<GameObject, float> myTags = new Dictionary<GameObject, float>(); // This tank's personal tags on other tanks
+    private Dictionary<GameObject, float> teamTags = new Dictionary<GameObject, float>(); // Team-shared tags on other tanks
+    
     // Sensor data
     private GameObject currentTarget; // Target for actions (flee, chase, fire, etc.)
     private GameObject evaluationTarget; // Target for condition evaluation (HP, Armor checks)
@@ -412,14 +416,12 @@ public class TankMan : MonoBehaviour
             if (rb != null)
             {
                 float currentVelocity = rb.linearVelocity.magnitude;
-                Debug.Log($"[{gameObject.name}] Velocity: {currentVelocity:F2} m/s | Max: {MoveSpeed:F2} m/s | Coms: {isCurrentlyUsingComs}");
             }
             
             if (turretTransform != null && lastTurretRotation != Quaternion.identity)
             {
                 float angleDiff = Quaternion.Angle(lastTurretRotation, turretTransform.rotation);
                 float anglesPerSecond = angleDiff / elapsedTime; // Use actual elapsed time, not frame deltaTime
-                Debug.Log($"[{gameObject.name}] Turret Rotation: {anglesPerSecond:F2} deg/s | Max: {TurnSpeed:F2} deg/s | Coms: {isCurrentlyUsingComs}");
             }
             
             lastTurretRotation = turretTransform != null ? turretTransform.rotation : Quaternion.identity;
@@ -1201,7 +1203,13 @@ public class TankMan : MonoBehaviour
                         detectedEnemies.Add(tankRoot);
                         if (shouldDebug)
                         {
-                            Debug.Log($"[{gameObject.name}] Detected ENEMY: {tankRoot.name} at distance {Vector3.Distance(transform.position, tankRoot.transform.position):F2}");
+                            // Show tags if any exist
+                            string tagInfo = "";
+                            if (myTags.ContainsKey(tankRoot))
+                                tagInfo += $" MyTag={myTags[tankRoot]}";
+                            if (teamTags.ContainsKey(tankRoot))
+                                tagInfo += $" TeamTag={teamTags[tankRoot]}";
+                            Debug.Log($"[{gameObject.name}] Detected ENEMY: {tankRoot.name}{tagInfo}");
                         }
                     }
                 }
@@ -1229,7 +1237,13 @@ public class TankMan : MonoBehaviour
                     if (!detectedAllies.Contains(tankRoot))
                     {
                         detectedAllies.Add(tankRoot);
-                        Debug.Log($"[{gameObject.name}] Detected ALLY: {tankRoot.name} at distance {Vector3.Distance(transform.position, tankRoot.transform.position):F2}");
+                        // Show tags if any exist
+                        string tagInfo = "";
+                        if (myTags.ContainsKey(tankRoot))
+                            tagInfo += $" MyTag={myTags[tankRoot]}";
+                        if (teamTags.ContainsKey(tankRoot))
+                            tagInfo += $" TeamTag={teamTags[tankRoot]}";
+                        Debug.Log($"[{gameObject.name}] Detected ALLY: {tankRoot.name}{tagInfo}");
                     }
                 }
             }
@@ -1237,12 +1251,6 @@ public class TankMan : MonoBehaviour
         
         // Update AllyTargetList with currently detected enemies (in vision cone)
         UpdateAllyTargetList();
-        
-        // Debug log detected counts
-        if (detectedEnemies.Count > 0 || detectedAllies.Count > 0)
-        {
-            Debug.Log($"[{gameObject.name}] [Time: {Time.time:F2}] Detection - Enemies: {detectedEnemies.Count}, Allies: {detectedAllies.Count}");
-        }
         
         // NOTE: We no longer set currentTarget here - let the AI conditions (IfEnemy, IfAny, IfAlly) set it
         // This prevents the target from being cleared/overwritten between condition evaluations in the same branch
@@ -1680,7 +1688,6 @@ public class TankMan : MonoBehaviour
                 if (currentTarget == null) 
                 {
                     result = false;
-                    Debug.Log($"[{gameObject.name}] IfRange - No currentTarget, result: false");
                 }
                 else
                 {
@@ -1691,21 +1698,65 @@ public class TankMan : MonoBehaviour
                         result = distance < conditionNode.numericValue;
                     else
                         result = distance <= conditionNode.numericValue;
-                    
-                    Debug.Log($"[{gameObject.name}] IfRange {conditionNode.originalLabel} - Target: {currentTarget.name}, Distance: {distance:F2}, Threshold: {conditionNode.numericValue}, Result: {result}");
                 }
                 break;
                     
             case "IfTag":
                 result = currentTarget != null && currentTarget.CompareTag(tankTag);
                 break;
+            
+            case "IfMyTag":
+                // Check if current target has a personal tag that matches the condition
+                if (currentTarget == null)
+                {
+                    result = false;
+                }
+                else if (!myTags.ContainsKey(currentTarget))
+                {
+                    result = false;
+                }
+                else
+                {
+                    float myTagValue = myTags[currentTarget];
+                    float compareValue = conditionNode.numericValue;
+                    
+                    if (conditionNode.originalLabel.Contains(">"))
+                        result = myTagValue > compareValue;
+                    else if (conditionNode.originalLabel.Contains("<"))
+                        result = myTagValue < compareValue;
+                    else // Contains "="
+                        result = Mathf.Approximately(myTagValue, compareValue);
+                }
+                break;
+            
+            case "IfTeamTag":
+                // Check if current target has a team tag that matches the condition
+                if (currentTarget == null)
+                {
+                    result = false;
+                }
+                else if (!teamTags.ContainsKey(currentTarget))
+                {
+                    result = false;
+                }
+                else
+                {
+                    float teamTagValue = teamTags[currentTarget];
+                    float teamCompareValue = conditionNode.numericValue;
+                    
+                    if (conditionNode.originalLabel.Contains(">"))
+                        result = teamTagValue > teamCompareValue;
+                    else if (conditionNode.originalLabel.Contains("<"))
+                        result = teamTagValue < teamCompareValue;
+                    else // Contains "="
+                        result = Mathf.Approximately(teamTagValue, teamCompareValue);
+                }
+                break;
                 
             default:
                 result = false;
                 break;
         }
-        
-        Debug.Log($"[{gameObject.name}] Condition {conditionNode.originalLabel} result: {result}");
         
         return result;
     }
@@ -1843,6 +1894,34 @@ public class TankMan : MonoBehaviour
                 break;
             case "Home":
                 currentActionCoroutine = StartCoroutine(HomeAction());
+                break;
+            case "MyTag":
+                // Tag the current target with a number (personal tag)
+                if (currentTarget != null)
+                {
+                    float tagValue = actionNode.numericValue;
+                    myTags[currentTarget] = tagValue;
+                }
+                break;
+            case "TeamTag":
+                // Tag the current target with a number (team-shared tag)
+                if (currentTarget != null)
+                {
+                    float tagValue = actionNode.numericValue;
+                    teamTags[currentTarget] = tagValue;
+                    
+                    // Share this tag with all team members
+                    TankMan[] allTanks = FindObjectsByType<TankMan>(FindObjectsSortMode.None);
+                    foreach (var tank in allTanks)
+                    {
+                        if (tank != this && tank.myTeamInfo != null && myTeamInfo != null && 
+                            tank.myTeamInfo.teamId == myTeamInfo.teamId)
+                        {
+                            // Update teammate's teamTags dictionary
+                            tank.teamTags[currentTarget] = tagValue;
+                        }
+                    }
+                }
                 break;
             default:
                 break;
@@ -2137,6 +2216,24 @@ public class TankMan : MonoBehaviour
     }    void Die()
     {
         StopAI();
+       
+        // Clear all tags referencing this tank from other tanks
+        TankMan[] allTanks = FindObjectsByType<TankMan>(FindObjectsSortMode.None);
+        foreach (var tank in allTanks)
+        {
+            if (tank != this)
+            {
+                // Remove this tank from their tag dictionaries
+                if (tank.myTags.ContainsKey(gameObject))
+                    tank.myTags.Remove(gameObject);
+                if (tank.teamTags.ContainsKey(gameObject))
+                    tank.teamTags.Remove(gameObject);
+            }
+        }
+        
+        // Clear this tank's own tags
+        myTags.Clear();
+        teamTags.Clear();
        
         // Disable the tank (but keep it for visual reference)
         // You could add explosion effects, disable colliders, etc. here
