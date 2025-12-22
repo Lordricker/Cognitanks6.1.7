@@ -10,9 +10,9 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 2bfddf6945fb8bb4ea6cf05aa1d693be, type: 3}
-  m_Name: NewArmor
+  m_Name: Carbon Weave Armor
   m_EditorClassIdentifier: 
-  title: Light Plate
+  title: Carbon Weave Armor
   description: Light mobile armor
   cost: 100
   weight: 5

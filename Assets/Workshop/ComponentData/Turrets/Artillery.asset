@@ -16,11 +16,15 @@ MonoBehaviour:
   description: It comes out of nowhere
   cost: 2200
   weight: 8
-  knockback: High
-  modelPrefab: {fileID: 919132149155446097, guid: 5904b871247168a45b8739284a2358e3, type: 3}
+  modelPrefab: {fileID: 6247987888857746735, guid: 0ae77e5428ccf1c488a5b73ef1162a96, type: 3}
   category: 0
+  instanceId: 
+  customColor: {r: 1, g: 1, b: 1, a: 1}
+  turretType: 0
   damage: 40
   range: 25
   shotspersec: 0.3
+  bulletSpeed: 50
   knockback: High
+  visionRange: 60
   visionCone: 35

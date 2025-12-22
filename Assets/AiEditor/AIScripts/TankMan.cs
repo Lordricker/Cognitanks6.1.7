@@ -2062,11 +2062,13 @@ public class TankMan : MonoBehaviour
     {
         if (currentTarget == null)
         {
+            Debug.Log($"Fire() aborted: currentTarget is null for {gameObject.name}");
             return;
         }
         
         if (firePoint == null)
         {
+            Debug.LogWarning($"Fire() aborted: firePoint is null for {gameObject.name}");
             return;
         }
         
@@ -2075,6 +2077,7 @@ public class TankMan : MonoBehaviour
         // Simple firing - instantiate bullet if prefab exists
         if (bulletPrefab != null)
         {
+            Debug.Log($"Firing bullet from {gameObject.name} at firePoint position {firePoint.position}");
             Vector3 direction;
             float launchAngle = 0f;
             
@@ -2123,7 +2126,12 @@ public class TankMan : MonoBehaviour
             }
             else
             {
+                Debug.LogWarning($"Bullet spawned but has no BulletScript component for {gameObject.name}");
             }
+        }
+        else
+        {
+            Debug.LogWarning($"Fire() aborted: bulletPrefab is null for {gameObject.name}");
         }
         
     }

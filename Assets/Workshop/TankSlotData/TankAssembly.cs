@@ -78,6 +78,7 @@ public class TankAssembly : MonoBehaviour
         if (bulletPrefab != null)
         {
             tankMan.SetBulletPrefab(bulletPrefab);
+            Debug.Log($"TankAssembly: Successfully loaded and assigned bullet prefab to {gameObject.name}");
         }
         else
         {
@@ -141,12 +142,20 @@ public class TankAssembly : MonoBehaviour
             GameObject turretPrefab = FindComponentPrefabByInstanceId(data.turretInstanceId, ComponentCategory.Turret);
             if (turretPrefab != null)
             {
-                GameObject turretInstance = Instantiate(turretPrefab, turretPivot.position, turretPivot.rotation, turretPivot);
+                    GameObject turretInstance = Instantiate(turretPrefab, turretPivot.position, turretPivot.rotation, turretPivot);
                 ApplyColorToModel(turretInstance, data.turretColor.ToUnityColor());
                 SetLayerRecursively(turretInstance, 0);
                 
                 // Find fire point for turret
                 Transform firePoint = FindFirePointRecursive(turretInstance.transform);
+                if (firePoint != null)
+                {
+                    Debug.Log($"TankAssembly: Found FirePoint for turret {turretInstance.name} at position {firePoint.localPosition}");
+                }
+                else
+                {
+                    Debug.LogWarning($"TankAssembly: No FirePoint found in turret {turretInstance.name}");
+                }
                 tankMan.SetTurretComponents(turretInstance.transform, firePoint);
                 
             }
@@ -316,30 +325,55 @@ public class TankAssembly : MonoBehaviour
         {
             case ComponentCategory.EngineFrame:
                 // Map component names to engine frame prefabs
-                if (componentName.Contains("Heavy Engine") || componentName == "Heavy Engine")
+                if (componentName == "Accelerator Frame" || componentName.Contains("Accelerator Frame"))
+                {
+                    prefab = Resources.Load<GameObject>("Models/Prefabs/AcceleratorFrame");
+                    Debug.Log($"[TankAssembly] Loaded engine frame: {(prefab != null ? "SUCCESS" : "FAILED")} - Models/Prefabs/AcceleratorFrame");
+                }
+                else if (componentName == "Velocity Chassis" || componentName.Contains("Velocity Chassis"))
+                {
+                    prefab = Resources.Load<GameObject>("Models/Prefabs/VelocityChassis");
+                    Debug.Log($"[TankAssembly] Loaded engine frame: {(prefab != null ? "SUCCESS" : "FAILED")} - Models/Prefabs/VelocityChassis");
+                }
+                else if (componentName == "Vortex Engine" || componentName.Contains("Vortex Engine"))
+                {
+                    prefab = Resources.Load<GameObject>("Models/Prefabs/VortexEngine");
+                    Debug.Log($"[TankAssembly] Loaded engine frame: {(prefab != null ? "SUCCESS" : "FAILED")} - Models/Prefabs/VortexEngine");
+                }
+                else if (componentName == "Titan Core" || componentName.Contains("Titan Core"))
+                {
+                    prefab = Resources.Load<GameObject>("Models/Prefabs/TitanCore");
+                    Debug.Log($"[TankAssembly] Loaded engine frame: {(prefab != null ? "SUCCESS" : "FAILED")} - Models/Prefabs/TitanCore");
+                }
+                else if (componentName.Contains("Heavy Engine") || componentName == "Heavy Engine")
                 {
                     prefab = Resources.Load<GameObject>("Models/Prefabs/cengineframe");
                     Debug.Log($"[TankAssembly] Loaded engine frame: {(prefab != null ? "SUCCESS" : "FAILED")} - Models/Prefabs/cengineframe");
                 }
-                // Add more engine frame mappings as needed
-                // else if (componentName.Contains("Light Engine"))
-                // {
-                //     prefab = Resources.Load<GameObject>("Models/Prefabs/lightengineframe");
-                // }
                 break;
                 
             case ComponentCategory.Armor:
                 // Map component names to armor prefabs
-                if (componentName.Contains("Light Plate") || componentName == "Light Plate")
+                if (componentName == "Carbon Weave Armor" || componentName.Contains("Carbon Weave"))
+                {
+                    prefab = Resources.Load<GameObject>("Models/Prefabs/Armors/CarbonWeaveArmor");
+                    Debug.Log($"[TankAssembly] Loaded armor: {(prefab != null ? "SUCCESS" : "FAILED")} - Models/Prefabs/Armors/CarbonWeaveArmor");
+                }
+                else if (componentName == "Ceramic Laminate Plating" || componentName.Contains("Ceramic Laminate"))
+                {
+                    prefab = Resources.Load<GameObject>("Models/Prefabs/Armors/CeramicLaminatePlating");
+                    Debug.Log($"[TankAssembly] Loaded armor: {(prefab != null ? "SUCCESS" : "FAILED")} - Models/Prefabs/Armors/CeramicLaminatePlating");
+                }
+                else if (componentName == "MK-VI Alloy Shell" || componentName.Contains("MK-VI") || componentName.Contains("Alloy Shell"))
+                {
+                    prefab = Resources.Load<GameObject>("Models/Prefabs/Armors/MKVIAlloyShell");
+                    Debug.Log($"[TankAssembly] Loaded armor: {(prefab != null ? "SUCCESS" : "FAILED")} - Models/Prefabs/Armors/MKVIAlloyShell");
+                }
+                else if (componentName.Contains("Light Plate") || componentName == "Light Plate")
                 {
                     prefab = Resources.Load<GameObject>("Models/Prefabs/Armors/barmor");
                     Debug.Log($"[TankAssembly] Loaded armor: {(prefab != null ? "SUCCESS" : "FAILED")} - Models/Prefabs/Armors/barmor");
                 }
-                // Add more armor mappings as needed
-                // else if (componentName.Contains("Heavy Plate"))
-                // {
-                //     prefab = Resources.Load<GameObject>("Models/Prefabs/Armors/heavyarmor");
-                // }
                 break;
                 
             case ComponentCategory.Turret:
@@ -349,11 +383,31 @@ public class TankAssembly : MonoBehaviour
                     prefab = Resources.Load<GameObject>("Models/Prefabs/Turrets/Rifle");
                     Debug.Log($"[TankAssembly] Loaded turret: {(prefab != null ? "SUCCESS" : "FAILED")} - Models/Prefabs/Turrets/Rifle");
                 }
-                // Add more turret mappings as needed
-                // else if (componentName.Contains("Cannon"))
-                // {
-                //     prefab = Resources.Load<GameObject>("Models/Prefabs/Turrets/Cannon");
-                // }
+                else if (componentName == "Artillery" || componentName.Contains("Artillery"))
+                {
+                    prefab = Resources.Load<GameObject>("Models/Prefabs/Turrets/Artillery");
+                    Debug.Log($"[TankAssembly] Loaded turret: {(prefab != null ? "SUCCESS" : "FAILED")} - Models/Prefabs/Turrets/Artillery");
+                }
+                else if (componentName == "Shotgun" || componentName.Contains("Shotgun"))
+                {
+                    prefab = Resources.Load<GameObject>("Models/Prefabs/Turrets/Shotgun");
+                    Debug.Log($"[TankAssembly] Loaded turret: {(prefab != null ? "SUCCESS" : "FAILED")} - Models/Prefabs/Turrets/Shotgun");
+                }
+                else if (componentName == "Hammer" || componentName.Contains("Hammer"))
+                {
+                    prefab = Resources.Load<GameObject>("Models/Prefabs/Turrets/Hammer");
+                    Debug.Log($"[TankAssembly] Loaded turret: {(prefab != null ? "SUCCESS" : "FAILED")} - Models/Prefabs/Turrets/Hammer");
+                }
+                else if (componentName == "Laser" || componentName.Contains("Laser"))
+                {
+                    prefab = Resources.Load<GameObject>("Models/Prefabs/Turrets/Laser");
+                    Debug.Log($"[TankAssembly] Loaded turret: {(prefab != null ? "SUCCESS" : "FAILED")} - Models/Prefabs/Turrets/Laser");
+                }
+                else if (componentName == "Sniper" || componentName.Contains("Sniper"))
+                {
+                    prefab = Resources.Load<GameObject>("Models/Prefabs/Turrets/Sniper");
+                    Debug.Log($"[TankAssembly] Loaded turret: {(prefab != null ? "SUCCESS" : "FAILED")} - Models/Prefabs/Turrets/Sniper");
+                }
                 break;
         }
         
@@ -387,18 +441,42 @@ public class TankAssembly : MonoBehaviour
         switch (category)
         {
             case ComponentCategory.EngineFrame:
-                if (componentName.Contains("Heavy Engine") || componentName == "Heavy Engine")
+                if (componentName == "Accelerator Frame" || componentName.Contains("Accelerator Frame"))
+                    return "Assets/Resources/Models/Prefabs/AcceleratorFrame.prefab";
+                else if (componentName == "Velocity Chassis" || componentName.Contains("Velocity Chassis"))
+                    return "Assets/Resources/Models/Prefabs/VelocityChassis.prefab";
+                else if (componentName == "Vortex Engine" || componentName.Contains("Vortex Engine"))
+                    return "Assets/Resources/Models/Prefabs/VortexEngine.prefab";
+                else if (componentName == "Titan Core" || componentName.Contains("Titan Core"))
+                    return "Assets/Resources/Models/Prefabs/TitanCore.prefab";
+                else if (componentName.Contains("Heavy Engine") || componentName == "Heavy Engine")
                     return "Assets/Resources/Models/Prefabs/cengineframe.prefab";
                 break;
                 
             case ComponentCategory.Armor:
-                if (componentName.Contains("Light Plate") || componentName == "Light Plate")
+                if (componentName == "Carbon Weave Armor" || componentName.Contains("Carbon Weave"))
+                    return "Assets/Resources/Models/Prefabs/Armors/CarbonWeaveArmor.prefab";
+                else if (componentName == "Ceramic Laminate Plating" || componentName.Contains("Ceramic Laminate"))
+                    return "Assets/Resources/Models/Prefabs/Armors/CeramicLaminatePlating.prefab";
+                else if (componentName == "MK-VI Alloy Shell" || componentName.Contains("MK-VI") || componentName.Contains("Alloy Shell"))
+                    return "Assets/Resources/Models/Prefabs/Armors/MKVIAlloyShell.prefab";
+                else if (componentName.Contains("Light Plate") || componentName == "Light Plate")
                     return "Assets/Resources/Models/Prefabs/Armors/barmor.prefab";
                 break;
                 
             case ComponentCategory.Turret:
                 if (componentName == "Rifle" || componentName.Contains("Rifle"))
                     return "Assets/Resources/Models/Prefabs/Turrets/Rifle.prefab";
+                else if (componentName == "Artillery" || componentName.Contains("Artillery"))
+                    return "Assets/Resources/Models/Prefabs/Turrets/Artillery.prefab";
+                else if (componentName == "Shotgun" || componentName.Contains("Shotgun"))
+                    return "Assets/Resources/Models/Prefabs/Turrets/Shotgun.prefab";
+                else if (componentName == "Hammer" || componentName.Contains("Hammer"))
+                    return "Assets/Resources/Models/Prefabs/Turrets/Hammer.prefab";
+                else if (componentName == "Laser" || componentName.Contains("Laser"))
+                    return "Assets/Resources/Models/Prefabs/Turrets/Laser.prefab";
+                else if (componentName == "Sniper" || componentName.Contains("Sniper"))
+                    return "Assets/Resources/Models/Prefabs/Turrets/Sniper.prefab";
                 break;
         }
         

@@ -9481,12 +9481,17 @@ MonoBehaviour:
   - {fileID: 11400000, guid: eed5c77e88547a34994905708fb750d3, type: 2}
   armorShopComponents:
   - {fileID: 11400000, guid: 9076562c2ed92614c821e258411b85c0, type: 2}
+  - {fileID: 11400000, guid: 94b29e5de0838cd49b74508969e3dd95, type: 2}
+  - {fileID: 11400000, guid: 435e2621858f2334fa38d6ae8ce47e7c, type: 2}
   turretAIShopComponents:
   - {fileID: 0}
   navAIShopComponents:
   - {fileID: 0}
   aiTreeShopComponents: []
   engineFrameShopComponents:
+  - {fileID: 11400000, guid: ac57050c8ec5c9144a31ea2a505afccb, type: 2}
+  - {fileID: 11400000, guid: f71209a88db2fe2408b8d93382b2ef84, type: 2}
+  - {fileID: 11400000, guid: 5b4561cbc3acb474c93b64e032042b5c, type: 2}
   - {fileID: 11400000, guid: 27e3890a48bef4749ba055fedbbd71ae, type: 2}
   playerInventory: []
   playerCash: 100000

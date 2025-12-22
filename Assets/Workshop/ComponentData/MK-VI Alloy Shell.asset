@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2bfddf6945fb8bb4ea6cf05aa1d693be, type: 3}
+  m_Name: MK-VI Alloy Shell
+  m_EditorClassIdentifier: 
+  title: MK-VI Alloy Shell
+  description: Light mobile armor
+  cost: 100
+  weight: 5
+  modelPrefab: {fileID: 1316712241508069579, guid: 216fa76989e62404ea45b3f393257c64, type: 3}
+  category: 1
+  instanceId: 
+  customColor: {r: 1, g: 1, b: 1, a: 1}
+  HP: 20
