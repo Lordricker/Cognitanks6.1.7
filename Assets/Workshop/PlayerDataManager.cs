@@ -133,17 +133,108 @@ public class PlayerDataManager : MonoBehaviour
 
     public void ErasePlayerData()
     {
+        Debug.Log("[PlayerDataManager] Erasing all player data...");
+        
+        // Delete player data save file
         if (File.Exists(saveFilePath))
             File.Delete(saveFilePath);
         playerData = new PlayerData();
-        // Also clear any runtime inventory if needed
+        
+        // Clear all tank slots and reset active states
+        ClearAllTankSlots();
+        
+        // Clear runtime inventory
         var workshopUI = FindFirstObjectByType<WorkshopUIManager>();
         if (workshopUI != null)
         {
             workshopUI.playerInventory.Clear();
             workshopUI.PopulateComponentList();
+            
+            // Reset all tank slot UI buttons to inactive except first one
+            for (int i = 0; i < workshopUI.tankSlots.Count; i++)
+            {
+                workshopUI.tankSlots[i].SetActive(i == 0); // Only first tank active
+                workshopUI.tankSlots[i].SetSelected(false); // Deselect all
+                workshopUI.tankSlots[i].UpdateAssignedComponentsFromSlotData(); // Clear UI display
+            }
         }
-        Debug.Log("Player data erased.");
+        
+        Debug.Log("[PlayerDataManager] Player data erased successfully.");
+    }
+    
+    /// <summary>
+    /// Clears all tank slot data and resets them to default state
+    /// Only the first tank slot (TankSlot 0) will be active after clearing
+    /// </summary>
+    public void ClearAllTankSlots()
+    {
+        Debug.Log("[PlayerDataManager] Clearing all tank slots...");
+        
+        // Get TankSlotJsonManager instance
+        var tankSlotManager = TankSlotJsonManager.Instance;
+        if (tankSlotManager == null)
+        {
+            Debug.LogWarning("[PlayerDataManager] TankSlotJsonManager not found - cannot clear tank slots");
+            return;
+        }
+        
+        // Clear all 10 tank slots (0-9)
+        for (int i = 0; i < 10; i++)
+        {
+            var slotData = tankSlotManager.GetTankSlot(i);
+            if (slotData != null)
+            {
+                // Clear all component assignments
+                slotData.engineFramePrefabGuid = "";
+                slotData.armorPrefabGuid = "";
+                slotData.turretPrefabGuid = "";
+                slotData.engineFrameInstanceId = "";
+                slotData.armorInstanceId = "";
+                slotData.turretInstanceId = "";
+                slotData.turretAIInstanceId = "";
+                slotData.navAIInstanceId = "";
+                
+                // Clear all component stats
+                slotData.totalWeight = 0f;
+                slotData.engineWeightCapacity = 0;
+                slotData.enginePower = 0;
+                slotData.engineFrameHP = 0;
+                slotData.engineForce = 0f;
+                slotData.engineTopSpeed = 0f;
+                slotData.engineTorque = 0f;
+                slotData.engineMaxTurnRate = 0f;
+                slotData.engineTurnRampTime = 1.0f;
+                slotData.engineTurnStartPercent = 0.5f;
+                slotData.chassisWeight = 0f;
+                slotData.armorWeight = 0f;
+                slotData.turretWeight = 0f;
+                slotData.engineWeight = 0f;
+                slotData.dragCoefficient = 0.5f;
+                slotData.angularDragCoefficient = 2.0f;
+                slotData.armorHP = 0;
+                slotData.turretDamage = 0;
+                slotData.turretRange = 0f;
+                slotData.turretShotsPerSec = 0f;
+                slotData.turretKnockback = "";
+                slotData.turretVisionRange = 60f;
+                slotData.turretVisionCone = 45f;
+                
+                // Reset colors to white
+                slotData.engineFrameColor = new ColorJson(1f, 1f, 1f, 1f);
+                slotData.armorColor = new ColorJson(1f, 1f, 1f, 1f);
+                slotData.turretColor = new ColorJson(1f, 1f, 1f, 1f);
+                
+                // Set activation state - only first tank active
+                slotData.isActive = (i == 0);
+                
+                // Save the cleared slot
+                tankSlotManager.UpdateTankSlot(i, slotData);
+                
+                Debug.Log($"[PlayerDataManager] Cleared tank slot {i} (isActive={slotData.isActive})");
+            }
+        }
+        
+        Debug.Log("[PlayerDataManager] All tank slots cleared. Only TankSlot 0 is active.");
     }
 
     /// <summary>

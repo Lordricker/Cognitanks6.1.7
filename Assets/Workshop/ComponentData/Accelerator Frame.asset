@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Accelerator Frame
   m_EditorClassIdentifier: 
   title: 'Accelerator Frame '
-  description: more power but more weight
+  description: For Light Nimble Tanks
   cost: 250
   weight: 10
   modelPrefab: {fileID: 7789181595919938413, guid: 027f2212bcb27a143a2803c493a0086c, type: 3}

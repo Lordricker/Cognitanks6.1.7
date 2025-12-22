@@ -714,6 +714,8 @@ public class WorkshopUIManager : MonoBehaviour
                         slotData.engineTorque = engineData.turningPower;
                         slotData.engineWeightCapacity = engineData.weightCapacity;
                         slotData.engineFrameHP = 0; // EngineFrameData doesn't have HP property
+                        slotData.engineWeight = engineData.weight; // Store individual component weight
+                        slotData.chassisWeight = engineData.weight; // Engine frame is the chassis
                     }
                     break;
                 case ComponentCategory.Armor:
@@ -722,6 +724,7 @@ public class WorkshopUIManager : MonoBehaviour
                     if (component is ArmorData armorData)
                     {
                         slotData.armorHP = armorData.HP;
+                        slotData.armorWeight = armorData.weight; // Store individual component weight
                     }
                     break;
                 case ComponentCategory.Turret:
@@ -737,6 +740,7 @@ public class WorkshopUIManager : MonoBehaviour
                         slotData.turretKnockback = turretData.knockback;
                         slotData.turretVisionRange = turretData.visionRange;
                         slotData.turretVisionCone = turretData.visionCone;
+                        slotData.turretWeight = turretData.weight; // Store individual component weight
                     }
                     break;
                 case ComponentCategory.AITree:

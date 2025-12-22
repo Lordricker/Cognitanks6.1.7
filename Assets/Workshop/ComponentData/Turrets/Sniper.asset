@@ -24,7 +24,7 @@ MonoBehaviour:
   damage: 35
   range: 700
   shotspersec: 0.5
-  bulletSpeed: 300
+  bulletSpeed: 500
   knockback: Medium
   visionRange: 300
-  visionCone: 86
+  visionCone: 20

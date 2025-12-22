@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Ceramic Laminate Plating
   m_EditorClassIdentifier: 
   title: Ceramic Laminate Plating
-  description: Light mobile armor
+  description: medium armor
   cost: 100
-  weight: 5
+  weight: 10
   modelPrefab: {fileID: 1316712241508069579, guid: 07936782aa1495c4e8ea7a8af005ca83, type: 3}
   category: 1
   instanceId: 
