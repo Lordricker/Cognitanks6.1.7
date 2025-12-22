@@ -10,13 +10,13 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 6268f30a789a0804e810de80c788ef84, type: 3}
-  m_Name: NewEngineFrame
+  m_Name: Vortex Engine
   m_EditorClassIdentifier: 
-  title: Heavy Engine
+  title: Vortex Engine
   description: more power but more weight
   cost: 250
   weight: 10
-  modelPrefab: {fileID: 3813114062362436018, guid: faafdb4b5d255354cb37e2af4c6ce1fc, type: 3}
+  modelPrefab: {fileID: 7789181595919938413, guid: 41f29cb8ced0e42428bafa8492c2ddcf, type: 3}
   category: 3
   instanceId: 
   customColor: {r: 1, g: 1, b: 1, a: 1}

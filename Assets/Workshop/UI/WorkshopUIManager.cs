@@ -50,6 +50,11 @@ public class WorkshopUIManager : MonoBehaviour
     public WorkshopModelPreview modelPreview;
     public WorkshopStatsPanel statsPanel;
     
+    [Header("Tip Bubbles")]
+    public List<GameObject> tipBubbles = new List<GameObject>(); // Assign all tip bubble GameObjects in inspector
+    private bool tipsVisible = false;
+    private const string TIPS_VISIBLE_KEY = "WorkshopTipsVisible";
+    
     [Header("Debug UI")]
     public TMP_Text debugText; // Assign in inspector
 
@@ -68,6 +73,10 @@ public class WorkshopUIManager : MonoBehaviour
             GameObject managerGO = new GameObject("TankSlotJsonManager");
             tankSlotJsonManager = managerGO.AddComponent<TankSlotJsonManager>();
         }
+        
+        // Load tip visibility state from PlayerPrefs
+        tipsVisible = PlayerPrefs.GetInt(TIPS_VISIBLE_KEY, 0) == 1;
+        UpdateTipBubbleVisibility();
         
         // Ensure only one of Shop/Inventory is active
         shopToggle.isOn = true;
@@ -1473,5 +1482,57 @@ public class WorkshopUIManager : MonoBehaviour
         }
         
         return totalWeight;
+    }
+    
+    /// <summary>
+    /// Hides a tip bubble permanently (saves state to PlayerPrefs)
+    /// Pass the button GameObject as parameter
+    /// </summary>
+    public void HideTipBubble(GameObject tipBubble)
+    {
+        if (tipBubble != null)
+        {
+            tipBubble.SetActive(false);
+            // Mark tips as hidden
+            tipsVisible = false;
+            PlayerPrefs.SetInt(TIPS_VISIBLE_KEY, 0);
+            PlayerPrefs.Save();
+        }
+    }
+    
+    /// <summary>
+    /// Shows all tip bubbles
+    /// </summary>
+    public void ShowTips()
+    {
+        tipsVisible = true;
+        PlayerPrefs.SetInt(TIPS_VISIBLE_KEY, 1);
+        PlayerPrefs.Save();
+        UpdateTipBubbleVisibility();
+    }
+    
+    /// <summary>
+    /// Toggles tip bubble visibility
+    /// </summary>
+    public void ToggleTips()
+    {
+        tipsVisible = !tipsVisible;
+        PlayerPrefs.SetInt(TIPS_VISIBLE_KEY, tipsVisible ? 1 : 0);
+        PlayerPrefs.Save();
+        UpdateTipBubbleVisibility();
+    }
+    
+    /// <summary>
+    /// Updates visibility of all tip bubbles based on current state
+    /// </summary>
+    private void UpdateTipBubbleVisibility()
+    {
+        foreach (var tipBubble in tipBubbles)
+        {
+            if (tipBubble != null)
+            {
+                tipBubble.SetActive(tipsVisible);
+            }
+        }
     }
 }

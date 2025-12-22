@@ -16,11 +16,15 @@ MonoBehaviour:
   description: Double shots double power, spray and pray
   cost: 1000
   weight: 5
-  knockback: medium
-  modelPrefab: {fileID: 919132149155446097, guid: baf27cacc487886449f9bd193ca618d0, type: 3}
+  modelPrefab: {fileID: 4366391098555595496, guid: 10a2e801364ea6b44adb022eee844c60, type: 3}
   category: 0
+  instanceId: 
+  customColor: {r: 1, g: 1, b: 1, a: 1}
+  turretType: 0
   damage: 40
   range: 25
   shotspersec: 1
-  knockback: Medium
+  bulletSpeed: 50
+  knockback: medium
+  visionRange: 60
   visionCone: 70

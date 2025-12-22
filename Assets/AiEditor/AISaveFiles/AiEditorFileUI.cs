@@ -75,6 +75,14 @@ public class AiEditorFileUI : MonoBehaviour
                nodeLabel.Contains("Rotate Left") ||
                nodeLabel.Contains("RotateRight") ||
                nodeLabel.Contains("Rotate Right") ||
+               nodeLabel.Contains("MyTag#") ||
+               nodeLabel.Contains("My Tag#") ||
+               nodeLabel.Contains("TeamTag#") ||
+               nodeLabel.Contains("Team Tag#") ||
+               nodeLabel.Contains("IfMyTag") ||
+               nodeLabel.Contains("If My Tag") ||
+               nodeLabel.Contains("IfTeamTag") ||
+               nodeLabel.Contains("If Team Tag") ||
                // Also check for patterns that already have numbers (not just #)
                nodeLabel.StartsWith("If Self HP>") ||
                nodeLabel.StartsWith("If Self HP<") ||
@@ -86,7 +94,15 @@ public class AiEditorFileUI : MonoBehaviour
                nodeLabel.StartsWith("If Range<") ||
                nodeLabel.StartsWith("If Range>") ||
                nodeLabel.StartsWith("LeadTarget") ||
-               nodeLabel.StartsWith("Lead Target ");
+               nodeLabel.StartsWith("Lead Target ") ||
+               nodeLabel.StartsWith("MyTag") ||
+               nodeLabel.StartsWith("My Tag") ||
+               nodeLabel.StartsWith("TeamTag") ||
+               nodeLabel.StartsWith("Team Tag") ||
+               nodeLabel.StartsWith("IfMyTag") ||
+               nodeLabel.StartsWith("If My Tag") ||
+               nodeLabel.StartsWith("IfTeamTag") ||
+               nodeLabel.StartsWith("If Team Tag");
     }
 
     void ToggleLoadPanel()

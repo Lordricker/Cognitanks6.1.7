@@ -16,11 +16,15 @@ MonoBehaviour:
   description: Patience is a virtue. So is excessive damage. (stops before firing)
   cost: 2000
   weight: 6
-  knockback: Medium
-  modelPrefab: {fileID: 919132149155446097, guid: 4586f820bc813a049aa9154d8aa43f03, type: 3}
+  modelPrefab: {fileID: 339407622525442576, guid: f085541d58a1a35488e21e5de75d3023, type: 3}
   category: 0
+  instanceId: 
+  customColor: {r: 1, g: 1, b: 1, a: 1}
+  turretType: 0
   damage: 35
-  range: 50
+  range: 700
   shotspersec: 0.5
+  bulletSpeed: 300
   knockback: Medium
-  visionCone: 30
+  visionRange: 300
+  visionCone: 86
