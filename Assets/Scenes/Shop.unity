@@ -1056,7 +1056,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 1953043517}
+      - m_Target: {fileID: 1085989617}
         m_TargetAssemblyTypeName: PlayerDataManager, Assembly-CSharp
         m_MethodName: ErasePlayerData
         m_Mode: 1
@@ -2361,7 +2361,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 1953043517}
+      - m_Target: {fileID: 1085989617}
         m_TargetAssemblyTypeName: PlayerDataManager, Assembly-CSharp
         m_MethodName: QuitGame
         m_Mode: 1
@@ -7642,7 +7642,6 @@ MonoBehaviour:
   previewAnchor: {fileID: 444620417}
   previewLayer: 8
   spinSpeed: 50
-  armorYOffset: -1.25
 --- !u!224 &879224099 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 817395853213528662, guid: e05a6d67d01ecd74bb28345cf4eb23fc, type: 3}
@@ -9431,6 +9430,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1085989615}
   - component: {fileID: 1085989616}
+  - component: {fileID: 1085989617}
   m_Layer: 0
   m_Name: WorkshopUIManager
   m_TagString: Untagged
@@ -9476,8 +9476,6 @@ MonoBehaviour:
   componentEntryPrefab: {fileID: 6558939379384042963, guid: 3db6894528e5f414cbd804b8c7f4c0e3, type: 3}
   turretShopComponents:
   - {fileID: 11400000, guid: d298545b53b00f6499aa48cf3b32930d, type: 2}
-  - {fileID: 11400000, guid: 54eefa66e29560d4ab5c4d7c03dbc322, type: 2}
-  - {fileID: 11400000, guid: 475ee00b01258ba44a45fef572dfc857, type: 2}
   - {fileID: 11400000, guid: eed5c77e88547a34994905708fb750d3, type: 2}
   armorShopComponents:
   - {fileID: 11400000, guid: 9076562c2ed92614c821e258411b85c0, type: 2}
@@ -9518,6 +9516,21 @@ MonoBehaviour:
   debugText: {fileID: 1479404584}
   itemStatsText: {fileID: 1625248966}
   descriptionText: {fileID: 1675908312}
+--- !u!114 &1085989617
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1085989614}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1cf25907e419d9145b9f92369e38c2a1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  playerData:
+    ownedComponents: []
+    tankLoadouts: []
 --- !u!1 &1121795787
 GameObject:
   m_ObjectHideFlags: 0

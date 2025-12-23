@@ -15,7 +15,7 @@ MonoBehaviour:
   title: Ceramic Laminate Plating
   description: medium armor
   cost: 100
-  weight: 10
+  weight: 8
   modelPrefab: {fileID: 1316712241508069579, guid: 07936782aa1495c4e8ea7a8af005ca83, type: 3}
   category: 1
   instanceId: 

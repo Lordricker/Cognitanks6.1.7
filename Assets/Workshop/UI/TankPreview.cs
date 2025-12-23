@@ -5,7 +5,6 @@ public class TankPreview : MonoBehaviour
 {
     public Transform previewAnchor; // Assign in inspector
     public int previewLayer = 8; // Set to your "ModelPreview" layer number
-    [SerializeField] private float armorYOffset = -1.25f; // Armor vertical offset to align properly
 
     private GameObject engineFrameModel;
     private GameObject turretModel;
@@ -43,7 +42,7 @@ public class TankPreview : MonoBehaviour
         if (equipped.TryGetValue(ComponentCategory.Armor, out var armor) && armor.modelPrefab != null)
         {
             armorModel = Instantiate(armor.modelPrefab, previewAnchor);
-            armorModel.transform.localPosition = new Vector3(0f, armorYOffset, 0f);
+            armorModel.transform.localPosition = Vector3.zero;
             armorModel.transform.localRotation = Quaternion.identity;
             SetLayerRecursively(armorModel, previewLayer);
             ApplyColorToModel(armorModel, armor.customColor);
