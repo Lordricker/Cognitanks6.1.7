@@ -7,6 +7,10 @@ public class WorkshopModelPreview : MonoBehaviour
     public Transform previewAnchor; // Assign in inspector
     public int previewLayer = 8; // Set to your "ModelPreview" layer number
     public float spinSpeed = 50f;
+    
+    [Header("Component Offsets")]
+    [Tooltip("Vertical offset for armor relative to engine frame (should match TankAssembly)")]
+    [SerializeField] private float armorYOffset = -1.25f;
 
     private List<GameObject> currentModels = new List<GameObject>();
 
@@ -74,7 +78,7 @@ public class WorkshopModelPreview : MonoBehaviour
         if (equipped.TryGetValue(ComponentCategory.Armor, out var armor) && armor.modelPrefab != null)
         {
             var model = Instantiate(armor.modelPrefab, previewAnchor);
-            model.transform.localPosition = Vector3.zero;
+            model.transform.localPosition = new Vector3(0f, armorYOffset, 0f); // Apply vertical offset to match TankAssembly
             model.transform.localRotation = Quaternion.identity;
             SetLayerRecursively(model, previewLayer);
             ApplyColorToModel(model, armor.customColor);

@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Artillery
   m_EditorClassIdentifier: 
   title: Artillery
-  description: It comes out of nowhere
+  description: Fires in an Arc, deals AOE damage 20 unit diameter
   cost: 2200
   weight: 8
   modelPrefab: {fileID: 6247987888857746735, guid: 0ae77e5428ccf1c488a5b73ef1162a96, type: 3}
@@ -23,8 +23,8 @@ MonoBehaviour:
   turretType: 0
   damage: 40
   range: 25
-  shotspersec: 0.3
+  shotspersec: 0.5
   bulletSpeed: 50
   knockback: High
-  visionRange: 60
-  visionCone: 35
+  visionRange: 50
+  visionCone: 150

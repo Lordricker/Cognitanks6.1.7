@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Rifle
   m_EditorClassIdentifier: 
   title: Rifle
-  description: Standard Issue Firearm, Click-Clack-Boom
+  description: Shoots an infinitely straight bullet
   cost: 1000
   weight: 5
   modelPrefab: {fileID: 2862102162113885168, guid: 195ebdbea0fd11e46bf9344a65cee08f, type: 3}
@@ -22,9 +22,9 @@ MonoBehaviour:
   customColor: {r: 1, g: 1, b: 1, a: 1}
   turretType: 0
   damage: 10
-  range: 100
+  range: 150
   shotspersec: 1
   bulletSpeed: 150
   knockback: Low
-  visionRange: 300
+  visionRange: 200
   visionCone: 75

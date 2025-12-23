@@ -7642,6 +7642,7 @@ MonoBehaviour:
   previewAnchor: {fileID: 444620417}
   previewLayer: 8
   spinSpeed: 50
+  armorYOffset: -1.25
 --- !u!224 &879224099 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 817395853213528662, guid: e05a6d67d01ecd74bb28345cf4eb23fc, type: 3}
@@ -11553,11 +11554,16 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   leagues:
-  - leagueButton: {fileID: 1764555438}
+  - leagueName: League1
+    leagueButton: {fileID: 1764555438}
     arenaListPanel: {fileID: 49524732}
     arenaButtons:
-    - {fileID: 1680647034}
-    - {fileID: 2044588531}
+    - roundName: Round1
+      button: {fileID: 1680647034}
+      sceneName: Arena1
+    - roundName: Round2
+      button: {fileID: 2044588531}
+      sceneName: Arena1
   errorText: {fileID: 0}
   errorDisplayDuration: 3
 --- !u!1 &1368002552
@@ -18157,7 +18163,7 @@ MonoBehaviour:
           m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
           m_IntArgument: 0
           m_FloatArgument: 0
-          m_StringArgument: Arena1
+          m_StringArgument: Arena2
           m_BoolArgument: 0
         m_CallState: 2
 --- !u!114 &2044588532

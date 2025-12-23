@@ -11,6 +11,10 @@ public class TankPreview : MonoBehaviour
     private GameObject armorModel;
 
     public float spinSpeed = 50f;
+    
+    [Header("Component Offsets")]
+    [Tooltip("Vertical offset for armor relative to engine frame (should match TankAssembly)")]
+    [SerializeField] private float armorYOffset = -1.25f;
 
     void Update()
     {
@@ -42,7 +46,7 @@ public class TankPreview : MonoBehaviour
         if (equipped.TryGetValue(ComponentCategory.Armor, out var armor) && armor.modelPrefab != null)
         {
             armorModel = Instantiate(armor.modelPrefab, previewAnchor);
-            armorModel.transform.localPosition = Vector3.zero;
+            armorModel.transform.localPosition = new Vector3(0f, armorYOffset, 0f); // Apply vertical offset to match TankAssembly
             armorModel.transform.localRotation = Quaternion.identity;
             SetLayerRecursively(armorModel, previewLayer);
             ApplyColorToModel(armorModel, armor.customColor);

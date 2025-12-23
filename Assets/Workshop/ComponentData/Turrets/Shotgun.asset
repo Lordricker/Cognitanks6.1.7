@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Shotgun
   m_EditorClassIdentifier: 
   title: Shotgun
-  description: Double shots double power, spray and pray
+  description: Fires two  shots, imparts mild knockback
   cost: 1000
   weight: 5
   modelPrefab: {fileID: 4366391098555595496, guid: 10a2e801364ea6b44adb022eee844c60, type: 3}
@@ -21,10 +21,10 @@ MonoBehaviour:
   instanceId: 
   customColor: {r: 1, g: 1, b: 1, a: 1}
   turretType: 0
-  damage: 40
-  range: 25
-  shotspersec: 1
-  bulletSpeed: 50
-  knockback: medium
+  damage: 10
+  range: 70
+  shotspersec: 0.5
+  bulletSpeed: 100
+  knockback: Medium
   visionRange: 60
-  visionCone: 70
+  visionCone: 120
