@@ -36,7 +36,7 @@ public class TankMan : MonoBehaviour
     [SerializeField] private float enginePower = 15000f;         // Forward force (N)
     [SerializeField] private float turningPower = 20000f;        // Turning torque (N·m)
     [SerializeField] private float topSpeed = 15f;               // Max speed (m/s)
-    [SerializeField] private float maxTurnRate = 120f;           // Max turn rate (deg/s)
+    [SerializeField] private float maxTurnRate = 100f;           // Max turn rate (deg/s)
     [SerializeField] private float turnRampUpTime = 1.0f;        // Turn ramp-up time (seconds)
     [SerializeField] private float turnStartPowerPercent = 0.5f; // Starting turn power (0-1)
     [SerializeField] private float dragCoefficient = 0.5f;       // Rolling resistance
@@ -45,15 +45,24 @@ public class TankMan : MonoBehaviour
     [Header("Airborne Physics")]
     [SerializeField] private float airborneGravityMultiplier = 10f; // Extra downward force when airborne (multiplier of Physics.gravity)
 
+    [Header("Turret Rotation")]
+    [SerializeField] private float turretRotationSpeed = 1.5f; // Multiplier for turret rotation speed (relative to tank turn speed)
+    [SerializeField] private float turretRampUpTime = 0.3f; // Time to ramp up to full turret rotation speed
+
     private Rigidbody rb;
     private float currentMoveInput = 0f;
     private float currentTurnInput = 0f;
     private bool isGrounded = false;
     
-    // Turning ramp-up state
+    // Turning ramp-up state (for tank body rotation)
     private float currentTurningPower = 0f;
     private float turnInputStartTime = 0f;
     private float previousTurnInput = 0f;
+    
+    // Turret rotation ramp-up state
+    private float currentTurretRotationSpeed = 0f;
+    private float turretRotationStartTime = 0f;
+    private Quaternion previousTurretRotation = Quaternion.identity;
     
     // Team-based detection support
     private TankTeamInfo myTeamInfo;
@@ -61,6 +70,9 @@ public class TankMan : MonoBehaviour
     [Header("Projectile Settings")]
     [SerializeField] private GameObject bulletPrefab; // Universal bullet prefab for all tanks
     private float bulletSpeed = 50f; // Speed from turret data (loaded from TankSlotData)
+    
+    [Header("Death Effects")]
+    [SerializeField] private GameObject deathExplosionPrefab; // Fire explosion effect for tank death
     
     [Header("Tank Stats - Read Only")]
     [SerializeField] private float totalWeight;
@@ -258,17 +270,29 @@ public class TankMan : MonoBehaviour
     
     /// <summary>
     /// Applies physics-based movement using engine power and torque
+    /// Only applies forces when grounded - airborne tanks "ragdoll" under physics
     /// </summary>
     private void ApplyMovement()
     {
-        // Forward/backward movement using engine power
+        // Only apply movement forces when grounded - otherwise let physics take over (ragdoll effect)
+        if (!isGrounded)
+        {
+            // While airborne, reset turning power and inputs so tank doesn't continue driving on landing
+            currentTurningPower = 0f;
+            turnInputStartTime = Time.time;
+            currentMoveInput = 0f;
+            currentTurnInput = 0f;
+            return;
+        }
+        
+        // Forward/backward movement using engine power (EnginePower drives the tank forward)
         if (Mathf.Abs(currentMoveInput) > 0.01f)
         {
             float force = enginePower * currentMoveInput;
             rb.AddForce(transform.forward * force);
         }
         
-        // Rotation using torque with gradual ramp-up
+        // Rotation using torque with gradual ramp-up (TurningPower rotates the tank body)
         if (Mathf.Abs(currentTurnInput) > 0.01f)
         {
             // Track when turn input starts
@@ -298,7 +322,8 @@ public class TankMan : MonoBehaviour
         // Store previous turn input for next frame
         previousTurnInput = currentTurnInput;
         
-        // Aggressively limit speeds to engine's mechanical limits (with Coms penalties if applicable)
+        // Aggressively limit speeds to engine's mechanical limits
+        // Note: Speed limits are reduced by 50% when using IfComs (see MoveSpeed/TurnSpeed properties)
         float currentSpeed = rb.linearVelocity.magnitude;
         if (currentSpeed > MoveSpeed)
         {
@@ -656,6 +681,14 @@ public class TankMan : MonoBehaviour
     public void SetBulletPrefab(GameObject prefab)
     {
         bulletPrefab = prefab;
+    }
+    
+    /// <summary>
+    /// Set the death explosion prefab reference (called by TankAssembly)
+    /// </summary>
+    public void SetDeathExplosionPrefab(GameObject prefab)
+    {
+        deathExplosionPrefab = prefab;
     }
 
     #endregion
@@ -1191,10 +1224,9 @@ public class TankMan : MonoBehaviour
                 {
                     enemyTankMan = collider.GetComponentInParent<TankMan>();
                 }
-                
+                // Only add if alive
                 if (enemyTankMan != null && enemyTankMan.CurrentHealth > 0)
                 {
-                    // Use the tank's root GameObject to avoid duplicates from tank parts
                     GameObject tankRoot = enemyTankMan.gameObject;
                     if (!detectedEnemies.Contains(tankRoot))
                     {
@@ -1203,13 +1235,6 @@ public class TankMan : MonoBehaviour
                         {
                             Debug.Log($"[{gameObject.name}] Detected ENEMY: {tankRoot.name} at distance {Vector3.Distance(transform.position, tankRoot.transform.position):F2}");
                         }
-                    }
-                }
-                else if (enemyTankMan != null)
-                {
-                    // Debug log for dead tank detection (optional)
-                    if (shouldDebug)
-                    {
                     }
                 }
             }
@@ -1244,6 +1269,15 @@ public class TankMan : MonoBehaviour
             Debug.Log($"[{gameObject.name}] [Time: {Time.time:F2}] Detection - Enemies: {detectedEnemies.Count}, Allies: {detectedAllies.Count}");
         }
         
+        // Remove currentTarget if it is dead
+        if (currentTarget != null)
+        {
+            TankMan targetTankMan = currentTarget.GetComponent<TankMan>() ?? currentTarget.GetComponentInParent<TankMan>();
+            if (targetTankMan != null && targetTankMan.CurrentHealth <= 0)
+            {
+                currentTarget = null;
+            }
+        }
         // NOTE: We no longer set currentTarget here - let the AI conditions (IfEnemy, IfAny, IfAlly) set it
         // This prevents the target from being cleared/overwritten between condition evaluations in the same branch
     }
@@ -2137,12 +2171,32 @@ public class TankMan : MonoBehaviour
     }    void Die()
     {
         StopAI();
-       
+
+        // Remove/destroy the turret if it exists
+        if (turretTransform != null)
+        {
+            // Spawn fire explosion at turret position
+            if (deathExplosionPrefab != null)
+            {
+                GameObject explosion = Instantiate(deathExplosionPrefab, turretTransform.position, turretTransform.rotation);
+                
+                // Make explosion last 20 seconds
+                ParticleSystem[] particleSystems = explosion.GetComponentsInChildren<ParticleSystem>();
+                foreach (var ps in particleSystems)
+                {
+                    var main = ps.main;
+                    main.duration = 20f;
+                    main.startLifetime = 20f;
+                }
+                
+                // Destroy explosion after 20 seconds
+                Destroy(explosion, 20f);
+            }
+            Destroy(turretTransform.gameObject);
+        }
+
         // Disable the tank (but keep it for visual reference)
-        // You could add explosion effects, disable colliders, etc. here
         enabled = false;
-        
-        // TODO: Add death effects, particle systems, sound, etc.
     }
     
     #endregion
@@ -2799,6 +2853,11 @@ public class TankMan : MonoBehaviour
     /// </summary>
     IEnumerator LeadTargetAction(float leadDistance)
     {
+        // Reset turret rotation ramp-up when starting to track
+        turretRotationStartTime = Time.time;
+        previousTurretRotation = turretTransform != null ? turretTransform.rotation : Quaternion.identity;
+        currentTurretRotationSpeed = 0f;
+        
         // Continuously rotate turret to face the lead point
         // This keeps running until the action is stopped by the AI system
         while (currentTarget != null && turretTransform != null)
@@ -2812,13 +2871,22 @@ public class TankMan : MonoBehaviour
                 targetDirection.Normalize();
                 Quaternion targetRotation = Quaternion.LookRotation(targetDirection);
                 
-                // Smooth rotation using fixed rotation speed
-                float rotationSpeed = TurnSpeed * 2f; // Turret rotates faster than tank body
+                // Gradual ramp-up for turret rotation to prevent jumpiness
+                float timeSinceRotationStart = Time.time - turretRotationStartTime;
+                float rampProgress = Mathf.Clamp01(timeSinceRotationStart / turretRampUpTime);
+                
+                // Smoothly ramp up from 0 to full speed
+                float targetSpeed = TurnSpeed * turretRotationSpeed;
+                currentTurretRotationSpeed = Mathf.Lerp(0f, targetSpeed, rampProgress);
+                
+                // Apply rotation with ramped speed
                 turretTransform.rotation = Quaternion.RotateTowards(
                     turretTransform.rotation,
                     targetRotation,
-                    rotationSpeed * Time.deltaTime
+                    currentTurretRotationSpeed * Time.deltaTime
                 );
+                
+                previousTurretRotation = turretTransform.rotation;
             }
             
             yield return null;
