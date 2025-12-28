@@ -347,29 +347,52 @@ public class ArenaManager : MonoBehaviour
     
     /// <summary>
     /// Find a spawn point by name, checking both regular spawn points and enemy spawn points
+    /// Handles multiple naming conventions: "SpawnPoint10", "SpawnPoint (10)", etc.
     /// </summary>
     Transform FindSpawnPointByName(string spawnPointName)
     {
         if (string.IsNullOrEmpty(spawnPointName))
             return null;
             
-        // First check regular spawn points (these might be named in the scene)
+        // Try multiple naming variations
+        string[] possibleNames = new string[]
+        {
+            spawnPointName,                                    // "SpawnPoint10"
+            spawnPointName.Replace("SpawnPoint", "SpawnPoint ("), // "SpawnPoint (10"
+            spawnPointName.Replace("SpawnPoint", "SpawnPoint (") + ")", // "SpawnPoint (10)"
+            spawnPointName.Replace("SpawnPoint", "").Trim(),   // "10" (just the number)
+            $"SpawnPoint ({spawnPointName.Replace("SpawnPoint", "").Trim()})" // " (10)"
+        };
+            
+        // First check regular spawn points
         for (int i = 0; i < spawnPoints.Length; i++)
         {
-            if (spawnPoints[i] != null && spawnPoints[i].name.Equals(spawnPointName, System.StringComparison.OrdinalIgnoreCase))
+            if (spawnPoints[i] != null)
             {
-                Debug.Log($"[ArenaManager] Found spawn point '{spawnPointName}' in spawnPoints array at index {i}");
-                return spawnPoints[i];
+                foreach (string nameVariation in possibleNames)
+                {
+                    if (spawnPoints[i].name.Equals(nameVariation, System.StringComparison.OrdinalIgnoreCase))
+                    {
+                        Debug.Log($"[ArenaManager] Found spawn point '{spawnPointName}' -> '{nameVariation}' in spawnPoints array at index {i}");
+                        return spawnPoints[i];
+                    }
+                }
             }
         }
         
         // Then check enemy spawn points
         for (int i = 0; i < enemySpawnPoints.Length; i++)
         {
-            if (enemySpawnPoints[i] != null && enemySpawnPoints[i].name.Equals(spawnPointName, System.StringComparison.OrdinalIgnoreCase))
+            if (enemySpawnPoints[i] != null)
             {
-                Debug.Log($"[ArenaManager] Found spawn point '{spawnPointName}' in enemySpawnPoints array at index {i}");
-                return enemySpawnPoints[i];
+                foreach (string nameVariation in possibleNames)
+                {
+                    if (enemySpawnPoints[i].name.Equals(nameVariation, System.StringComparison.OrdinalIgnoreCase))
+                    {
+                        Debug.Log($"[ArenaManager] Found spawn point '{spawnPointName}' -> '{nameVariation}' in enemySpawnPoints array at index {i}");
+                        return enemySpawnPoints[i];
+                    }
+                }
             }
         }
         

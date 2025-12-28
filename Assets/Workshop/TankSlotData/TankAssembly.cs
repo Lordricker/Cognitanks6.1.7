@@ -85,6 +85,18 @@ public class TankAssembly : MonoBehaviour
             Debug.LogWarning($"TankAssembly: Could not load bullet prefab from Resources/Prefabs/BulletObject for {gameObject.name}");
         }
         
+        // Load and assign the death explosion prefab
+        GameObject deathExplosionPrefab = Resources.Load<GameObject>("Vefects/Free Fire VFX URP/Particles/VFX_Fire_01_Big");
+        if (deathExplosionPrefab != null)
+        {
+            tankMan.SetDeathExplosionPrefab(deathExplosionPrefab);
+            Debug.Log($"TankAssembly: Successfully loaded and assigned death explosion prefab to {gameObject.name}");
+        }
+        else
+        {
+            Debug.LogWarning($"TankAssembly: Could not load death explosion prefab from Resources/Vefects/Free Fire VFX URP/Particles/VFX_Fire_01_Big for {gameObject.name}");
+        }
+        
         Debug.Log($"TankAssembly: Added and configured TankMan for {gameObject.name}");
         
         // Add HP bar component
