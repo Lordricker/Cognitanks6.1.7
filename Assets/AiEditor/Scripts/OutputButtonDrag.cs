@@ -250,6 +250,14 @@ public class OutputButtonDrag : MonoBehaviour, IPointerDownHandler, IPointerUpHa
                     inputTargetHandler.OnConnectionChanged();
                 }
             }
+            
+            // Auto-save after creating connection
+            var aiEditorFileUI = FindFirstObjectByType<AiEditorFileUI>();
+            if (aiEditorFileUI != null)
+            {
+                aiEditorFileUI.AutoSave();
+            }
+            
             // Destroy temp line
             if (currentTempLine != null)
             {

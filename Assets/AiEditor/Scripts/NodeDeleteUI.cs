@@ -106,6 +106,14 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
         HideNodeDetails();
     }
     
+    public static void HideAllActiveUI()
+    {
+        if (currentActiveNode != null)
+        {
+            currentActiveNode.HideDeleteButton();
+        }
+    }
+    
     private void ShowNumberInputIfApplicable()
     {
         // Check if this node should have number input based on its label
@@ -137,6 +145,13 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
         
         // Update the node's text with the new number
         UpdateNodeTextWithNumber(newValue);
+        
+        // Auto-save after parameter change
+        var aiEditorFileUI = FindFirstObjectByType<AiEditorFileUI>();
+        if (aiEditorFileUI != null)
+        {
+            aiEditorFileUI.AutoSave();
+        }
         
         // Delay hiding to allow the update to be processed
         StartCoroutine(DelayedHideAfterUpdate());
@@ -487,6 +502,14 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
         {
             Debug.Log($"No NodeDraggable found on {gameObject.name}");
         }
+
+        // Auto-save after node deletion
+        var aiEditorFileUI = FindFirstObjectByType<AiEditorFileUI>();
+        if (aiEditorFileUI != null)
+        {
+            aiEditorFileUI.AutoSave();
+        }
+
         Destroy(gameObject);
     }
     
@@ -504,8 +527,8 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
         // Set this as the active node
         currentActiveNode = this;
         
-        // Show the panel
-        nodeDetailsPanel.SetActive(true);
+        // Show the panel with fade
+        StartCoroutine(FadeNodeDetailsPanel(true));
         
         // Get the node label and description
         string nodeLabel = GetNodeLabel();
@@ -523,6 +546,53 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
     {
         if (nodeDetailsPanel != null && currentActiveNode == this)
         {
+            StartCoroutine(FadeNodeDetailsPanel(false));
+        }
+    }
+    
+    private System.Collections.IEnumerator FadeNodeDetailsPanel(bool show)
+    {
+        CanvasGroup canvasGroup = nodeDetailsPanel.GetComponent<CanvasGroup>();
+        if (canvasGroup == null)
+        {
+            canvasGroup = nodeDetailsPanel.AddComponent<CanvasGroup>();
+        }
+
+        // Always disable raycast blocking for the node details panel
+        canvasGroup.blocksRaycasts = false;
+
+        if (show)
+        {
+            // Fade in
+            nodeDetailsPanel.SetActive(true);
+            canvasGroup.alpha = 0f;
+            float time = 0f;
+            const float duration = 0.2f;
+
+            while (time < duration)
+            {
+                time += Time.deltaTime;
+                canvasGroup.alpha = Mathf.Lerp(0f, 1f, time / duration);
+                yield return null;
+            }
+
+            canvasGroup.alpha = 1f;
+        }
+        else
+        {
+            // Fade out
+            float startAlpha = canvasGroup.alpha;
+            float time = 0f;
+            const float duration = 0.2f;
+
+            while (time < duration)
+            {
+                time += Time.deltaTime;
+                canvasGroup.alpha = Mathf.Lerp(startAlpha, 0f, time / duration);
+                yield return null;
+            }
+
+            canvasGroup.alpha = 0f;
             nodeDetailsPanel.SetActive(false);
             currentActiveNode = null;
         }

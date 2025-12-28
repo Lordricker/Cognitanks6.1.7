@@ -12145,8 +12145,14 @@ MonoBehaviour:
   - leagueButton: {fileID: 1764555438}
     arenaListPanel: {fileID: 49524732}
     arenaButtons:
-    - {fileID: 1680647034}
-    - {fileID: 2044588531}
+    - button: {fileID: 1680647034}
+      arenaNumber: 1
+      leagueNumber: 1
+      roundNumber: 1
+    - button: {fileID: 2044588531}
+      arenaNumber: 1
+      leagueNumber: 1
+      roundNumber: 2
   errorText: {fileID: 0}
   errorDisplayDuration: 3
 --- !u!1 &1368002552

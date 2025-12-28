@@ -6,6 +6,13 @@ using System.Collections;
 public class UILineClickDeleter : MonoBehaviour, IPointerClickHandler
 {    public void OnPointerClick(PointerEventData eventData)
     {
+        // Auto-save before line deletion
+        var aiEditorFileUI = FindFirstObjectByType<AiEditorFileUI>();
+        if (aiEditorFileUI != null)
+        {
+            aiEditorFileUI.AutoSave();
+        }
+
         Destroy(gameObject);
     }
 

@@ -45,5 +45,12 @@ public class TitleName : MonoBehaviour, IPointerClickHandler
             inputField.gameObject.SetActive(false);
         if (titleText != null)
             titleText.gameObject.SetActive(true);
+
+        // Auto-save after title change
+        var aiEditorFileUI = FindFirstObjectByType<AiEditorFileUI>();
+        if (aiEditorFileUI != null)
+        {
+            aiEditorFileUI.AutoSave();
+        }
     }
 }

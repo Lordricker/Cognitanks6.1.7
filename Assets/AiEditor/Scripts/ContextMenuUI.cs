@@ -470,6 +470,13 @@ public class ContextMenuUI : MonoBehaviour
             CreateConnectionToNode(subAINode);
         }
         
+        // Auto-save after creating SubAI node
+        var aiEditorFileUI = FindFirstObjectByType<AiEditorFileUI>();
+        if (aiEditorFileUI != null)
+        {
+            aiEditorFileUI.AutoSave();
+        }
+
         Debug.Log($"[ContextMenuUI] Created SubAI node: {subAIText}");
     }
     
@@ -748,6 +755,13 @@ public class ContextMenuUI : MonoBehaviour
             CreateConnectionToNode(actionNode);
         }
         
+        // Auto-save after creating action node
+        var aiEditorFileUI = FindFirstObjectByType<AiEditorFileUI>();
+        if (aiEditorFileUI != null)
+        {
+            aiEditorFileUI.AutoSave();
+        }
+
         Debug.Log($"[ContextMenuUI] Created action node: {actionText}");
     }
     
@@ -838,6 +852,13 @@ public class ContextMenuUI : MonoBehaviour
             CreateConnectionToNode(conditionNode);
         }
         
+        // Auto-save after creating condition node
+        var aiEditorFileUI = FindFirstObjectByType<AiEditorFileUI>();
+        if (aiEditorFileUI != null)
+        {
+            aiEditorFileUI.AutoSave();
+        }
+
         Debug.Log($"[ContextMenuUI] Created condition node: {conditionText}");
     }
 }

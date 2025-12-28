@@ -11,6 +11,7 @@ public class AiEditorFileUI : MonoBehaviour
     public Button saveButton;
     public Button loadButton;
     public GameObject loadPanel;
+    public GameObject guidePanel;
     public Button turretBranchButton;
     public Button navBranchButton;
     public GameObject fileButtonPrefab;
@@ -23,99 +24,35 @@ public class AiEditorFileUI : MonoBehaviour
 
     private string navFolder = "NavFiles";
     private string turretFolder = "TurretFiles";
+    private string currentJsonPath = ""; // Path to currently loaded JSON file
 
-    // Track the currently loaded JSON file path for update-only saves
-    private string currentJsonPath = null;
+    // Auto-save functionality
+    private bool autoSaveEnabled = true;
+    private float lastAutoSaveTime = 0f;
+    private const float AUTO_SAVE_COOLDOWN = 0.5f; // Minimum time between auto-saves
 
-    // Prefabs for node types (assign in inspector)
-    // public GameObject startNodePrefab; // No longer needed, always reuse StartNodePanel
-    public GameObject EndNodePrefab;
-    public GameObject MiddleNodePrefab;
-    public GameObject SubAINodePrefab;
-    public GameObject UILinePrefab;
-
-    // New public field for tree name
-    public TMPro.TMP_Text FileName;
-
-    void Start()
+    /// <summary>
+    /// Public method to trigger auto-save (called by other editor components)
+    /// </summary>
+    public void AutoSave()
     {
-        saveButton.onClick.AddListener(OnSaveClicked);
-        loadButton.onClick.AddListener(ToggleLoadPanel);
+        if (!autoSaveEnabled) return;
         
-        turretBranchButton.onClick.AddListener(() => ShowFilePanel(turretFileScrollView, turretFileContent, turretFolder));
-        navBranchButton.onClick.AddListener(() => ShowFilePanel(navFileScrollView, navFileContent, navFolder));
-        loadPanel.SetActive(false);
-        navFileScrollView.SetActive(false);
-        turretFileScrollView.SetActive(false);
-    }
-
-    // Helper function to determine if a node should have number input based on its label
-    private bool ShouldHaveNumberInput(string nodeLabel)
-    {
-        if (string.IsNullOrEmpty(nodeLabel))
-            return false;
-            
-        // Check for all the specific patterns that need number input
-        return nodeLabel.Contains("If Self HP>#") || 
-               nodeLabel.Contains("If Self HP<#") ||
-               nodeLabel.Contains("If HP < #") ||
-               nodeLabel.Contains("If HP > #") ||
-               nodeLabel.Contains("If Tag = #") ||
-               nodeLabel.Contains("If Tag < #") ||
-               nodeLabel.Contains("If Tag > #") ||
-               nodeLabel.Contains("If Range<#") ||
-               nodeLabel.Contains("If Range>#") ||
-               nodeLabel.Contains("LeadTarget#") ||
-               nodeLabel.Contains("Lead Target #") ||
-               nodeLabel.Contains("RotateUp") ||
-               nodeLabel.Contains("Rotate Up") ||
-               nodeLabel.Contains("RotateDown") ||
-               nodeLabel.Contains("Rotate Down") ||
-               nodeLabel.Contains("RotateLeft") ||
-               nodeLabel.Contains("Rotate Left") ||
-               nodeLabel.Contains("RotateRight") ||
-               nodeLabel.Contains("Rotate Right") ||
-               nodeLabel.Contains("MyTag#") ||
-               nodeLabel.Contains("My Tag#") ||
-               nodeLabel.Contains("TeamTag#") ||
-               nodeLabel.Contains("Team Tag#") ||
-               nodeLabel.Contains("IfMyTag") ||
-               nodeLabel.Contains("If My Tag") ||
-               nodeLabel.Contains("IfTeamTag") ||
-               nodeLabel.Contains("If Team Tag") ||
-               // Also check for patterns that already have numbers (not just #)
-               nodeLabel.StartsWith("If Self HP>") ||
-               nodeLabel.StartsWith("If Self HP<") ||
-               nodeLabel.StartsWith("If HP < ") ||
-               nodeLabel.StartsWith("If HP > ") ||
-               nodeLabel.StartsWith("If Tag = ") ||
-               nodeLabel.StartsWith("If Tag < ") ||
-               nodeLabel.StartsWith("If Tag > ") ||
-               nodeLabel.StartsWith("If Range<") ||
-               nodeLabel.StartsWith("If Range>") ||
-               nodeLabel.StartsWith("LeadTarget") ||
-               nodeLabel.StartsWith("Lead Target ") ||
-               nodeLabel.StartsWith("MyTag") ||
-               nodeLabel.StartsWith("My Tag") ||
-               nodeLabel.StartsWith("TeamTag") ||
-               nodeLabel.StartsWith("Team Tag") ||
-               nodeLabel.StartsWith("IfMyTag") ||
-               nodeLabel.StartsWith("If My Tag") ||
-               nodeLabel.StartsWith("IfTeamTag") ||
-               nodeLabel.StartsWith("If Team Tag");
-    }
-
-    void ToggleLoadPanel()
-    {
-        loadPanel.SetActive(!loadPanel.activeSelf);
-        if (!loadPanel.activeSelf)
-        {
-            navFileScrollView.SetActive(false);
-            turretFileScrollView.SetActive(false);
-        }
+        // Prevent too frequent saves
+        if (Time.time - lastAutoSaveTime < AUTO_SAVE_COOLDOWN) return;
+        lastAutoSaveTime = Time.time;
+        
+        // Only auto-save if we have a current file loaded
+        if (string.IsNullOrEmpty(currentJsonPath)) return;
+        
+        PerformSave();
+        Debug.Log("[AiEditorFileUI] Auto-saved changes");
     }
     
-    void OnSaveClicked()
+    /// <summary>
+    /// Core save logic (extracted from OnSaveClicked)
+    /// </summary>
+    private void PerformSave()
     {
         // Determine branch by which start button is active
         string folder = "";
@@ -202,22 +139,9 @@ public class AiEditorFileUI : MonoBehaviour
                                 }
                             }
                             
-                            bool deleted = UnityEditor.AssetDatabase.DeleteAsset(assetPath);
-                            if (!deleted)
-                            {
-                                // Fallback to file system deletion
-                                System.IO.File.Delete(currentJsonPath);
-                                string metaFilePath = currentJsonPath + ".meta";
-                                if (System.IO.File.Exists(metaFilePath))
-                                {
-                                    System.IO.File.Delete(metaFilePath);
-                                }
-                            }
+                            // Delete the asset file
+                            UnityEditor.AssetDatabase.DeleteAsset(assetPath);
                             UnityEditor.AssetDatabase.Refresh();
-#else
-                            // In build, use file system deletion
-                            if (System.IO.File.Exists(currentJsonPath))
-                                System.IO.File.Delete(currentJsonPath);
 #endif
                         }
                         catch (System.Exception deleteEx)
@@ -225,13 +149,20 @@ public class AiEditorFileUI : MonoBehaviour
                             Debug.LogWarning($"[AiEditorFileUI] Could not delete old file {currentJsonPath}: {deleteEx.Message}");
                         }
                         
+                        // Update currentJsonPath to the new location
                         currentJsonPath = newFilePath;
                     }
                     else
                     {
-                        // File is already in persistent data path, overwrite it in place
+                        // File is already in persistent data path, just overwrite it
                         System.IO.File.WriteAllText(currentJsonPath, updatedJsonContent);
                     }
+                    
+                    Debug.Log($"[AiEditorFileUI] Updated existing file: {currentJsonPath}");
+                }
+                else
+                {
+                    Debug.LogError($"[AiEditorFileUI] Failed to parse existing JSON file: {currentJsonPath}");
                 }
             }
             catch (System.Exception e)
@@ -241,34 +172,163 @@ public class AiEditorFileUI : MonoBehaviour
         }
         else
         {
-            // Create new JSON file (always save to persistentDataPath)
+            // Create new file
             var jsonAsset = new AiTreeAssetJson();
-            jsonAsset.title = treeName;
             jsonAsset.TreeName = treeName;
+            jsonAsset.title = treeName;
             jsonAsset.branchType = (folder == navFolder) ? AiBranchTypeJson.Nav : AiBranchTypeJson.Turret;
-            
-            // Generate instanceId for new asset
             jsonAsset.instanceId = System.Guid.NewGuid().ToString();
             
-            // Update all node data and connections from the current editor state
+            // Populate the JSON asset with current editor state
             UpdateJsonAssetFromEditor(jsonAsset);
             
-            // Save to persistentDataPath
+            // Create the folder if it doesn't exist
             string folderPath = System.IO.Path.Combine(Application.persistentDataPath, "AiTrees", folder);
             if (!System.IO.Directory.Exists(folderPath))
             {
                 System.IO.Directory.CreateDirectory(folderPath);
             }
             
-            string newFilePath = System.IO.Path.Combine(folderPath, assetName + ".json");
+            // Save the JSON file
+            string filePath = System.IO.Path.Combine(folderPath, $"{assetName}.json");
             string jsonContent = JsonUtility.ToJson(jsonAsset, true);
-            System.IO.File.WriteAllText(newFilePath, jsonContent);
+            System.IO.File.WriteAllText(filePath, jsonContent);
             
-            currentJsonPath = newFilePath;
+            // Update currentJsonPath for future saves
+            currentJsonPath = filePath;
+            
+            Debug.Log($"[AiEditorFileUI] Created new file: {filePath}");
         }
+    }
+
+    // Prefabs for node types (assign in inspector)
+    // public GameObject startNodePrefab; // No longer needed, always reuse StartNodePanel
+    public GameObject EndNodePrefab;
+    public GameObject MiddleNodePrefab;
+    public GameObject SubAINodePrefab;
+    public GameObject UILinePrefab;
+
+    // New public field for tree name
+    public TMPro.TMP_Text FileName;
+
+    void Start()
+    {
+        saveButton.onClick.AddListener(ToggleGuidePanel);
+        loadButton.onClick.AddListener(ToggleLoadPanel);
         
-        // Refresh the file panel if it's currently visible to show updated files
-        RefreshCurrentFilePanel();
+        turretBranchButton.onClick.AddListener(() => ShowFilePanel(turretFileScrollView, turretFileContent, turretFolder));
+        navBranchButton.onClick.AddListener(() => ShowFilePanel(navFileScrollView, navFileContent, navFolder));
+        loadPanel.SetActive(false);
+        navFileScrollView.SetActive(false);
+        turretFileScrollView.SetActive(false);
+    }
+
+    // Helper function to determine if a node should have number input based on its label
+    private bool ShouldHaveNumberInput(string nodeLabel)
+    {
+        if (string.IsNullOrEmpty(nodeLabel))
+            return false;
+            
+        // Check for all the specific patterns that need number input
+        return nodeLabel.Contains("If Self HP>#") || 
+               nodeLabel.Contains("If Self HP<#") ||
+               nodeLabel.Contains("If HP < #") ||
+               nodeLabel.Contains("If HP > #") ||
+               nodeLabel.Contains("If Tag = #") ||
+               nodeLabel.Contains("If Tag < #") ||
+               nodeLabel.Contains("If Tag > #") ||
+               nodeLabel.Contains("If Range<#") ||
+               nodeLabel.Contains("If Range>#") ||
+               nodeLabel.Contains("LeadTarget#") ||
+               nodeLabel.Contains("Lead Target #") ||
+               nodeLabel.Contains("RotateUp") ||
+               nodeLabel.Contains("Rotate Up") ||
+               nodeLabel.Contains("RotateDown") ||
+               nodeLabel.Contains("Rotate Down") ||
+               nodeLabel.Contains("RotateLeft") ||
+               nodeLabel.Contains("Rotate Left") ||
+               nodeLabel.Contains("RotateRight") ||
+               nodeLabel.Contains("Rotate Right") ||
+               nodeLabel.Contains("MyTag#") ||
+               nodeLabel.Contains("My Tag#") ||
+               nodeLabel.Contains("TeamTag#") ||
+               nodeLabel.Contains("Team Tag#") ||
+               nodeLabel.Contains("IfMyTag") ||
+               nodeLabel.Contains("If My Tag") ||
+               nodeLabel.Contains("IfTeamTag") ||
+               nodeLabel.Contains("If Team Tag") ||
+               // Also check for patterns that already have numbers (not just #)
+               nodeLabel.StartsWith("If Self HP>") ||
+               nodeLabel.StartsWith("If Self HP<") ||
+               nodeLabel.StartsWith("If HP < ") ||
+               nodeLabel.StartsWith("If HP > ") ||
+               nodeLabel.StartsWith("If Tag = ") ||
+               nodeLabel.StartsWith("If Tag < ") ||
+               nodeLabel.StartsWith("If Tag > ") ||
+               nodeLabel.StartsWith("If Range<") ||
+               nodeLabel.StartsWith("If Range>") ||
+               nodeLabel.StartsWith("LeadTarget") ||
+               nodeLabel.StartsWith("Lead Target ") ||
+               nodeLabel.StartsWith("MyTag") ||
+               nodeLabel.StartsWith("My Tag") ||
+               nodeLabel.StartsWith("TeamTag") ||
+               nodeLabel.StartsWith("Team Tag") ||
+               nodeLabel.StartsWith("IfMyTag") ||
+               nodeLabel.StartsWith("If My Tag") ||
+               nodeLabel.StartsWith("IfTeamTag") ||
+               nodeLabel.StartsWith("If Team Tag");
+    }
+
+    void ToggleLoadPanel()
+    {
+        loadPanel.SetActive(!loadPanel.activeSelf);
+        if (!loadPanel.activeSelf)
+        {
+            navFileScrollView.SetActive(false);
+            turretFileScrollView.SetActive(false);
+        }
+    }
+
+    void ToggleGuidePanel()
+    {
+        if (guidePanel.activeSelf)
+        {
+            // Fade out
+            StartCoroutine(FadePanel(guidePanel, 1f, 0f, 0.2f, () => guidePanel.SetActive(false)));
+        }
+        else
+        {
+            // Fade in
+            guidePanel.SetActive(true);
+            StartCoroutine(FadePanel(guidePanel, 0f, 1f, 0.2f, null));
+        }
+    }
+
+    private System.Collections.IEnumerator FadePanel(GameObject panel, float startAlpha, float endAlpha, float duration, System.Action onComplete)
+    {
+        CanvasGroup canvasGroup = panel.GetComponent<CanvasGroup>();
+        if (canvasGroup == null)
+        {
+            canvasGroup = panel.AddComponent<CanvasGroup>();
+        }
+
+        canvasGroup.alpha = startAlpha;
+        float time = 0f;
+
+        while (time < duration)
+        {
+            time += Time.deltaTime;
+            canvasGroup.alpha = Mathf.Lerp(startAlpha, endAlpha, time / duration);
+            yield return null;
+        }
+
+        canvasGroup.alpha = endAlpha;
+        onComplete?.Invoke();
+    }
+    
+    void OnSaveClicked()
+    {
+        PerformSave();
     }
     
     /// <summary>

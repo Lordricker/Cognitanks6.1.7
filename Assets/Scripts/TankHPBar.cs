@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 
 /// <summary>
 /// Simple HP bar that follows a tank and displays its health as a red/green bar
@@ -10,6 +11,7 @@ public class TankHPBar : MonoBehaviour
     [SerializeField] private Canvas hpCanvas;
     [SerializeField] private Image hpBarBackground; // Red background
     [SerializeField] private Image hpBarFill;       // Green fill
+    [SerializeField] private TextMeshProUGUI hpText; // Health text display
     [SerializeField] private float barWidth = 200f;
     [SerializeField] private float barHeight = 10f; // Half the previous height (was 20f)
     [SerializeField] private float heightOffset = 25f; // How high above tank to display
@@ -101,6 +103,25 @@ public class TankHPBar : MonoBehaviour
         borderGO.transform.SetSiblingIndex(0);     // Back
         backgroundGO.transform.SetSiblingIndex(1); // Middle  
         fillGO.transform.SetSiblingIndex(2);       // Front
+        
+        // Create text display - FOURTH (top layer)
+        GameObject textGO = new GameObject("HPText");
+        textGO.transform.SetParent(canvasGO.transform, false);
+        hpText = textGO.AddComponent<TextMeshProUGUI>();
+        hpText.text = "100/100"; // Default text
+        hpText.fontSize = 14;
+        hpText.color = Color.white;
+        hpText.alignment = TextAlignmentOptions.Center;
+        hpText.textWrappingMode = TextWrappingModes.NoWrap;
+        
+        RectTransform textRect = textGO.GetComponent<RectTransform>();
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.offsetMin = Vector2.zero;
+        textRect.offsetMax = Vector2.zero;
+        textRect.anchoredPosition = Vector2.zero;
+        
+        textGO.transform.SetSiblingIndex(3); // On top
     }
     
     void Update()
@@ -123,6 +144,12 @@ public class TankHPBar : MonoBehaviour
             
             // Set the anchorMax.x to control the width (0 = no width, 1 = full width)
             fillRect.anchorMax = new Vector2(healthPercent, 1);
+        }
+        
+        // Update HP text
+        if (hpText != null)
+        {
+            hpText.text = $"{Mathf.RoundToInt(targetTank.CurrentHealth)}/{Mathf.RoundToInt(targetTank.TotalHP)}";
         }
         
         // Make HP bar face the camera

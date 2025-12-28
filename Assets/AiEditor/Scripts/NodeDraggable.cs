@@ -103,7 +103,12 @@ public class NodeDraggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
 
     public void OnEndDrag(PointerEventData eventData)
     {
-        // Optionally, you could add logic here for after drag ends
+        // Auto-save after node movement
+        var aiEditorFileUI = FindFirstObjectByType<AiEditorFileUI>();
+        if (aiEditorFileUI != null)
+        {
+            aiEditorFileUI.AutoSave();
+        }
     }
 
     // Deletes all connected lines (call before destroying node GameObject)
