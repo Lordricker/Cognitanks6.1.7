@@ -5104,7 +5104,6 @@ GameObject:
   - component: {fileID: 1485277458}
   - component: {fileID: 1485277460}
   - component: {fileID: 1485277459}
-  - component: {fileID: 1485277461}
   m_Layer: 5
   m_Name: Content
   m_TagString: Untagged
@@ -5146,7 +5145,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
   m_Color: {r: 1, g: 1, b: 1, a: 0.392}
-  m_RaycastTarget: 1
+  m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
@@ -5170,18 +5169,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1485277457}
   m_CullTransparentMesh: 1
---- !u!114 &1485277461
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1485277457}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a114a86bbd3b19547b152bb91536eae9, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!1 &1541893816
 GameObject:
   m_ObjectHideFlags: 0
@@ -5620,6 +5607,7 @@ GameObject:
   - component: {fileID: 1702648736}
   - component: {fileID: 1702648735}
   - component: {fileID: 1702648737}
+  - component: {fileID: 1702648738}
   m_Layer: 5
   m_Name: Background
   m_TagString: Untagged
@@ -5702,6 +5690,18 @@ MonoBehaviour:
   zoomSpeed: 0.05
   minZoom: 1
   maxZoom: 2.5
+--- !u!114 &1702648738
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1702648732}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a114a86bbd3b19547b152bb91536eae9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &1896072602
 GameObject:
   m_ObjectHideFlags: 0

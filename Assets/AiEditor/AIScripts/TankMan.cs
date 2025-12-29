@@ -145,6 +145,7 @@ public class TankMan : MonoBehaviour
     // Cycle node memory - tracks which child node each Cycle instance is currently executing
     private Dictionary<string, int> cycleNodeMemory = new Dictionary<string, int>();
     private Dictionary<string, bool> cycleNodeCompletionFlags = new Dictionary<string, bool>();
+    private Dictionary<string, float> cycleNodeTimeSpent = new Dictionary<string, float>();
     
     // Sensor data
     private GameObject currentTarget; // Target for actions (flee, chase, fire, etc.)
@@ -1057,13 +1058,20 @@ public class TankMan : MonoBehaviour
     #region Cycle Node Logic
     
     /// <summary>
-    /// Executes a Cycle node, managing memory to cycle through its connected action nodes
+    /// Executes a Cycle node, managing memory to cycle through its connected action nodes based on time
     /// </summary>
     AiExecutableNode ExecuteCycleNode(AiExecutableNode cycleNode, AiTreeAsset tree)
     {
         if (cycleNode == null || cycleNode.connectedNodeIds.Count == 0)
         {
             return GetFirstNodeFromStart(tree);
+        }
+        
+        // Parse the cycle time from the node label (e.g., "Cycle 5" -> 5 seconds)
+        float cycleTime = ParseCycleTime(cycleNode.originalLabel);
+        if (cycleTime <= 0)
+        {
+            cycleTime = 1f; // Default to 1 second if invalid
         }
         
         // Get sorted child nodes by Y position (highest first)
@@ -1082,13 +1090,14 @@ public class TankMan : MonoBehaviour
         if (!cycleNodeMemory.ContainsKey(cycleNode.nodeId))
         {
             cycleNodeMemory[cycleNode.nodeId] = 0;
-            cycleNodeCompletionFlags[cycleNode.nodeId] = false;
+            cycleNodeTimeSpent[cycleNode.nodeId] = 0f;
         }
         
         int currentChildIndex = cycleNodeMemory[cycleNode.nodeId];
+        float timeSpent = cycleNodeTimeSpent[cycleNode.nodeId];
         
-        // Check if the current action is completed
-        if (cycleNodeCompletionFlags.ContainsKey(cycleNode.nodeId) && cycleNodeCompletionFlags[cycleNode.nodeId])
+        // Check if the time for current action has expired
+        if (timeSpent >= cycleTime)
         {
             // Move to next child
             currentChildIndex++;
@@ -1099,14 +1108,39 @@ public class TankMan : MonoBehaviour
                 currentChildIndex = 0;
             }
             
-            // Update memory
+            // Reset time for new action
             cycleNodeMemory[cycleNode.nodeId] = currentChildIndex;
-            cycleNodeCompletionFlags[cycleNode.nodeId] = false;
+            cycleNodeTimeSpent[cycleNode.nodeId] = 0f;
+        }
+        else
+        {
+            // Increment time spent on current action
+            cycleNodeTimeSpent[cycleNode.nodeId] = timeSpent + Time.deltaTime;
         }
         
         // Execute the current child node
         var currentChild = sortedChildren[currentChildIndex];
         return currentChild;
+    }
+    
+    /// <summary>
+    /// Parses the cycle time from the cycle node's label (e.g., "Cycle 5" -> 5.0f)
+    /// </summary>
+    private float ParseCycleTime(string nodeLabel)
+    {
+        if (string.IsNullOrEmpty(nodeLabel) || !nodeLabel.StartsWith("Cycle"))
+            return 0f;
+        
+        // Extract number after "Cycle "
+        string[] parts = nodeLabel.Split(' ');
+        if (parts.Length >= 2)
+        {
+            if (float.TryParse(parts[1], out float time))
+            {
+                return time;
+            }
+        }
+        return 0f;
     }
     
     /// <summary>
@@ -1877,6 +1911,19 @@ public class TankMan : MonoBehaviour
                 break;
             case "Home":
                 currentActionCoroutine = StartCoroutine(HomeAction());
+                break;
+            case "Forward":
+                currentActionCoroutine = StartCoroutine(ForwardAction());
+                break;
+            case "RotateRight":
+                // Get rotation degrees from node's numeric value
+                float rightDegrees = actionNode.numericValue;
+                currentActionCoroutine = StartCoroutine(RotateRightAction(rightDegrees));
+                break;
+            case "RotateLeft":
+                // Get rotation degrees from node's numeric value
+                float leftDegrees = actionNode.numericValue;
+                currentActionCoroutine = StartCoroutine(RotateLeftAction(leftDegrees));
                 break;
             default:
                 break;
@@ -3315,6 +3362,190 @@ public class TankMan : MonoBehaviour
             yield return null;
         }
     }
+    
+    #region Navigation Actions
+    
+    /// <summary>
+    /// Propels the tank forward continuously while active
+    /// </summary>
+    IEnumerator ForwardAction()
+    {
+        // Wait for rigidbody to be ready
+        float waitStartTime = Time.time;
+        while (rb == null)
+        {
+            rb = GetComponent<Rigidbody>();
+            if (rb == null)
+                rb = gameObject.AddComponent<Rigidbody>();
+            yield return new WaitForSeconds(0.1f);
+            if (Time.time - waitStartTime > 2f)
+                yield break;
+        }
+        
+        // Unstuck the tank before starting movement
+        UnstuckTank();
+        yield return new WaitForFixedUpdate();
+        
+        // Continuously move forward while this action is active
+        while (true)
+        {
+            if (!isGrounded)
+            {
+                yield return null;
+                continue;
+            }
+            
+            // Move forward at full speed
+            SetMovementInput(1f, 0f);
+            yield return new WaitForFixedUpdate();
+        }
+    }
+    
+    /// <summary>
+    /// Rotates the tank right by the specified number of degrees
+    /// </summary>
+    IEnumerator RotateRightAction(float degrees)
+    {
+        // Wait for rigidbody to be ready
+        float waitStartTime = Time.time;
+        while (rb == null)
+        {
+            rb = GetComponent<Rigidbody>();
+            if (rb == null)
+                rb = gameObject.AddComponent<Rigidbody>();
+            yield return new WaitForSeconds(0.1f);
+            if (Time.time - waitStartTime > 2f)
+                yield break;
+        }
+        
+        // Unstuck the tank before starting rotation
+        UnstuckTank();
+        yield return new WaitForFixedUpdate();
+        
+        // Get the parent cycle node if this action is part of a cycle
+        AiExecutableNode parentCycle = null;
+        if (currentNavActionNode != null)
+        {
+            parentCycle = GetParentCycleNode(currentNavActionNode, runtimeNavAI);
+            if (parentCycle == null && runtimeTurretAI != null)
+            {
+                parentCycle = GetParentCycleNode(currentNavActionNode, runtimeTurretAI);
+            }
+        }
+        
+        // Record starting rotation
+        float startYRotation = transform.eulerAngles.y;
+        float targetYRotation = startYRotation - degrees; // Negative for right turn
+        float threshold = 2f; // Consider reached when within 2 degrees
+        
+        while (true)
+        {
+            if (!isGrounded)
+            {
+                yield return null;
+                continue;
+            }
+            
+            // Get current rotation
+            float currentY = transform.eulerAngles.y;
+            
+            // Calculate the shortest angle difference to target
+            float angleDiff = Mathf.DeltaAngle(currentY, targetYRotation);
+            
+            // Check if we've reached the target rotation
+            if (Mathf.Abs(angleDiff) <= threshold)
+            {
+                // Reached target! Stop movement and mark cycle as complete if part of a cycle
+                StopMovement();
+                if (parentCycle != null)
+                {
+                    MarkCycleActionComplete(parentCycle.nodeId);
+                }
+                yield break;
+            }
+            
+            // Rotate towards target
+            float turnDirection = Mathf.Sign(angleDiff);
+            float turnIntensity = Mathf.Clamp01(Mathf.Abs(angleDiff) / 45f); // Scale turn intensity
+            SetMovementInput(0f, turnDirection * turnIntensity);
+            
+            yield return new WaitForFixedUpdate();
+        }
+    }
+    
+    /// <summary>
+    /// Rotates the tank left by the specified number of degrees
+    /// </summary>
+    IEnumerator RotateLeftAction(float degrees)
+    {
+        // Wait for rigidbody to be ready
+        float waitStartTime = Time.time;
+        while (rb == null)
+        {
+            rb = GetComponent<Rigidbody>();
+            if (rb == null)
+                rb = gameObject.AddComponent<Rigidbody>();
+            yield return new WaitForSeconds(0.1f);
+            if (Time.time - waitStartTime > 2f)
+                yield break;
+        }
+        
+        // Unstuck the tank before starting rotation
+        UnstuckTank();
+        yield return new WaitForFixedUpdate();
+        
+        // Get the parent cycle node if this action is part of a cycle
+        AiExecutableNode parentCycle = null;
+        if (currentNavActionNode != null)
+        {
+            parentCycle = GetParentCycleNode(currentNavActionNode, runtimeNavAI);
+            if (parentCycle == null && runtimeTurretAI != null)
+            {
+                parentCycle = GetParentCycleNode(currentNavActionNode, runtimeTurretAI);
+            }
+        }
+        
+        // Record starting rotation
+        float startYRotation = transform.eulerAngles.y;
+        float targetYRotation = startYRotation + degrees; // Positive for left turn
+        float threshold = 2f; // Consider reached when within 2 degrees
+        
+        while (true)
+        {
+            if (!isGrounded)
+            {
+                yield return null;
+                continue;
+            }
+            
+            // Get current rotation
+            float currentY = transform.eulerAngles.y;
+            
+            // Calculate the shortest angle difference to target
+            float angleDiff = Mathf.DeltaAngle(currentY, targetYRotation);
+            
+            // Check if we've reached the target rotation
+            if (Mathf.Abs(angleDiff) <= threshold)
+            {
+                // Reached target! Stop movement and mark cycle as complete if part of a cycle
+                StopMovement();
+                if (parentCycle != null)
+                {
+                    MarkCycleActionComplete(parentCycle.nodeId);
+                }
+                yield break;
+            }
+            
+            // Rotate towards target
+            float turnDirection = Mathf.Sign(angleDiff);
+            float turnIntensity = Mathf.Clamp01(Mathf.Abs(angleDiff) / 45f); // Scale turn intensity
+            SetMovementInput(0f, turnDirection * turnIntensity);
+            
+            yield return new WaitForFixedUpdate();
+        }
+    }
+    
+    #endregion
     
     #endregion
 }

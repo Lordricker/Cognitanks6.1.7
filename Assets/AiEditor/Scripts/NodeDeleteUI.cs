@@ -253,6 +253,11 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
                 newLabel = $"Rotate Right {number}°";
                 Debug.Log($"Created new label for 'Rotate Right' pattern: '{newLabel}'");
             }
+            else if (currentLabel.Contains("Cycle"))
+            {
+                newLabel = $"Cycle {number}";
+                Debug.Log($"Created new label for 'Cycle' pattern: '{newLabel}'");
+            }
             
             if (!string.IsNullOrEmpty(newLabel))
             {
@@ -360,7 +365,8 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
                nodeLabel.StartsWith("If Range<") ||
                nodeLabel.StartsWith("If Range>") ||
                nodeLabel.StartsWith("LeadTarget") ||
-               nodeLabel.StartsWith("Lead Target ");
+               nodeLabel.StartsWith("Lead Target ") ||
+               nodeLabel.Contains("Cycle"); // Added for cycle nodes
     }
     
     private string GetNodeLabel()
@@ -477,6 +483,31 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
         else if (nodeLabel.StartsWith("Lead Target "))
         {
             string numberPart = nodeLabel.Substring(12); // Skip "Lead Target "
+            if (numberPart == "#" || string.IsNullOrEmpty(numberPart))
+                return "0";
+            return numberPart;
+        }
+        else if (nodeLabel.StartsWith("Rotate Left "))
+        {
+            string numberPart = nodeLabel.Substring(11); // Skip "Rotate Left "
+            // Remove the ° symbol if present
+            numberPart = numberPart.Replace("°", "");
+            if (numberPart == "#" || string.IsNullOrEmpty(numberPart))
+                return "0";
+            return numberPart;
+        }
+        else if (nodeLabel.StartsWith("Rotate Right "))
+        {
+            string numberPart = nodeLabel.Substring(12); // Skip "Rotate Right "
+            // Remove the ° symbol if present
+            numberPart = numberPart.Replace("°", "");
+            if (numberPart == "#" || string.IsNullOrEmpty(numberPart))
+                return "0";
+            return numberPart;
+        }
+        else if (nodeLabel.StartsWith("Cycle "))
+        {
+            string numberPart = nodeLabel.Substring(6); // Skip "Cycle "
             if (numberPart == "#" || string.IsNullOrEmpty(numberPart))
                 return "0";
             return numberPart;
@@ -622,9 +653,9 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
             return "Checks if the evaluation target has a specific armor type.";
         if (lowerLabel.Contains("if range"))
             return "Checks the distance to the evaluation target. Passes if distance meets the condition.";
-        if (lowerLabel.Contains("ifmytag") || lowerLabel.Contains("if my tag"))
+        if (lowerLabel.Contains("if my tag") || lowerLabel.Contains("if my tag"))
             return "Checks your personal tag on the evaluation target. Passes if the tag value meets the condition. Personal tags are only visible to you.";
-        if (lowerLabel.Contains("ifteamtag") || lowerLabel.Contains("if team tag"))
+        if (lowerLabel.Contains("if team tag") || lowerLabel.Contains("if team tag"))
             return "Checks the team tag on the evaluation target. Passes if the tag value meets the condition. Team tags are shared across all teammates.";
         
         // Actions - Movement
@@ -633,9 +664,9 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
             return "Selects a random point within 100 units of the tanks current location and attempts to move there";
         if (lowerLabel.Contains("forward"))
             return "Tank Drives forward, use with Cycle nodes to patrol an area";
-        if (lowerLabel.Contains("rotateright"))
+        if (lowerLabel.Contains("rotate right"))
             return "Tank Pivots to the right by the specified degrees.";
-        if (lowerLabel.Contains("rotateleft"))
+        if (lowerLabel.Contains("rotate left"))
             return "Tank Pivots to the left by the specified degrees.";
         if (lowerLabel.Contains("wait"))
             return "Stops movement. Tank remains stationary.";
@@ -643,7 +674,7 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
             return "Continuously pursues the current target, closing distance. Useful for aggressive behavior.";
         if (lowerLabel.Contains("flee"))
             return "Moves away from the current target, can be used for maintaining or increasing distance.";
-        if (lowerLabel.Contains("mapcenter"))
+        if (lowerLabel.Contains("map center"))
             return "Navigates to the center of the map. Useful for controlling key positions.";
         if (lowerLabel.Contains("home"))
             return "Tank Returns to its spawn position.";
@@ -653,22 +684,22 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
             return "Fires the tanks weapon. Use leadtarget to have the turret aim before firing";
         if (lowerLabel.Contains("leadtarget") || lowerLabel.Contains("lead target"))
             return "Using this under a Fire node will force it to verify aim before shooting. 0 will point right at target, any other numbers will predict enemy position e.g. leadtarget 15";
-        if (lowerLabel.Contains("alignfront"))
+        if (lowerLabel.Contains("align front"))
             return "Rotates turret to face forward relative to the tank body.";
-        if (lowerLabel.Contains("alignright"))
+        if (lowerLabel.Contains("align right"))
             return "Rotates turret to face right relative to the tank body.";
-        if (lowerLabel.Contains("alignleft"))
+        if (lowerLabel.Contains("align left"))
             return "Rotates turret to face left relative to the tank body.";
-        if (lowerLabel.Contains("alignback"))
+        if (lowerLabel.Contains("align back"))
             return "Rotates turret to face backward relative to the tank body.";
-        if (lowerLabel.Contains("rotateup"))
+        if (lowerLabel.Contains("rotate up"))
             return "Tilts turret upward by the specified degrees.";
-        if (lowerLabel.Contains("rotatedown"))
+        if (lowerLabel.Contains("rotate down"))
             return "Tilts turret downward by the specified degrees.";
 
         //Special Nodes
         if (lowerLabel.Contains("cycle"))
-            return "Cycles through connected action nodes in sequence (top to bottom). Enter a number to determine seconds spent on each action";
+            return "Cycles through connected nodes in top to bottom sequence, entered value is number of seconds spent on each action. Returns to the first after completing all.";
         if (lowerLabel.Contains("if coms") || lowerLabel.Contains("if comms"))
             return "(Boolean Node)Target nodes used after this will have access to an ally target list in addition to their own vision (all tanks update their teams ally target list every 0.1 sec)";
         

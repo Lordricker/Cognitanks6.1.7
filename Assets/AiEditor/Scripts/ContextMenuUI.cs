@@ -54,6 +54,9 @@ public class ContextMenuUI : MonoBehaviour
     public Canvas UICanvasObj; // Reference to the canvas (was GameObject)
     public GameObject UILinePrefab;
     
+    [Header("Node Details")]
+    public GameObject nodeDetailsPanel; // Reference to the NodeDetails panel
+
     [Header("SubAI File Browser")]
     public ScrollRect subAIScrollView; // ScrollView for SubAI files
     public Transform subAIContent; // Content transform inside the ScrollView
@@ -130,12 +133,256 @@ public class ContextMenuUI : MonoBehaviour
         ResetButtonColors(actionButton);
         ResetButtonColors(conditionButton);
         ResetButtonColors(subAIButton);
+        
+        // Set up hover functionality for all buttons
+        SetupHoverHandlers();
     }
 
     // Utility to reset a button's visual state to Normal
     private void ResetButtonColors(Button btn)
     {
         // Do not set btn.image.color; let Unity handle button visuals
+    }
+    
+    /// <summary>
+    /// Sets up hover handlers for all buttons in the context menu panels
+    /// </summary>
+    private void SetupHoverHandlers()
+    {
+        // Get all panels that contain node buttons
+        GameObject[] panels = new GameObject[]
+        {
+            turretListPanel,
+            navListPanel,
+            conditionTurretPanel,
+            conditionArmorPanel,
+            conditionHPPanel,
+            conditionRangePanel,
+            conditionTagPanel,
+            conditionTargetPanel,
+            conditionSelfPanel
+        };
+        
+        foreach (GameObject panel in panels)
+        {
+            if (panel != null)
+            {
+                // Find all buttons in this panel
+                Button[] buttons = panel.GetComponentsInChildren<Button>(true);
+                foreach (Button button in buttons)
+                {
+                    // Add hover event handlers
+                    AddHoverHandler(button);
+                }
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Adds hover event handlers to a button
+    /// </summary>
+    private void AddHoverHandler(Button button)
+    {
+        // Create event trigger for hover events
+        EventTrigger trigger = button.gameObject.GetComponent<EventTrigger>();
+        if (trigger == null)
+        {
+            trigger = button.gameObject.AddComponent<EventTrigger>();
+        }
+        
+        // Clear existing triggers to avoid duplicates
+        trigger.triggers.Clear();
+        
+        // Add pointer enter (hover start) event
+        EventTrigger.Entry enterEntry = new EventTrigger.Entry();
+        enterEntry.eventID = EventTriggerType.PointerEnter;
+        enterEntry.callback.AddListener((data) => OnButtonHoverEnter(button));
+        trigger.triggers.Add(enterEntry);
+        
+        // Add pointer exit (hover end) event
+        EventTrigger.Entry exitEntry = new EventTrigger.Entry();
+        exitEntry.eventID = EventTriggerType.PointerExit;
+        exitEntry.callback.AddListener((data) => OnButtonHoverExit(button));
+        trigger.triggers.Add(exitEntry);
+    }
+    
+    /// <summary>
+    /// Called when mouse hovers over a button
+    /// </summary>
+    private void OnButtonHoverEnter(Button button)
+    {
+        // Get the button's text to determine the node type
+        string buttonText = GetButtonText(button);
+        if (!string.IsNullOrEmpty(buttonText))
+        {
+            ShowNodeDetails(buttonText);
+        }
+    }
+    
+    /// <summary>
+    /// Called when mouse stops hovering over a button
+    /// </summary>
+    private void OnButtonHoverExit(Button button)
+    {
+        HideNodeDetails();
+    }
+    
+    /// <summary>
+    /// Gets the text from a button (looks for TMP_Text or Text components)
+    /// </summary>
+    private string GetButtonText(Button button)
+    {
+        // Try TMP_Text first
+        TMPro.TMP_Text tmpText = button.GetComponentInChildren<TMPro.TMP_Text>();
+        if (tmpText != null)
+        {
+            return tmpText.text;
+        }
+        
+        // Fallback to legacy Text
+        Text legacyText = button.GetComponentInChildren<Text>();
+        if (legacyText != null)
+        {
+            return legacyText.text;
+        }
+        
+        return "";
+    }
+    
+    /// <summary>
+    /// Shows node details for the hovered button
+    /// </summary>
+    private void ShowNodeDetails(string nodeLabel)
+    {
+        if (nodeDetailsPanel == null)
+        {
+            // Try to find the node details panel
+            GameObject uiCanvas = GameObject.Find("UICanvas");
+            if (uiCanvas != null)
+            {
+                Transform nodeDetails = uiCanvas.transform.Find("NodeDetails");
+                if (nodeDetails != null)
+                {
+                    nodeDetailsPanel = nodeDetails.gameObject;
+                }
+            }
+        }
+        
+        if (nodeDetailsPanel == null)
+            return;
+        
+        // Show the panel
+        nodeDetailsPanel.SetActive(true);
+        
+        // Get the description using the same logic as NodeDeleteUI
+        string description = GetNodeDescription(nodeLabel);
+        
+        // Find and update the TextMeshPro child
+        TMPro.TMP_Text descriptionText = nodeDetailsPanel.GetComponentInChildren<TMPro.TMP_Text>();
+        if (descriptionText != null)
+        {
+            descriptionText.text = description;
+        }
+    }
+    
+    /// <summary>
+    /// Hides the node details panel
+    /// </summary>
+    private void HideNodeDetails()
+    {
+        if (nodeDetailsPanel != null)
+        {
+            nodeDetailsPanel.SetActive(false);
+        }
+    }
+    
+    /// <summary>
+    /// Gets the description for a node based on its label
+    /// </summary>
+    private string GetNodeDescription(string nodeLabel)
+    {
+        if (string.IsNullOrEmpty(nodeLabel))
+            return "Unknown node type.";
+        
+        string lowerLabel = nodeLabel.ToLower();
+        
+        // Conditions
+        if (lowerLabel.Contains("if self"))
+            return "Sets only the evaluation target as itself e.g. Ifself - Ifhp<90";
+        if (lowerLabel.Contains("if enemy"))
+            return "Checks for enemies in vision range. Passes to the output if an enemy is detected and sets it as both evaluation and current target.";
+        if (lowerLabel.Contains("if ally"))
+            return "Checks for allies in vision range. Passes to the output if an ally is detected and sets it as both evaluation and current target.";
+        if (lowerLabel.Contains("if any"))
+            return "Checks for any tank (enemy or ally) in vision range. Selects the closest tank as the evaluation and current target.";
+        if (lowerLabel.Contains("if rifle"))
+            return "Checks if the evaluation target has a rifle turret type.";
+        if (lowerLabel.Contains("if hp"))
+            return "Checks the HP of the evaluation target. Passes if target's HP meets the condition.";
+        if (lowerLabel.Contains("if armor"))
+            return "Checks if the evaluation target has a specific armor type.";
+        if (lowerLabel.Contains("if range"))
+            return "Checks the distance to the evaluation target. Passes if distance meets the condition.";
+        if (lowerLabel.Contains("if tag"))
+            return "Checks if the evaluation target has a specific tag number or range of numbers. Use with =, <, or > and a number.";
+        if (lowerLabel.Contains("ifmytag") || lowerLabel.Contains("if my tag"))
+            return "Checks your personal tag on the evaluation target. Passes if the tag value meets the condition. Personal tags are only visible to you.";
+        if (lowerLabel.Contains("ifteamtag") || lowerLabel.Contains("if team tag"))
+            return "Checks the team tag on the evaluation target. Passes if the tag value meets the condition. Team tags are shared across all teammates.";
+        
+        // Actions - Movement
+        if (lowerLabel.Contains("wander"))
+            return "Selects a random point within 100 units of the tanks current location and attempts to move there";
+        if (lowerLabel.Contains("move") || lowerLabel.Contains("forward"))
+            return "Tank Drives forward, use with Cycle nodes to patrol an area";
+        if (lowerLabel.Contains("rotateright"))
+            return "Tank Pivots to the right by the specified degrees.";
+        if (lowerLabel.Contains("rotateleft"))
+            return "Tank Pivots to the left by the specified degrees.";
+        if (lowerLabel.Contains("wait"))
+            return "Stops movement. Tank remains stationary.";
+        if (lowerLabel.Contains("chase"))
+            return "Continuously pursues the current target, closing distance. Useful for aggressive behavior.";
+        if (lowerLabel.Contains("flee"))
+            return "Moves away from the current target, can be used for maintaining or increasing distance.";
+        if (lowerLabel.Contains("mapcenter"))
+            return "Navigates to the center of the map. Useful for controlling key positions.";
+        if (lowerLabel.Contains("home"))
+            return "Tank Returns to its spawn position.";
+        
+        // Actions - Turret
+        if (lowerLabel.Contains("fire"))
+            return "Fires the tanks weapon. Use leadtarget to have the turret aim before firing";
+        if (lowerLabel.Contains("leadtarget") || lowerLabel.Contains("lead target"))
+            return "Using this under a Fire node will force it to verify aim before shooting. 0 will point right at target, any other numbers will predict enemy position e.g. leadtarget 15";
+        if (lowerLabel.Contains("alignfront"))
+            return "Rotates turret to face forward relative to the tank body.";
+        if (lowerLabel.Contains("alignright"))
+            return "Rotates turret to face right relative to the tank body.";
+        if (lowerLabel.Contains("alignleft"))
+            return "Rotates turret to face left relative to the tank body.";
+        if (lowerLabel.Contains("alignback"))
+            return "Rotates turret to face backward relative to the tank body.";
+        if (lowerLabel.Contains("rotateup"))
+            return "Tilts turret upward by the specified degrees.";
+        if (lowerLabel.Contains("rotatedown"))
+            return "Tilts turret downward by the specified degrees.";
+        if (lowerLabel.Contains("tag"))
+            return "Slaps number stickers on visible targets so your team can prioritize targets instead of only using the closest target (e.g. 2 enemies attacking but the further one is nearly dead)";
+
+        // Special
+        if (lowerLabel.Contains("cycle"))
+            return "Cycles through connected nodes in top to bottom sequence, entered value is number of seconds spent on each action. Returns to the first after completing all.";
+        if (lowerLabel.Contains("if coms") || lowerLabel.Contains("if comms"))
+            return "(Boolean Node)Target nodes used after this will have access to an ally target list in addition to their own vision (all tanks update their teams ally target list every 0.1 sec)";
+        
+        return "Custom node. Check the node label for behavior details.";
+    }
+    
+    void OnDestroy()
+    {
+        // Clean up node details when context menu is destroyed
+        HideNodeDetails();
     }
 
     void HideAllConditionPanels()

@@ -276,7 +276,8 @@ public class AiEditorFileUI : MonoBehaviour
                nodeLabel.StartsWith("IfMyTag") ||
                nodeLabel.StartsWith("If My Tag") ||
                nodeLabel.StartsWith("IfTeamTag") ||
-               nodeLabel.StartsWith("If Team Tag");
+               nodeLabel.StartsWith("If Team Tag") ||
+               nodeLabel.Contains("Cycle"); // Added for cycle nodes
     }
 
     void ToggleLoadPanel()
