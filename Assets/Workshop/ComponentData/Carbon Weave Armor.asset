@@ -15,7 +15,7 @@ MonoBehaviour:
   title: Carbon Weave Armor
   description: Light mobile armor
   cost: 100
-  weight: 5
+  weight: 10
   modelPrefab: {fileID: 1316712241508069579, guid: 25200d0eb4865bd40888054547fedd0e, type: 3}
   category: 1
   instanceId: 

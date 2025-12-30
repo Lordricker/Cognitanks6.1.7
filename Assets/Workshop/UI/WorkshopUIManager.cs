@@ -669,11 +669,13 @@ public class WorkshopUIManager : MonoBehaviour
                     slotData.engineFrameInstanceId = "";
                     slotData.enginePower = 0;
                     slotData.engineWeightCapacity = 0;
+                    slotData.engineWeight = 0;
                     slotData.engineFrameHP = 0;
                     break;
                 case ComponentCategory.Armor:
                     slotData.armorInstanceId = "";
                     slotData.armorHP = 0;
+                    slotData.armorWeight = 0;
                     break;
                 case ComponentCategory.Turret:
                     slotData.turretInstanceId = "";
@@ -685,6 +687,7 @@ public class WorkshopUIManager : MonoBehaviour
                     slotData.turretKnockback = "";
                     slotData.turretVisionRange = 0;
                     slotData.turretVisionCone = 0;
+                    slotData.turretWeight = 0;
                     break;
                 case ComponentCategory.AITree:
                     if (component is AiTreeAsset aiAsset)
@@ -698,7 +701,7 @@ public class WorkshopUIManager : MonoBehaviour
             }
             
             // Recalculate total weight after component removal
-            slotData.totalWeight = CalculateTotalWeight(slotData);
+            slotData.totalWeight = slotData.armorWeight + slotData.turretWeight + slotData.engineWeight;
         }
         else
         {
@@ -713,6 +716,7 @@ public class WorkshopUIManager : MonoBehaviour
                         slotData.enginePower = engineData.enginePower;
                         slotData.engineTorque = engineData.turningPower;
                         slotData.engineWeightCapacity = engineData.weightCapacity;
+                        slotData.engineWeight = engineData.weight;
                         slotData.engineFrameHP = 0; // EngineFrameData doesn't have HP property
                     }
                     break;
@@ -722,6 +726,7 @@ public class WorkshopUIManager : MonoBehaviour
                     if (component is ArmorData armorData)
                     {
                         slotData.armorHP = armorData.HP;
+                        slotData.armorWeight = armorData.weight;
                     }
                     break;
                 case ComponentCategory.Turret:
@@ -737,6 +742,7 @@ public class WorkshopUIManager : MonoBehaviour
                         slotData.turretKnockback = turretData.knockback;
                         slotData.turretVisionRange = turretData.visionRange;
                         slotData.turretVisionCone = turretData.visionCone;
+                        slotData.turretWeight = turretData.weight;
                     }
                     break;
                 case ComponentCategory.AITree:
@@ -751,7 +757,7 @@ public class WorkshopUIManager : MonoBehaviour
             }
             
             // Recalculate total weight after component assignment
-            slotData.totalWeight = CalculateTotalWeight(slotData);
+            slotData.totalWeight = slotData.armorWeight + slotData.turretWeight + slotData.engineWeight;
             
             slotData.displayName = slot.TankName;
         }

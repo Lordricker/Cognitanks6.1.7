@@ -97,7 +97,7 @@
     "title": "Fire test",
     "description": "AI behavior tree for Turret control",
     "cost": 150,
-    "weight": 1,
+    "weight": 0,
     "category": 2,
     "instanceId": "8d5066cb-d1bf-439f-9f70-3a024a6d0db5",
     "customColor": {

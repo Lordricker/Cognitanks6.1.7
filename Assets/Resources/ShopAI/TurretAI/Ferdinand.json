@@ -68,7 +68,7 @@
   "title": "Ferdinand",
   "description": "AI behavior tree for Turret control",
   "cost": 150,
-  "weight": 1,
+  "weight": 0,
   "category": 2,
   "instanceId": "Ferdinand_base_template",
   "customColor": {

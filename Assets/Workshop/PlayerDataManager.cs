@@ -143,6 +143,41 @@ public class PlayerDataManager : MonoBehaviour
             workshopUI.playerInventory.Clear();
             workshopUI.PopulateComponentList();
         }
+        
+        // Clear all instance IDs from tank slot JSONs
+        var tankSlotJsonManager = FindFirstObjectByType<TankSlotJsonManager>();
+        if (tankSlotJsonManager != null)
+        {
+            var allSlots = tankSlotJsonManager.GetAllTankSlots();
+            foreach (var slot in allSlots)
+            {
+                slot.turretAIInstanceId = "";
+                slot.navAIInstanceId = "";
+                slot.engineFrameInstanceId = "";
+                slot.armorInstanceId = "";
+                slot.turretInstanceId = "";
+                // Optionally reset weights and stats to defaults
+                slot.engineWeight = 0;
+                slot.armorWeight = 0;
+                slot.turretWeight = 0;
+                slot.totalWeight = 0;
+                // Reset other stats if needed
+                slot.enginePower = 0;
+                slot.engineWeightCapacity = 0;
+                slot.engineTorque = 0;
+                slot.armorHP = 0;
+                slot.turretDamage = 0;
+                slot.turretRange = 0;
+                slot.turretShotsPerSec = 0;
+                slot.turretBulletSpeed = 0;
+                slot.turretKnockback = "";
+                slot.turretVisionRange = 0;
+                slot.turretVisionCone = 0;
+                // Save the cleared slot
+                tankSlotJsonManager.UpdateTankSlot(slot.slotIndex, slot);
+            }
+        }
+        
         Debug.Log("Player data erased.");
     }
 

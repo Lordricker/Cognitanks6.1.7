@@ -15,11 +15,11 @@ MonoBehaviour:
   title: 'Accelerator Frame '
   description: more power but more weight
   cost: 250
-  weight: 25
+  weight: 35
   modelPrefab: {fileID: 7789181595919938413, guid: 027f2212bcb27a143a2803c493a0086c, type: 3}
   category: 3
   instanceId: 
   customColor: {r: 1, g: 1, b: 1, a: 1}
-  weightCapacity: 40
+  weightCapacity: 65
   enginePower: 14000
   turningPower: 20000

@@ -61,7 +61,6 @@ public class TankSlotDataJson
     [HideInInspector] public float engineTurnStartPercent = 0.5f; // 0-1 - starting power percentage
     
     [Header("Component Weights")]
-    public float chassisWeight = 50f;   // kg - base chassis weight
     public float armorWeight = 20f;     // kg - armor plating weight
     public float turretWeight = 15f;    // kg - turret assembly weight
     public float engineWeight = 15f;    // kg - engine weight

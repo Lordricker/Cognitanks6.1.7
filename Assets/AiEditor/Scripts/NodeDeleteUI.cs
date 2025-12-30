@@ -487,30 +487,42 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
                 return "0";
             return numberPart;
         }
-        else if (nodeLabel.StartsWith("Rotate Left "))
+        else if (nodeLabel.Contains("Rotate Left"))
         {
-            string numberPart = nodeLabel.Substring(11); // Skip "Rotate Left "
-            // Remove the ° symbol if present
-            numberPart = numberPart.Replace("°", "");
-            if (numberPart == "#" || string.IsNullOrEmpty(numberPart))
-                return "0";
-            return numberPart;
+            int index = nodeLabel.IndexOf("Rotate Left");
+            if (index >= 0)
+            {
+                string numberPart = nodeLabel.Substring(index + 11); // Skip "Rotate Left"
+                // Remove the ° symbol if present
+                numberPart = numberPart.Replace("°", "");
+                if (numberPart == "#" || string.IsNullOrEmpty(numberPart))
+                    return "0";
+                return numberPart;
+            }
         }
-        else if (nodeLabel.StartsWith("Rotate Right "))
+        else if (nodeLabel.Contains("Rotate Right"))
         {
-            string numberPart = nodeLabel.Substring(12); // Skip "Rotate Right "
-            // Remove the ° symbol if present
-            numberPart = numberPart.Replace("°", "");
-            if (numberPart == "#" || string.IsNullOrEmpty(numberPart))
-                return "0";
-            return numberPart;
+            int index = nodeLabel.IndexOf("Rotate Right");
+            if (index >= 0)
+            {
+                string numberPart = nodeLabel.Substring(index + 12); // Skip "Rotate Right"
+                // Remove the ° symbol if present
+                numberPart = numberPart.Replace("°", "");
+                if (numberPart == "#" || string.IsNullOrEmpty(numberPart))
+                    return "0";
+                return numberPart;
+            }
         }
-        else if (nodeLabel.StartsWith("Cycle "))
+        else if (nodeLabel.Contains("Cycle"))
         {
-            string numberPart = nodeLabel.Substring(6); // Skip "Cycle "
-            if (numberPart == "#" || string.IsNullOrEmpty(numberPart))
-                return "0";
-            return numberPart;
+            int index = nodeLabel.IndexOf("Cycle");
+            if (index >= 0)
+            {
+                string numberPart = nodeLabel.Substring(index + 6); // Skip "Cycle "
+                if (numberPart == "#" || string.IsNullOrEmpty(numberPart))
+                    return "0";
+                return numberPart;
+            }
         }
         
         return "0";

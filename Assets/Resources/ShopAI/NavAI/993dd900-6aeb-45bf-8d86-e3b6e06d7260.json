@@ -38,7 +38,7 @@
     "title": "EnemyWander",
     "description": "AI behavior tree for Nav control",
     "cost": 100,
-    "weight": 1,
+    "weight": 0,
     "category": 2,
     "instanceId": "993dd900-6aeb-45bf-8d86-e3b6e06d7260",
     "customColor": {

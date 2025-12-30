@@ -52,6 +52,7 @@ public class TankSlotButtonUI : MonoBehaviour
                 slotData.engineWeightCapacity = engineData.weightCapacity;
                 slotData.enginePower = engineData.enginePower;
                 slotData.engineTorque = engineData.turningPower;
+                slotData.engineWeight = data.weight;
                 Debug.Log($"[TankSlotButtonUI] Copied engine stats: WeightCapacity={engineData.weightCapacity}, Power={engineData.enginePower}, TurningPower={engineData.turningPower}");
             }
         } else if (data.category == ComponentCategory.Armor) {
@@ -63,6 +64,7 @@ public class TankSlotButtonUI : MonoBehaviour
             if (data is ArmorData armorData)
             {
                 slotData.armorHP = armorData.HP;
+                slotData.armorWeight = data.weight;
                 Debug.Log($"[TankSlotButtonUI] Copied armor stats: HP={armorData.HP}");
             }
         } else if (data.category == ComponentCategory.Turret) {
@@ -79,6 +81,7 @@ public class TankSlotButtonUI : MonoBehaviour
                 slotData.turretKnockback = turretData.knockback;
                 slotData.turretVisionRange = turretData.visionRange;
                 slotData.turretVisionCone = turretData.visionCone;
+                slotData.turretWeight = data.weight;
                 Debug.Log($"[TankSlotButtonUI] Copied turret stats: Damage={turretData.damage}, Range={turretData.range}, ShotsPerSec={turretData.shotspersec}");
             }
         } else if (data.category == ComponentCategory.AITree) {
@@ -112,6 +115,9 @@ public class TankSlotButtonUI : MonoBehaviour
             }
         }
         // Add more categories as needed
+        
+        // Recalculate total weight
+        slotData.totalWeight = slotData.armorWeight + slotData.turretWeight + slotData.engineWeight;
         
         // Save the updated slot data to JSON
         tankSlotJsonManager.UpdateTankSlot(slotIndex, slotData);

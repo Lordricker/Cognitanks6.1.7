@@ -160,7 +160,7 @@ public class TankMan : MonoBehaviour
     // Coms penalty tracking
     private bool isCurrentlyUsingComs = false; // True when the current AI iteration is using Coms intel
     private const float COMS_SPEED_PENALTY = 0.5f; // 50% speed reduction when using Coms
-    private const float COMS_ALLY_DELAY_PER_TANK = 0.2f; // Additional AI delay per ally
+    private const float COMS_ALLY_DELAY_PER_TANK = 0.1f; // Additional AI delay per ally
     
     // Debug tracking
     private Quaternion lastTurretRotation = Quaternion.identity; // For turret rotation speed debug
@@ -466,7 +466,7 @@ public class TankMan : MonoBehaviour
         }
         
         // Calculate total weight from individual components
-        totalWeight = tankSlotData.chassisWeight + tankSlotData.armorWeight + 
+        totalWeight = tankSlotData.armorWeight + 
                       tankSlotData.turretWeight + tankSlotData.engineWeight;
         
         // Update tank slot data's calculated total (for consistency)
@@ -834,8 +834,8 @@ public class TankMan : MonoBehaviour
         // Determine if this is Nav or Turret AI
         bool isNavAI = (tree == runtimeNavAI);
         
-        // Check if this is a Cycle node (identified by methodName "Cycle")
-        if (node.methodName == "Cycle")
+        // Check if this is a Cycle node (identified by methodName starting with "Cycle")
+        if (node.methodName.StartsWith("Cycle"))
         {
             return ExecuteCycleNode(node, tree);
         }
@@ -1047,6 +1047,14 @@ public class TankMan : MonoBehaviour
     /// </summary>
     AiExecutableNode GetNextNodeFromAction(AiExecutableNode actionNode, AiTreeAsset tree)
     {
+        // Check if this action belongs to a cycle node
+        AiExecutableNode parentCycle = GetParentCycleNode(actionNode, tree);
+        if (parentCycle != null)
+        {
+            // Return to the cycle node so it can advance to the next action
+            return parentCycle;
+        }
+        
         // Always restart from beginning after executing an action
         // This ensures the AI re-evaluates all conditions every update cycle (0.1s)
         // and can properly backtrack when conditions become false
@@ -1091,14 +1099,21 @@ public class TankMan : MonoBehaviour
         {
             cycleNodeMemory[cycleNode.nodeId] = 0;
             cycleNodeTimeSpent[cycleNode.nodeId] = 0f;
+            cycleNodeCompletionFlags[cycleNode.nodeId] = false;
         }
         
         int currentChildIndex = cycleNodeMemory[cycleNode.nodeId];
         float timeSpent = cycleNodeTimeSpent[cycleNode.nodeId];
         
-        // Check if the time for current action has expired
-        if (timeSpent >= cycleTime)
+        // Check if the current action has completed early (e.g., rotation reached target)
+        bool actionCompletedEarly = cycleNodeCompletionFlags.ContainsKey(cycleNode.nodeId) && cycleNodeCompletionFlags[cycleNode.nodeId];
+        
+        // Check if the time for current action has expired or action completed early
+        if (timeSpent >= cycleTime || actionCompletedEarly)
         {
+            // Reset the completion flag
+            cycleNodeCompletionFlags[cycleNode.nodeId] = false;
+            
             // Move to next child
             currentChildIndex++;
             
@@ -1162,7 +1177,7 @@ public class TankMan : MonoBehaviour
     {
         foreach (var node in tree.executableNodes)
         {
-            if (node.methodName == "Cycle" && node.connectedNodeIds.Contains(actionNode.nodeId))
+            if (node.methodName.StartsWith("Cycle") && node.connectedNodeIds.Contains(actionNode.nodeId))
             {
                 return node;
             }
