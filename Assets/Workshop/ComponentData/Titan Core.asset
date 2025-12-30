@@ -15,7 +15,7 @@ MonoBehaviour:
   title: Titan Core
   description: more power but more weight
   cost: 250
-  weight: 150
+  weight: 120
   modelPrefab: {fileID: 7789181595919938413, guid: a0df50254b253294d958b2f7ecd333c1, type: 3}
   category: 3
   instanceId: 

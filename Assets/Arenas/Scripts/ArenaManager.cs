@@ -45,6 +45,7 @@ public class ArenaManager : MonoBehaviour
     [SerializeField] private Canvas uiCanvas; // Main UI Canvas
     [SerializeField] private GameObject victoryPanel; // Victory panel to show when player wins
     [SerializeField] private GameObject lossPanel; // Loss panel to show when player loses
+    [SerializeField] private GameObject tipPanel; // Tip panel to show after victory/loss
     [SerializeField] private float gameEndCheckInterval = 1f; // How often to check game state
     
     [Header("Legacy Team Layer Configuration (Deprecated)")]
@@ -549,6 +550,13 @@ public class ArenaManager : MonoBehaviour
                 lossPanel = lossTransform.gameObject;
         }
         
+        if (tipPanel == null)
+        {
+            Transform tipTransform = uiCanvas.transform.Find("TipPanel");
+            if (tipTransform != null)
+                tipPanel = tipTransform.gameObject;
+        }
+        
         // Determine if player team won
         bool playerWon = false;
         
@@ -603,6 +611,16 @@ public class ArenaManager : MonoBehaviour
                 Debug.LogWarning("[ArenaManager] Loss panel not found! Please create a 'LossPanel' GameObject under the UI Canvas.");
             }
         }
+        
+        // Show tip panel after a short delay
+        if (tipPanel != null)
+        {
+            StartCoroutine(ShowTipPanelDelayed());
+        }
+        else
+        {
+            Debug.LogWarning("[ArenaManager] Tip panel not found! Please create a 'TipPanel' GameObject under the UI Canvas.");
+        }
     }
     
     /// <summary>
@@ -636,6 +654,21 @@ public class ArenaManager : MonoBehaviour
         
         // Ensure alpha is exactly 1 at the end
         canvasGroup.alpha = 1f;
+    }
+    
+    /// <summary>
+    /// Shows the tip panel after a short delay
+    /// </summary>
+    System.Collections.IEnumerator ShowTipPanelDelayed()
+    {
+        // Wait 2 seconds after victory/loss panel appears
+        yield return new WaitForSecondsRealtime(2f);
+        
+        if (tipPanel != null)
+        {
+            StartCoroutine(FadeInPanel(tipPanel));
+            Debug.Log("[ArenaManager] Tip panel shown!");
+        }
     }
 }
 

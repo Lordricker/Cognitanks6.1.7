@@ -148,7 +148,7 @@ public class PlayerDataManager : MonoBehaviour
         var tankSlotJsonManager = FindFirstObjectByType<TankSlotJsonManager>();
         if (tankSlotJsonManager != null)
         {
-            var allSlots = tankSlotJsonManager.GetAllTankSlots();
+            var allSlots = new List<TankSlotDataJson>(tankSlotJsonManager.GetAllTankSlots()); // Create a copy to avoid enumeration issues
             foreach (var slot in allSlots)
             {
                 slot.turretAIInstanceId = "";
