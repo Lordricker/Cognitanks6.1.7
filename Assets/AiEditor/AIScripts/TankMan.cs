@@ -2407,7 +2407,9 @@ public class TankMan : MonoBehaviour
                 continue;
             }
 
-            float distance = (currentWanderTarget - transform.position).magnitude;
+            Vector3 diff = currentWanderTarget - transform.position;
+            diff.y = 0;
+            float distance = diff.magnitude;
             if (distance < wanderReachDistance)
                 break;
 
