@@ -147,7 +147,7 @@ public class BulletScript : MonoBehaviour
     /// </summary>
     void Explode()
     {
-        Debug.Log($"[BulletScript] Bullet exploded at {transform.position}");
+        
         
         // Spawn explosion effect if available
         if (explosionPrefab != null)
