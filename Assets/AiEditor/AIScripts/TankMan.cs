@@ -36,7 +36,7 @@ public class TankMan : MonoBehaviour
     [SerializeField] private float enginePower = 15000f;         // Forward force (N)
     [SerializeField] private float turningPower = 20000f;        // Turning torque (N·m)
     [SerializeField] private float topSpeed = 15f;               // Max speed (m/s)
-    [SerializeField] private float maxTurnRate = 100f;           // Max turn rate (deg/s)
+    [SerializeField] private float maxTurnRate = 70f;           // Max turn rate (deg/s)
     [SerializeField] private float turnRampUpTime = 1.0f;        // Turn ramp-up time (seconds)
     [SerializeField] private float turnStartPowerPercent = 0.5f; // Starting turn power (0-1)
     [SerializeField] private float dragCoefficient = 0.5f;       // Rolling resistance
@@ -73,6 +73,11 @@ public class TankMan : MonoBehaviour
     
     [Header("Death Effects")]
     [SerializeField] private GameObject deathExplosionPrefab; // Fire explosion effect for tank death
+    
+    [Header("Tank Driving Sound")]
+    private AudioSource tankDrivingAudioSource;
+    private bool isTankMoving = false;
+    private float drivingSoundFadeDuration = 0.3f;
     
     [Header("Tank Stats - Read Only")]
     [SerializeField] private float totalWeight;
@@ -111,6 +116,18 @@ public class TankMan : MonoBehaviour
     public TurretType TurretType => turretType;
     public AiTreeAsset AssignedNavAI => runtimeNavAI;
     public AiTreeAsset AssignedTurretAI => runtimeTurretAI;
+    public Rigidbody Rb => rb;
+
+    public float ParseKnockback()
+    {
+        switch (knockback)
+        {
+            case "Low": return 20f;
+            case "Medium": return 100f;
+            case "High": return 300f;
+            default: return 1f; // Default bullet mass
+        }
+    }
 
 
     // Physics-based movement properties (for AI reference)
@@ -144,8 +161,8 @@ public class TankMan : MonoBehaviour
     
     // Cycle node memory - tracks which child node each Cycle instance is currently executing
     private Dictionary<string, int> cycleNodeMemory = new Dictionary<string, int>();
-    private Dictionary<string, bool> cycleNodeCompletionFlags = new Dictionary<string, bool>();
     private Dictionary<string, float> cycleNodeTimeSpent = new Dictionary<string, float>();
+    private Dictionary<string, float> cycleNodeLastUpdateTime = new Dictionary<string, float>();
     
     // Sensor data
     private GameObject currentTarget; // Target for actions (flee, chase, fire, etc.)
@@ -161,6 +178,9 @@ public class TankMan : MonoBehaviour
     private bool isCurrentlyUsingComs = false; // True when the current AI iteration is using Coms intel
     private const float COMS_SPEED_PENALTY = 0.5f; // 50% speed reduction when using Coms
     private const float COMS_ALLY_DELAY_PER_TANK = 0.1f; // Additional AI delay per ally
+    
+    // Knockback state
+    private Collider[] wheelColliders;
     
     // Debug tracking
     private Quaternion lastTurretRotation = Quaternion.identity; // For turret rotation speed debug
@@ -196,6 +216,12 @@ public class TankMan : MonoBehaviour
         // Initialize team info - this is critical for enemy detection
         EnsureTeamInfoExists();
         
+        // Find wheel colliders for knockback friction control
+        Transform wheelContainer = transform.Find("WheelColliders");
+        if (wheelContainer != null)
+        {
+            wheelColliders = wheelContainer.GetComponentsInChildren<Collider>();
+        }
        
         
         // Load AI from tankSlotData for display/reference
@@ -322,6 +348,18 @@ public class TankMan : MonoBehaviour
         
         // Store previous turn input for next frame
         previousTurnInput = currentTurnInput;
+        
+        // Handle tank driving sound based on movement
+        bool isCurrentlyMoving = Mathf.Abs(currentMoveInput) > 0.1f || Mathf.Abs(currentTurnInput) > 0.1f;
+        if (isCurrentlyMoving && !isTankMoving)
+        {
+            StartTankDrivingSound();
+        }
+        else if (!isCurrentlyMoving && isTankMoving)
+        {
+            StopTankDrivingSound();
+        }
+        isTankMoving = isCurrentlyMoving;
         
         // Aggressively limit speeds to engine's mechanical limits
         // Note: Speed limits are reduced by 50% when using IfComs (see MoveSpeed/TurnSpeed properties)
@@ -501,7 +539,7 @@ public class TankMan : MonoBehaviour
             enginePower = tankSlotData.engineForce > 0 ? tankSlotData.engineForce : 15000f;
             turningPower = tankSlotData.engineTorque > 0 ? tankSlotData.engineTorque : 20000f;
             topSpeed = tankSlotData.engineTopSpeed > 0 ? tankSlotData.engineTopSpeed : 15f;
-            maxTurnRate = tankSlotData.engineMaxTurnRate > 0 ? tankSlotData.engineMaxTurnRate : 120f;
+            maxTurnRate = tankSlotData.engineMaxTurnRate > 0 ? tankSlotData.engineMaxTurnRate : 70f;
             turnRampUpTime = tankSlotData.engineTurnRampTime > 0 ? tankSlotData.engineTurnRampTime : 1.0f;
             turnStartPowerPercent = tankSlotData.engineTurnStartPercent > 0 ? tankSlotData.engineTurnStartPercent : 0.5f;
             dragCoefficient = tankSlotData.dragCoefficient > 0 ? tankSlotData.dragCoefficient : 0.5f;
@@ -690,6 +728,59 @@ public class TankMan : MonoBehaviour
     public void SetDeathExplosionPrefab(GameObject prefab)
     {
         deathExplosionPrefab = prefab;
+    }
+
+    private void StartTankDrivingSound()
+    {
+        if (SoundManager.Instance == null || SoundManager.Instance.tankDrivingSound == null) return;
+        
+        if (tankDrivingAudioSource == null)
+        {
+            tankDrivingAudioSource = gameObject.AddComponent<AudioSource>();
+            tankDrivingAudioSource.clip = SoundManager.Instance.tankDrivingSound;
+            tankDrivingAudioSource.loop = true;
+            tankDrivingAudioSource.playOnAwake = false;
+            tankDrivingAudioSource.volume = 0f;
+            tankDrivingAudioSource.spatialBlend = 1f; // 3D audio
+        }
+        
+        tankDrivingAudioSource.Play();
+        StartCoroutine(FadeTankDrivingSound(SoundManager.Instance.masterVolume * SoundManager.Instance.sfxVolume * SoundManager.Instance.tankDrivingVolume));
+    }
+
+    private void StopTankDrivingSound()
+    {
+        if (tankDrivingAudioSource != null && tankDrivingAudioSource.isPlaying)
+        {
+            StartCoroutine(FadeTankDrivingSoundOut());
+        }
+    }
+
+    private IEnumerator FadeTankDrivingSound(float targetVolume)
+    {
+        float startVolume = tankDrivingAudioSource.volume;
+        float elapsed = 0f;
+        while (elapsed < drivingSoundFadeDuration)
+        {
+            elapsed += Time.deltaTime;
+            tankDrivingAudioSource.volume = Mathf.Lerp(startVolume, targetVolume, elapsed / drivingSoundFadeDuration);
+            yield return null;
+        }
+        tankDrivingAudioSource.volume = targetVolume;
+    }
+
+    private IEnumerator FadeTankDrivingSoundOut()
+    {
+        float startVolume = tankDrivingAudioSource.volume;
+        float elapsed = 0f;
+        while (elapsed < drivingSoundFadeDuration)
+        {
+            elapsed += Time.deltaTime;
+            tankDrivingAudioSource.volume = Mathf.Lerp(startVolume, 0f, elapsed / drivingSoundFadeDuration);
+            yield return null;
+        }
+        tankDrivingAudioSource.volume = 0f;
+        tankDrivingAudioSource.Stop();
     }
 
     #endregion
@@ -1044,20 +1135,14 @@ public class TankMan : MonoBehaviour
       /// <summary>
     /// Gets the next node after an action
     /// Actions always restart from the beginning so the tree is re-evaluated every cycle
+    /// This allows higher priority conditions to interrupt cycle nodes
     /// </summary>
     AiExecutableNode GetNextNodeFromAction(AiExecutableNode actionNode, AiTreeAsset tree)
     {
-        // Check if this action belongs to a cycle node
-        AiExecutableNode parentCycle = GetParentCycleNode(actionNode, tree);
-        if (parentCycle != null)
-        {
-            // Return to the cycle node so it can advance to the next action
-            return parentCycle;
-        }
-        
         // Always restart from beginning after executing an action
         // This ensures the AI re-evaluates all conditions every update cycle (0.1s)
         // and can properly backtrack when conditions become false
+        // Cycle nodes use memory to resume where they left off when reached again
         return GetFirstNodeFromStart(tree);
     }
     
@@ -1067,6 +1152,8 @@ public class TankMan : MonoBehaviour
     
     /// <summary>
     /// Executes a Cycle node, managing memory to cycle through its connected action nodes based on time
+    /// Cycles through nodes from top to bottom, tracking time on each node
+    /// Resumes from last position when interrupted by higher priority nodes
     /// </summary>
     AiExecutableNode ExecuteCycleNode(AiExecutableNode cycleNode, AiTreeAsset tree)
     {
@@ -1082,7 +1169,7 @@ public class TankMan : MonoBehaviour
             cycleTime = 1f; // Default to 1 second if invalid
         }
         
-        // Get sorted child nodes by Y position (highest first)
+        // Get sorted child nodes by Y position (highest first = top to bottom)
         var sortedChildren = cycleNode.connectedNodeIds
             .Select(nodeId => tree.executableNodes.Find(n => n.nodeId == nodeId))
             .Where(n => n != null)
@@ -1097,43 +1184,42 @@ public class TankMan : MonoBehaviour
         // Initialize memory for this cycle node if it doesn't exist
         if (!cycleNodeMemory.ContainsKey(cycleNode.nodeId))
         {
-            cycleNodeMemory[cycleNode.nodeId] = 0;
+            cycleNodeMemory[cycleNode.nodeId] = 0; // Start at first child (top)
             cycleNodeTimeSpent[cycleNode.nodeId] = 0f;
-            cycleNodeCompletionFlags[cycleNode.nodeId] = false;
+            cycleNodeLastUpdateTime[cycleNode.nodeId] = Time.time;
         }
         
+        // Get current state
         int currentChildIndex = cycleNodeMemory[cycleNode.nodeId];
         float timeSpent = cycleNodeTimeSpent[cycleNode.nodeId];
+        float lastUpdateTime = cycleNodeLastUpdateTime[cycleNode.nodeId];
         
-        // Check if the current action has completed early (e.g., rotation reached target)
-        bool actionCompletedEarly = cycleNodeCompletionFlags.ContainsKey(cycleNode.nodeId) && cycleNodeCompletionFlags[cycleNode.nodeId];
+        // Calculate time elapsed since last update (handles interruptions)
+        float deltaTime = Time.time - lastUpdateTime;
+        cycleNodeLastUpdateTime[cycleNode.nodeId] = Time.time;
         
-        // Check if the time for current action has expired or action completed early
-        if (timeSpent >= cycleTime || actionCompletedEarly)
+        // Increment time spent on current node
+        timeSpent += deltaTime;
+        cycleNodeTimeSpent[cycleNode.nodeId] = timeSpent;
+        
+        // Check if time for current node has expired
+        if (timeSpent >= cycleTime)
         {
-            // Reset the completion flag
-            cycleNodeCompletionFlags[cycleNode.nodeId] = false;
-            
-            // Move to next child
+            // Move to next child (top to bottom)
             currentChildIndex++;
             
             // Wrap around if we've reached the end
             if (currentChildIndex >= sortedChildren.Count)
             {
-                currentChildIndex = 0;
+                currentChildIndex = 0; // Back to top
             }
             
-            // Reset time for new action
+            // Update memory and reset time for new node
             cycleNodeMemory[cycleNode.nodeId] = currentChildIndex;
             cycleNodeTimeSpent[cycleNode.nodeId] = 0f;
         }
-        else
-        {
-            // Increment time spent on current action
-            cycleNodeTimeSpent[cycleNode.nodeId] = timeSpent + Time.deltaTime;
-        }
         
-        // Execute the current child node
+        // Return the current child node
         var currentChild = sortedChildren[currentChildIndex];
         return currentChild;
     }
@@ -1156,18 +1242,6 @@ public class TankMan : MonoBehaviour
             }
         }
         return 0f;
-    }
-    
-    /// <summary>
-    /// Marks the current action in a cycle as completed
-    /// Called by action nodes when they complete their task
-    /// </summary>
-    public void MarkCycleActionComplete(string cycleNodeId)
-    {
-        if (cycleNodeCompletionFlags.ContainsKey(cycleNodeId))
-        {
-            cycleNodeCompletionFlags[cycleNodeId] = true;
-        }
     }
     
     /// <summary>
@@ -1503,9 +1577,19 @@ public class TankMan : MonoBehaviour
                 break;
                 
             case "IfComs":
-                // Coms condition - always returns true (it's a flag for child nodes)
-                // It enables child nodes to use AllyTargetList for targeting
-                result = true;
+                // Coms condition - check if AllyTargetList has any targets available
+                // If no targets available, returns false to allow backtracking to other branches
+                comsTarget = GetComsTarget();
+                if (comsTarget != null)
+                {
+                    result = true;
+                    // Don't set currentTarget here - let child conditions handle targeting
+                }
+                else
+                {
+                    result = false;
+                    isCurrentlyUsingComs = false;
+                }
                 break;
                 
             case "IfEnemy":
@@ -2136,7 +2220,7 @@ public class TankMan : MonoBehaviour
             BulletScript bulletScript = bullet.GetComponent<BulletScript>();
             if (bulletScript != null)
             {
-                bulletScript.Initialize(damage, range, myTeamInfo.teamId, turretType == TurretType.Artillery);
+                bulletScript.Initialize(damage, range, myTeamInfo.teamId, turretType == TurretType.Artillery, ParseKnockback());
             }
             else
             {
@@ -2225,14 +2309,64 @@ public class TankMan : MonoBehaviour
         float finalDamage = Mathf.Max(0, damageAmount - armor);
         currentHealth -= finalDamage;
         
+        // Reduce wheel friction temporarily for knockback effect
+        if (wheelColliders != null && wheelColliders.Length > 0)
+        {
+            StartCoroutine(ReduceWheelFrictionTemporarily());
+        }
         
         if (currentHealth <= 0)
         {
             Die();
         }
-    }    void Die()
+    }
+    
+    /// <summary>
+    /// Temporarily reduces wheel collider friction to allow knockback to move the tank
+    /// </summary>
+    private System.Collections.IEnumerator ReduceWheelFrictionTemporarily()
+    {
+        // Store original physics materials
+        PhysicsMaterial[] originalMaterials = new PhysicsMaterial[wheelColliders.Length];
+        
+        // Create zero-friction material
+        PhysicsMaterial zeroFriction = new PhysicsMaterial("ZeroFriction");
+        zeroFriction.dynamicFriction = 0f;
+        zeroFriction.staticFriction = 0f;
+        zeroFriction.frictionCombine = PhysicsMaterialCombine.Minimum;
+        
+        // Apply zero friction to all wheel colliders
+        for (int i = 0; i < wheelColliders.Length; i++)
+        {
+            if (wheelColliders[i] != null)
+            {
+                originalMaterials[i] = wheelColliders[i].material;
+                wheelColliders[i].material = zeroFriction;
+            }
+        }
+        
+        // Wait for 0.5 seconds
+        yield return new WaitForSeconds(0.5f);
+        
+        // Restore original materials
+        for (int i = 0; i < wheelColliders.Length; i++)
+        {
+            if (wheelColliders[i] != null)
+            {
+                wheelColliders[i].material = originalMaterials[i];
+            }
+        }
+        
+        Destroy(zeroFriction);
+    }
+    
+    void Die()
     {
         StopAI();
+
+        // Play explosion sound at tank position
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.PlayExplosionAtPosition(transform.position);
 
         // Remove/destroy the turret if it exists
         if (turretTransform != null)
@@ -2253,6 +2387,9 @@ public class TankMan : MonoBehaviour
                 ParticleSystem[] particleSystems = explosion.GetComponentsInChildren<ParticleSystem>();
                 foreach (var ps in particleSystems)
                 {
+                    // Stop the system first to allow property changes
+                    ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                    
                     var main = ps.main;
                     main.duration = 20f;
                     main.startLifetime = 20f;
@@ -2269,6 +2406,9 @@ public class TankMan : MonoBehaviour
                     
                     // Stop emitting new particles after 15 seconds to create fade effect
                     StartCoroutine(StopEmissionAfterDelay(ps, 15f));
+                    
+                    // Play the system after setting properties
+                    ps.Play();
                 }
                 
                 // Destroy explosion after 25 seconds (5 extra seconds for particles to finish)
@@ -2633,12 +2773,6 @@ public class TankMan : MonoBehaviour
             {
                 // Reached map center - stop
                 StopMovement();
-                
-                // Mark cycle as complete if part of a cycle
-                if (parentCycle != null)
-                {
-                    MarkCycleActionComplete(parentCycle.nodeId);
-                }
                 break;
             }
 
@@ -2694,12 +2828,6 @@ public class TankMan : MonoBehaviour
             {
                 // Reached home - stop
                 StopMovement();
-                
-                // Mark cycle as complete if part of a cycle
-                if (parentCycle != null)
-                {
-                    MarkCycleActionComplete(parentCycle.nodeId);
-                }
                 break;
             }
 
@@ -3038,11 +3166,7 @@ public class TankMan : MonoBehaviour
             // Check if we're aligned
             if (Mathf.Abs(angleDiff) <= threshold)
             {
-                // Aligned! Mark cycle as complete if part of a cycle
-                if (parentCycle != null)
-                {
-                    MarkCycleActionComplete(parentCycle.nodeId);
-                }
+                // Aligned!
                 yield break;
             }
             
@@ -3100,11 +3224,7 @@ public class TankMan : MonoBehaviour
             // Check if we're aligned
             if (Mathf.Abs(angleDiff) <= threshold)
             {
-                // Aligned! Mark cycle as complete if part of a cycle
-                if (parentCycle != null)
-                {
-                    MarkCycleActionComplete(parentCycle.nodeId);
-                }
+                // Aligned!
                 yield break;
             }
             
@@ -3162,11 +3282,7 @@ public class TankMan : MonoBehaviour
             // Check if we're aligned
             if (Mathf.Abs(angleDiff) <= threshold)
             {
-                // Aligned! Mark cycle as complete if part of a cycle
-                if (parentCycle != null)
-                {
-                    MarkCycleActionComplete(parentCycle.nodeId);
-                }
+                // Aligned!
                 yield break;
             }
             
@@ -3224,11 +3340,7 @@ public class TankMan : MonoBehaviour
             // Check if we're aligned
             if (Mathf.Abs(angleDiff) <= threshold)
             {
-                // Aligned! Mark cycle as complete if part of a cycle
-                if (parentCycle != null)
-                {
-                    MarkCycleActionComplete(parentCycle.nodeId);
-                }
+                // Aligned!
                 yield break;
             }
             
@@ -3291,11 +3403,7 @@ public class TankMan : MonoBehaviour
             // Check if we've reached the target
             if (Mathf.Abs(angleDiff) <= threshold)
             {
-                // Reached! Mark cycle as complete if part of a cycle
-                if (parentCycle != null)
-                {
-                    MarkCycleActionComplete(parentCycle.nodeId);
-                }
+                // Reached!
                 yield break;
             }
             
@@ -3359,11 +3467,7 @@ public class TankMan : MonoBehaviour
             // Check if we've reached the target
             if (Mathf.Abs(angleDiff) <= threshold)
             {
-                // Reached! Mark cycle as complete if part of a cycle
-                if (parentCycle != null)
-                {
-                    MarkCycleActionComplete(parentCycle.nodeId);
-                }
+                // Reached!
                 yield break;
             }
             
@@ -3472,12 +3576,8 @@ public class TankMan : MonoBehaviour
             // Check if we've reached the target rotation
             if (Mathf.Abs(angleDiff) <= threshold)
             {
-                // Reached target! Stop movement and mark cycle as complete if part of a cycle
+                // Reached target! Stop movement
                 StopMovement();
-                if (parentCycle != null)
-                {
-                    MarkCycleActionComplete(parentCycle.nodeId);
-                }
                 yield break;
             }
             
@@ -3544,12 +3644,8 @@ public class TankMan : MonoBehaviour
             // Check if we've reached the target rotation
             if (Mathf.Abs(angleDiff) <= threshold)
             {
-                // Reached target! Stop movement and mark cycle as complete if part of a cycle
+                // Reached target! Stop movement
                 StopMovement();
-                if (parentCycle != null)
-                {
-                    MarkCycleActionComplete(parentCycle.nodeId);
-                }
                 yield break;
             }
             

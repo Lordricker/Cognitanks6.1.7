@@ -17,6 +17,7 @@ public class ArenaUIManager : MonoBehaviour
     public Button pauseButton;
     public Button resumeButton;
     public Button settingsButton;
+    public GameObject settingsPanel;
 
     private float[] speedLevels = { 0.2f, 0.5f, 1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f, 9f, 10f };
     private int currentSpeedIndex = 2;
@@ -37,6 +38,8 @@ public class ArenaUIManager : MonoBehaviour
 
         UpdateSpeedText();
         pauseOverlay.SetActive(false);
+        if (settingsPanel != null)
+            settingsPanel.SetActive(false);
     }
 
     void OnGlobalCamera()
@@ -82,6 +85,10 @@ public class ArenaUIManager : MonoBehaviour
 
     void OpenSettings()
     {
-        // TODO: Open settings menu
+        if (settingsPanel != null)
+        {
+            bool isActive = settingsPanel.activeSelf;
+            settingsPanel.SetActive(!isActive);
+        }
     }
 }

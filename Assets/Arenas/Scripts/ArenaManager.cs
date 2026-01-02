@@ -592,6 +592,11 @@ public class ArenaManager : MonoBehaviour
             if (victoryPanel != null)
             {
                 StartCoroutine(FadeInPanel(victoryPanel));
+                
+                // Play round win sound
+                if (SoundManager.Instance != null)
+                    SoundManager.Instance.PlayRoundWin();
+                
                 Debug.Log("[ArenaManager] Victory panel shown!");
             }
             else
@@ -605,6 +610,10 @@ public class ArenaManager : MonoBehaviour
             {
                 StartCoroutine(FadeInPanel(lossPanel));
                 Debug.Log("[ArenaManager] Loss panel shown!");
+                
+                // Play round loss sound
+                if (SoundManager.Instance != null)
+                    SoundManager.Instance.PlayRoundLoss();
             }
             else
             {

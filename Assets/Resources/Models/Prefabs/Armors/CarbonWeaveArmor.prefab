@@ -66,10 +66,39 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 161772dca03a82644bca9f2d6baa0e6b, type: 3}
       propertyPath: m_Name
-      value: barmor
+      value: CarbonWeaveArmor
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 161772dca03a82644bca9f2d6baa0e6b, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1572914361365994146}
   m_SourcePrefab: {fileID: 100100000, guid: 161772dca03a82644bca9f2d6baa0e6b, type: 3}
+--- !u!1 &1316712241508069579 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 161772dca03a82644bca9f2d6baa0e6b, type: 3}
+  m_PrefabInstance: {fileID: 2199039882820717978}
+  m_PrefabAsset: {fileID: 0}
+--- !u!65 &1572914361365994146
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1316712241508069579}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 12.633825, y: 4.1392927, z: 15.17171}
+  m_Center: {x: -0.025518179, y: -0.27256393, z: 0.38200998}

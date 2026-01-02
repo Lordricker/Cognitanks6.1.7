@@ -8,6 +8,8 @@ public class BulletScript : MonoBehaviour
 {
     [Header("Explosion Effect")]
     [SerializeField] private GameObject explosionPrefab; // Assign explosion prefab in bullet prefab inspector
+    [SerializeField] private Vector3 explosionScale = new Vector3(10f, 5f, 10f); // Scale modifier for explosions
+    [SerializeField] private float explosionFadeDuration = 0.3f; // How long explosions last
     
     [Header("Combat Stats")]
     [SerializeField] private int damage;
@@ -18,19 +20,46 @@ public class BulletScript : MonoBehaviour
     [Header("Runtime Data")]
     [SerializeField] private Vector3 startPosition;
     [SerializeField] private bool isInitialized = false;
+    private float knockback;
     
     /// <summary>
     /// Initialize bullet with combat stats from the firing tank
-    /// Explosion prefab is assigned directly in the bullet prefab inspector
+    /// Explosion prefab is assigned directly in the bullet prefab inspector (used for muzzle flash and impact)
     /// </summary>
-    public void Initialize(int bulletDamage, float bulletRange, int teamId, bool artilleryMode = false)
+    public void Initialize(int bulletDamage, float bulletRange, int teamId, bool artilleryMode = false, float bulletKnockback = 1f)
     {
         damage = bulletDamage;
         maxRange = bulletRange;
         firingTeamId = teamId;
         isArtillery = artilleryMode;
+        knockback = bulletKnockback;
         startPosition = transform.position;
         isInitialized = true;
+        
+        // Set bullet mass for knockback effect
+        Rigidbody bulletRb = GetComponent<Rigidbody>();
+        if (bulletRb != null && bulletKnockback > 0f)
+        {
+            bulletRb.mass = bulletKnockback;
+        }
+        
+        // Play gunshot sound at muzzle position with proper volume
+        if (SoundManager.Instance != null && SoundManager.Instance.gunshotSound != null)
+        {
+            float volume = SoundManager.Instance.masterVolume * SoundManager.Instance.sfxVolume;
+            AudioSource.PlayClipAtPoint(SoundManager.Instance.gunshotSound, transform.position, volume);
+        }
+        
+        // Spawn muzzle explosion effect (gunpowder flash)
+        if (explosionPrefab != null)
+        {
+            GameObject muzzleExplosion = Instantiate(explosionPrefab, transform.position, Quaternion.identity);
+            muzzleExplosion.transform.localScale = explosionScale;
+            
+            // Start fade out coroutine and destroy after specified duration
+            BulletScript tempScript = muzzleExplosion.AddComponent<BulletScript>();
+            tempScript.StartCoroutine(tempScript.FadeOutExplosion(muzzleExplosion, explosionFadeDuration));
+        }
         
         // Safety cleanup - destroy bullet after reasonable time even if range isn't reached
         // Artillery bullets get more time due to their longer flight time
@@ -88,7 +117,11 @@ public class BulletScript : MonoBehaviour
                 if (hitTank != null)
                 {
                     hitTank.TakeDamage(damage);
-                    Debug.Log($"[BulletScript] Hit enemy tank {hitTank.name} for {damage} damage");
+                    Debug.Log($"[BulletScript] Hit enemy tank {hitTank.name} for {damage} damage (bullet mass: {knockback})");
+                    
+                    // Play bullet hit sound at collision point
+                    if (SoundManager.Instance != null)
+                        SoundManager.Instance.PlayBulletHitAtPosition(collision.contacts[0].point);
                 }
                 else
                 {
@@ -120,11 +153,11 @@ public class BulletScript : MonoBehaviour
         if (explosionPrefab != null)
         {
             GameObject explosion = Instantiate(explosionPrefab, transform.position, Quaternion.identity);
-            explosion.transform.localScale = new Vector3(10f, 5f, 10f); // Scale explosion - width 10x, height 5x for rounder shape
+            explosion.transform.localScale = explosionScale;
             
-            // Start fade out coroutine and destroy after 0.3 seconds
+            // Start fade out coroutine and destroy after specified duration
             BulletScript tempScript = explosion.AddComponent<BulletScript>();
-            tempScript.StartCoroutine(tempScript.FadeOutExplosion(explosion, 0.3f));
+            tempScript.StartCoroutine(tempScript.FadeOutExplosion(explosion, explosionFadeDuration));
         }
         
         // Destroy the bullet

@@ -55,6 +55,9 @@ public class WorkshopUIManager : MonoBehaviour
     private bool tipsVisible = false;
     private const string TIPS_VISIBLE_KEY = "WorkshopTipsVisible";
     
+    [Header("Quit Button")]
+    public Button quitButton; // Assign the quit button in inspector
+    
     [Header("Debug UI")]
     public TMP_Text debugText; // Assign in inspector
 
@@ -100,6 +103,12 @@ public class WorkshopUIManager : MonoBehaviour
         turretAIToggle.onValueChanged.AddListener((isOn) => { if (isOn) SetCategory(ComponentCategory.TurretAI); });
         navAIToggle.onValueChanged.AddListener((isOn) => { if (isOn) SetCategory(ComponentCategory.NavAI); });
         engineFrameToggle.onValueChanged.AddListener((isOn) => { if (isOn) SetCategory(ComponentCategory.EngineFrame); });
+
+        // Setup quit button listener
+        if (quitButton != null)
+        {
+            quitButton.onClick.AddListener(() => PlayerDataManager.Instance.QuitGame());
+        }
 
         UpdatePlayerCashUI();
         UpdateToggleColors();
@@ -785,6 +794,10 @@ public class WorkshopUIManager : MonoBehaviour
         if (debugTextCoroutine != null)
             StopCoroutine(debugTextCoroutine);
         debugTextCoroutine = StartCoroutine(ShowDebugMessageRoutine(message, duration));
+        
+        // Play error sound
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.PlayErrorSound();
     }
 
     private IEnumerator ShowDebugMessageRoutine(string message, float duration)

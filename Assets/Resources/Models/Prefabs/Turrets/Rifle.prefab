@@ -81,7 +81,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: abe9763a8e13a2a47bcbf732a472ba55, type: 3}
       propertyPath: m_Name
-      value: SingleBarrel
+      value: Rifle
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -122,9 +122,9 @@ CapsuleCollider:
   m_Enabled: 1
   serializedVersion: 2
   m_Radius: 0.8795521
-  m_Height: 7.392766
+  m_Height: 6.2210627
   m_Direction: 2
-  m_Center: {x: 0, y: 2.8251183, z: 7.7983346}
+  m_Center: {x: 0, y: 2.8251183, z: 7.212483}
 --- !u!65 &3264178873587732569
 BoxCollider:
   m_ObjectHideFlags: 0
