@@ -4005,6 +4005,8 @@ MonoBehaviour:
   - Study enemy patterns to predict their moves.
   - Coordinate your team using Coms in the Ai Editor.
   - You can edit any purchased Ai files.
+  - Click component names and it will show a description
+  - 'Change tank component colors with slider in the shop to help identify them '
 --- !u!1 &1248598140
 GameObject:
   m_ObjectHideFlags: 0

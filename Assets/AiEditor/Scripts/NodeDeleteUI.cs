@@ -258,6 +258,58 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
                 newLabel = $"Cycle {number}";
                 Debug.Log($"Created new label for 'Cycle' pattern: '{newLabel}'");
             }
+            // MyTag and TeamTag condition nodes
+            else if (currentLabel.Contains("If MyTag = #") || currentLabel.StartsWith("If MyTag = "))
+            {
+                newLabel = $"If MyTag = {number}";
+                Debug.Log($"Created new label for 'If MyTag = ' pattern: '{newLabel}'");
+            }
+            else if (currentLabel.Contains("If MyTag < #") || currentLabel.StartsWith("If MyTag < "))
+            {
+                newLabel = $"If MyTag < {number}";
+                Debug.Log($"Created new label for 'If MyTag < ' pattern: '{newLabel}'");
+            }
+            else if (currentLabel.Contains("If MyTag > #") || currentLabel.StartsWith("If MyTag > "))
+            {
+                newLabel = $"If MyTag > {number}";
+                Debug.Log($"Created new label for 'If MyTag > ' pattern: '{newLabel}'");
+            }
+            else if (currentLabel.Contains("If MyTag != #") || currentLabel.StartsWith("If MyTag != "))
+            {
+                newLabel = $"If MyTag != {number}";
+                Debug.Log($"Created new label for 'If MyTag != ' pattern: '{newLabel}'");
+            }
+            else if (currentLabel.Contains("If TeamTag = #") || currentLabel.StartsWith("If TeamTag = "))
+            {
+                newLabel = $"If TeamTag = {number}";
+                Debug.Log($"Created new label for 'If TeamTag = ' pattern: '{newLabel}'");
+            }
+            else if (currentLabel.Contains("If TeamTag < #") || currentLabel.StartsWith("If TeamTag < "))
+            {
+                newLabel = $"If TeamTag < {number}";
+                Debug.Log($"Created new label for 'If TeamTag < ' pattern: '{newLabel}'");
+            }
+            else if (currentLabel.Contains("If TeamTag > #") || currentLabel.StartsWith("If TeamTag > "))
+            {
+                newLabel = $"If TeamTag > {number}";
+                Debug.Log($"Created new label for 'If TeamTag > ' pattern: '{newLabel}'");
+            }
+            else if (currentLabel.Contains("If TeamTag != #") || currentLabel.StartsWith("If TeamTag != "))
+            {
+                newLabel = $"If TeamTag != {number}";
+                Debug.Log($"Created new label for 'If TeamTag != ' pattern: '{newLabel}'");
+            }
+            // MyTag and TeamTag action nodes
+            else if (currentLabel.Contains("MyTag"))
+            {
+                newLabel = $"MyTag{number}";
+                Debug.Log($"Created new label for 'MyTag' pattern: '{newLabel}'");
+            }
+            else if (currentLabel.Contains("TeamTag"))
+            {
+                newLabel = $"TeamTag{number}";
+                Debug.Log($"Created new label for 'TeamTag' pattern: '{newLabel}'");
+            }
             
             if (!string.IsNullOrEmpty(newLabel))
             {
@@ -354,6 +406,18 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
                nodeLabel.Contains("Rotate Left") ||
                nodeLabel.Contains("RotateRight") ||
                nodeLabel.Contains("Rotate Right") ||
+               // MyTag and TeamTag condition nodes
+               nodeLabel.Contains("If MyTag = #") ||
+               nodeLabel.Contains("If MyTag < #") ||
+               nodeLabel.Contains("If MyTag > #") ||
+               nodeLabel.Contains("If MyTag != #") ||
+               nodeLabel.Contains("If TeamTag = #") ||
+               nodeLabel.Contains("If TeamTag < #") ||
+               nodeLabel.Contains("If TeamTag > #") ||
+               nodeLabel.Contains("If TeamTag != #") ||
+               // MyTag and TeamTag action nodes
+               nodeLabel.Contains("MyTag") ||
+               nodeLabel.Contains("TeamTag") ||
                // Also check for patterns that already have numbers (not just #)
                nodeLabel.StartsWith("If Self HP>") ||
                nodeLabel.StartsWith("If Self HP<") ||
@@ -362,6 +426,14 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
                nodeLabel.StartsWith("If Tag = ") ||
                nodeLabel.StartsWith("If Tag < ") ||
                nodeLabel.StartsWith("If Tag > ") ||
+               nodeLabel.StartsWith("If MyTag = ") ||
+               nodeLabel.StartsWith("If MyTag < ") ||
+               nodeLabel.StartsWith("If MyTag > ") ||
+               nodeLabel.StartsWith("If MyTag != ") ||
+               nodeLabel.StartsWith("If TeamTag = ") ||
+               nodeLabel.StartsWith("If TeamTag < ") ||
+               nodeLabel.StartsWith("If TeamTag > ") ||
+               nodeLabel.StartsWith("If TeamTag != ") ||
                nodeLabel.StartsWith("If Range<") ||
                nodeLabel.StartsWith("If Range>") ||
                nodeLabel.StartsWith("LeadTarget") ||
@@ -523,6 +595,78 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
                     return "0";
                 return numberPart;
             }
+        }
+        // MyTag and TeamTag condition nodes
+        else if (nodeLabel.StartsWith("If MyTag = "))
+        {
+            string numberPart = nodeLabel.Substring(11); // Skip "If MyTag = "
+            if (numberPart == "#" || string.IsNullOrEmpty(numberPart))
+                return "0";
+            return numberPart;
+        }
+        else if (nodeLabel.StartsWith("If MyTag < "))
+        {
+            string numberPart = nodeLabel.Substring(11); // Skip "If MyTag < "
+            if (numberPart == "#" || string.IsNullOrEmpty(numberPart))
+                return "0";
+            return numberPart;
+        }
+        else if (nodeLabel.StartsWith("If MyTag > "))
+        {
+            string numberPart = nodeLabel.Substring(11); // Skip "If MyTag > "
+            if (numberPart == "#" || string.IsNullOrEmpty(numberPart))
+                return "0";
+            return numberPart;
+        }
+        else if (nodeLabel.StartsWith("If MyTag != "))
+        {
+            string numberPart = nodeLabel.Substring(12); // Skip "If MyTag != "
+            if (numberPart == "#" || string.IsNullOrEmpty(numberPart))
+                return "0";
+            return numberPart;
+        }
+        else if (nodeLabel.StartsWith("If TeamTag = "))
+        {
+            string numberPart = nodeLabel.Substring(13); // Skip "If TeamTag = "
+            if (numberPart == "#" || string.IsNullOrEmpty(numberPart))
+                return "0";
+            return numberPart;
+        }
+        else if (nodeLabel.StartsWith("If TeamTag < "))
+        {
+            string numberPart = nodeLabel.Substring(13); // Skip "If TeamTag < "
+            if (numberPart == "#" || string.IsNullOrEmpty(numberPart))
+                return "0";
+            return numberPart;
+        }
+        else if (nodeLabel.StartsWith("If TeamTag > "))
+        {
+            string numberPart = nodeLabel.Substring(13); // Skip "If TeamTag > "
+            if (numberPart == "#" || string.IsNullOrEmpty(numberPart))
+                return "0";
+            return numberPart;
+        }
+        else if (nodeLabel.StartsWith("If TeamTag != "))
+        {
+            string numberPart = nodeLabel.Substring(14); // Skip "If TeamTag != "
+            if (numberPart == "#" || string.IsNullOrEmpty(numberPart))
+                return "0";
+            return numberPart;
+        }
+        // MyTag and TeamTag action nodes
+        else if (nodeLabel.Contains("MyTag"))
+        {
+            string numberPart = nodeLabel.Substring(5); // Skip "MyTag"
+            if (numberPart == "#" || string.IsNullOrEmpty(numberPart))
+                return "0";
+            return numberPart;
+        }
+        else if (nodeLabel.Contains("TeamTag"))
+        {
+            string numberPart = nodeLabel.Substring(7); // Skip "TeamTag"
+            if (numberPart == "#" || string.IsNullOrEmpty(numberPart))
+                return "0";
+            return numberPart;
         }
         
         return "0";

@@ -179,6 +179,10 @@ public class TankMan : MonoBehaviour
     private const float COMS_SPEED_PENALTY = 0.5f; // 50% speed reduction when using Coms
     private const float COMS_ALLY_DELAY_PER_TANK = 0.1f; // Additional AI delay per ally
     
+    // Private Tag System: targetInstanceId -> tagValue
+    // Personal tags that only this tank can access
+    private Dictionary<int, int> privateTagList = new Dictionary<int, int>();
+    
     // Knockback state
     private Collider[] wheelColliders;
     private bool frictionReduced = false;
@@ -1882,6 +1886,64 @@ public class TankMan : MonoBehaviour
             case "IfTag":
                 result = currentTarget != null && currentTarget.CompareTag(tankTag);
                 break;
+            
+            case "IfMyTag":
+                // Check private tag on current target
+                if (currentTarget == null)
+                {
+                    result = false;
+                }
+                else
+                {
+                    int privateTag = GetPrivateTag(currentTarget);
+                    if (privateTag == -1)
+                    {
+                        // No tag exists - for != conditions, this should be true (no tag != any value)
+                        // For other conditions, this should be false
+                        result = conditionNode.originalLabel.Contains("!=");
+                    }
+                    else
+                    {
+                        if (conditionNode.originalLabel.Contains(">"))
+                            result = privateTag > conditionNode.numericValue;
+                        else if (conditionNode.originalLabel.Contains("<"))
+                            result = privateTag < conditionNode.numericValue;
+                        else if (conditionNode.originalLabel.Contains("!="))
+                            result = privateTag != (int)conditionNode.numericValue;
+                        else // equals
+                            result = privateTag == (int)conditionNode.numericValue;
+                    }
+                }
+                break;
+            
+            case "IfTeamTag":
+                // Check team tag on current target
+                if (currentTarget == null || myTeamInfo == null)
+                {
+                    result = false;
+                }
+                else
+                {
+                    int teamTag = AllyTargetList.Instance.GetTeamTag(myTeamInfo.teamId, currentTarget);
+                    if (teamTag == -1)
+                    {
+                        // No tag exists - for != conditions, this should be true (no tag != any value)
+                        // For other conditions, this should be false
+                        result = conditionNode.originalLabel.Contains("!=");
+                    }
+                    else
+                    {
+                        if (conditionNode.originalLabel.Contains(">"))
+                            result = teamTag > conditionNode.numericValue;
+                        else if (conditionNode.originalLabel.Contains("<"))
+                            result = teamTag < conditionNode.numericValue;
+                        else if (conditionNode.originalLabel.Contains("!="))
+                            result = teamTag != (int)conditionNode.numericValue;
+                        else // equals
+                            result = teamTag == (int)conditionNode.numericValue;
+                    }
+                }
+                break;
                 
             default:
                 result = false;
@@ -2040,6 +2102,32 @@ public class TankMan : MonoBehaviour
             case "RotateLeft":
                 // Pass the node to the action so it can track which specific node is being executed
                 currentActionCoroutine = StartCoroutine(RotateLeftAction(actionNode.numericValue, actionNode.nodeId, isNavAI));
+                break;
+            case "MyTag":
+                // Assign a personal tag to the current target
+                if (currentTarget != null)
+                {
+                    int tagValue = (int)actionNode.numericValue;
+                    SetPrivateTag(currentTarget, tagValue);
+                }
+                // Update node ID tracking for immediate actions
+                if (isNavAI)
+                    lastUsedNavNodeId = actionNode.nodeId;
+                else
+                    lastUsedTurretNodeId = actionNode.nodeId;
+                break;
+            case "TeamTag":
+                // Assign a team tag to the current target (shared with allies)
+                if (currentTarget != null && myTeamInfo != null)
+                {
+                    int tagValue = (int)actionNode.numericValue;
+                    AllyTargetList.Instance.SetTeamTag(myTeamInfo.teamId, currentTarget, tagValue);
+                }
+                // Update node ID tracking for immediate actions
+                if (isNavAI)
+                    lastUsedNavNodeId = actionNode.nodeId;
+                else
+                    lastUsedTurretNodeId = actionNode.nodeId;
                 break;
             default:
                 break;
@@ -3866,6 +3954,84 @@ public class TankMan : MonoBehaviour
     }
     
     #endregion
+    
+    #endregion
+    
+    #region Private Tag System
+    
+    /// <summary>
+    /// Sets or updates a private tag for a target.
+    /// Private tags are only visible to this tank.
+    /// </summary>
+    /// <param name="targetGameObject">The target to tag</param>
+    /// <param name="tagValue">The tag value to assign</param>
+    private void SetPrivateTag(GameObject targetGameObject, int tagValue)
+    {
+        if (targetGameObject == null) return;
+        
+        int targetId = targetGameObject.GetInstanceID();
+        
+        if (privateTagList.ContainsKey(targetId))
+        {
+            privateTagList[targetId] = tagValue;
+        }
+        else
+        {
+            privateTagList.Add(targetId, tagValue);
+        }
+    }
+    
+    /// <summary>
+    /// Gets the private tag for a target.
+    /// </summary>
+    /// <param name="targetGameObject">The target to get the tag for</param>
+    /// <returns>The tag value, or -1 if no tag exists</returns>
+    private int GetPrivateTag(GameObject targetGameObject)
+    {
+        if (targetGameObject == null) return -1;
+        
+        int targetId = targetGameObject.GetInstanceID();
+        
+        if (privateTagList.ContainsKey(targetId))
+        {
+            return privateTagList[targetId];
+        }
+        
+        return -1; // No tag exists
+    }
+    
+    /// <summary>
+    /// Checks if a private tag exists for a target.
+    /// </summary>
+    /// <param name="targetGameObject">The target to check</param>
+    /// <returns>True if a tag exists</returns>
+    private bool HasPrivateTag(GameObject targetGameObject)
+    {
+        if (targetGameObject == null) return false;
+        
+        int targetId = targetGameObject.GetInstanceID();
+        return privateTagList.ContainsKey(targetId);
+    }
+    
+    /// <summary>
+    /// Removes a private tag for a target.
+    /// </summary>
+    /// <param name="targetGameObject">The target to remove the tag for</param>
+    private void RemovePrivateTag(GameObject targetGameObject)
+    {
+        if (targetGameObject == null) return;
+        
+        int targetId = targetGameObject.GetInstanceID();
+        privateTagList.Remove(targetId);
+    }
+    
+    /// <summary>
+    /// Clears all private tags.
+    /// </summary>
+    private void ClearPrivateTags()
+    {
+        privateTagList.Clear();
+    }
     
     #endregion
 }

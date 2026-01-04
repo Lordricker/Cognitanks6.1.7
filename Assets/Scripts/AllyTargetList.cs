@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using System.Text;
 
 /// <summary>
 /// Manages shared target information across allied tanks.
@@ -90,6 +91,10 @@ public class AllyTargetList : MonoBehaviour
     // Dictionary: teamId -> list of target entries for that team
     private Dictionary<int, List<TargetEntry>> teamTargetLists = new Dictionary<int, List<TargetEntry>>();
     
+    // Team Tag System: teamId -> (targetInstanceId -> tagValue)
+    // Stores tags assigned by team members to enemy tanks
+    private Dictionary<int, Dictionary<int, int>> teamTagLists = new Dictionary<int, Dictionary<int, int>>();
+    
     // Maximum number of teams supported
     private const int MAX_TEAMS = 4;
     
@@ -109,7 +114,72 @@ public class AllyTargetList : MonoBehaviour
         for (int i = 0; i < MAX_TEAMS; i++)
         {
             teamTargetLists[i] = new List<TargetEntry>();
+            teamTagLists[i] = new Dictionary<int, int>();
         }
+    }
+    
+    // Debug timer for logging team tags
+    private float debugTimer = 0f;
+    private const float DEBUG_INTERVAL = 2f; // Log every 2 seconds
+    
+    void Update()
+    {
+        // Debug logging of team tag lists
+        debugTimer += Time.deltaTime;
+        if (debugTimer >= DEBUG_INTERVAL)
+        {
+            debugTimer = 0f;
+            LogTeamTagLists();
+        }
+    }
+    
+    /// <summary>
+    /// Debug method to log current team tag lists
+    /// </summary>
+    private void LogTeamTagLists()
+    {
+        StringBuilder debugOutput = new StringBuilder();
+        debugOutput.AppendLine("=== TEAM TAG LISTS ===");
+        
+        bool hasAnyTags = false;
+        foreach (var teamEntry in teamTagLists)
+        {
+            int teamId = teamEntry.Key;
+            var tagDictionary = teamEntry.Value;
+            
+            if (tagDictionary.Count > 0)
+            {
+                hasAnyTags = true;
+                debugOutput.AppendLine($"Team {teamId}:");
+                
+                foreach (var tagEntry in tagDictionary)
+                {
+                    int targetInstanceId = tagEntry.Key;
+                    int tagValue = tagEntry.Value;
+                    
+                    // Try to get the target name from the target list
+                    string targetName = $"InstanceID_{targetInstanceId}";
+                    foreach (var targetList in teamTargetLists.Values)
+                    {
+                        var targetEntry = targetList.Find(t => t.targetGameObject != null && t.targetGameObject.GetInstanceID() == targetInstanceId);
+                        if (targetEntry != null)
+                        {
+                            targetName = targetEntry.targetTankName;
+                            break;
+                        }
+                    }
+                    
+                    debugOutput.AppendLine($"  {targetName} → Tag {tagValue}");
+                }
+            }
+        }
+        
+        if (!hasAnyTags)
+        {
+            debugOutput.AppendLine("No team tags assigned.");
+        }
+        
+        Debug.Log(debugOutput.ToString());
     }
     
     /// <summary>
@@ -362,4 +432,115 @@ public class AllyTargetList : MonoBehaviour
         
         return false;
     }
+    
+    #region Team Tag System
+    
+    /// <summary>
+    /// Sets or updates a team tag for a target.
+    /// Tags are shared across all tanks on the same team.
+    /// </summary>
+    /// <param name="teamId">The team setting the tag</param>
+    /// <param name="targetGameObject">The target to tag</param>
+    /// <param name="tagValue">The tag value to assign</param>
+    public void SetTeamTag(int teamId, GameObject targetGameObject, int tagValue)
+    {
+        if (targetGameObject == null) return;
+        
+        // Ensure team tag list exists
+        if (!teamTagLists.ContainsKey(teamId))
+        {
+            teamTagLists[teamId] = new Dictionary<int, int>();
+        }
+        
+        // Use instance ID as the unique identifier for the target
+        int targetId = targetGameObject.GetInstanceID();
+        
+        // Update or add the tag
+        if (teamTagLists[teamId].ContainsKey(targetId))
+        {
+            teamTagLists[teamId][targetId] = tagValue;
+        }
+        else
+        {
+            teamTagLists[teamId].Add(targetId, tagValue);
+        }
+    }
+    
+    /// <summary>
+    /// Gets the team tag for a target.
+    /// </summary>
+    /// <param name="teamId">The team requesting the tag</param>
+    /// <param name="targetGameObject">The target to get the tag for</param>
+    /// <returns>The tag value, or -1 if no tag exists</returns>
+    public int GetTeamTag(int teamId, GameObject targetGameObject)
+    {
+        if (targetGameObject == null) return -1;
+        
+        if (!teamTagLists.ContainsKey(teamId)) return -1;
+        
+        int targetId = targetGameObject.GetInstanceID();
+        
+        if (teamTagLists[teamId].ContainsKey(targetId))
+        {
+            return teamTagLists[teamId][targetId];
+        }
+        
+        return -1; // No tag exists
+    }
+    
+    /// <summary>
+    /// Checks if a team has a tag for a target.
+    /// </summary>
+    /// <param name="teamId">The team to check</param>
+    /// <param name="targetGameObject">The target to check</param>
+    /// <returns>True if a tag exists</returns>
+    public bool HasTeamTag(int teamId, GameObject targetGameObject)
+    {
+        if (targetGameObject == null) return false;
+        
+        if (!teamTagLists.ContainsKey(teamId)) return false;
+        
+        int targetId = targetGameObject.GetInstanceID();
+        return teamTagLists[teamId].ContainsKey(targetId);
+    }
+    
+    /// <summary>
+    /// Removes a team tag for a target.
+    /// </summary>
+    /// <param name="teamId">The team to remove the tag from</param>
+    /// <param name="targetGameObject">The target to remove the tag for</param>
+    public void RemoveTeamTag(int teamId, GameObject targetGameObject)
+    {
+        if (targetGameObject == null) return;
+        
+        if (!teamTagLists.ContainsKey(teamId)) return;
+        
+        int targetId = targetGameObject.GetInstanceID();
+        teamTagLists[teamId].Remove(targetId);
+    }
+    
+    /// <summary>
+    /// Clears all team tags for a specific team.
+    /// </summary>
+    /// <param name="teamId">The team to clear tags for</param>
+    public void ClearTeamTags(int teamId)
+    {
+        if (teamTagLists.ContainsKey(teamId))
+        {
+            teamTagLists[teamId].Clear();
+        }
+    }
+    
+    /// <summary>
+    /// Clears all team tags for all teams.
+    /// </summary>
+    public void ClearAllTeamTags()
+    {
+        foreach (var list in teamTagLists.Values)
+        {
+            list.Clear();
+        }
+    }
+    
+    #endregion
 }

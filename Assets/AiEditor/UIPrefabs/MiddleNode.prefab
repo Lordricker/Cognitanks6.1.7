@@ -458,7 +458,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 200, y: 50}
+  m_SizeDelta: {x: 203.16, y: 50}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &8243307944301327944
 CanvasRenderer:
@@ -1509,6 +1509,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   deleteButton: {fileID: 3588365689025741232}
   nodeImage: {fileID: 3360961629023240666}
+  nodeDetailsPanel: {fileID: 0}
 --- !u!114 &6344418467458596870
 MonoBehaviour:
   m_ObjectHideFlags: 0

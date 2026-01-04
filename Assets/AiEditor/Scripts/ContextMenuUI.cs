@@ -323,12 +323,13 @@ public class ContextMenuUI : MonoBehaviour
             return "Checks if the evaluation target has a specific armor type.";
         if (lowerLabel.Contains("if range"))
             return "Checks the distance to the evaluation target. Passes if distance meets the condition.";
+        // Tag conditions - check specific ones first to avoid false matches with generic "tag"
+        if (lowerLabel.Contains("ifmytag") || lowerLabel.Contains("if my tag"))
+            return "Checks your personal tag on the current target. Passes if the tag value meets the condition (<, >, =). Personal tags are only visible to you. Returns false if no tag exists.";
+        if (lowerLabel.Contains("ifteamtag") || lowerLabel.Contains("if team tag"))
+            return "Checks the team tag on the current target. Passes if the tag value meets the condition (<, >, =). Team tags are shared across all teammates. Returns false if no tag exists.";
         if (lowerLabel.Contains("if tag"))
             return "Checks if the evaluation target has a specific tag number or range of numbers. Use with =, <, or > and a number.";
-        if (lowerLabel.Contains("ifmytag") || lowerLabel.Contains("if my tag"))
-            return "Checks your personal tag on the evaluation target. Passes if the tag value meets the condition. Personal tags are only visible to you.";
-        if (lowerLabel.Contains("ifteamtag") || lowerLabel.Contains("if team tag"))
-            return "Checks the team tag on the evaluation target. Passes if the tag value meets the condition. Team tags are shared across all teammates.";
         
         // Actions - Movement
         if (lowerLabel.Contains("wander"))
@@ -367,6 +368,12 @@ public class ContextMenuUI : MonoBehaviour
             return "Tilts turret upward by the specified degrees.";
         if (lowerLabel.Contains("rotatedown"))
             return "Tilts turret downward by the specified degrees.";
+        
+        // Tag Actions - check specific ones first
+        if (lowerLabel.Contains("mytag"))
+            return "Assigns a personal tag number to the current target. Only you can see and use this tag. Use IfMyTag conditions to check tags later. Useful for marking specific enemies (e.g., low HP = 1, high threat = 2).";
+        if (lowerLabel.Contains("teamtag"))
+            return "Assigns a team tag number to the current target. All teammates can see and use this tag. Use IfTeamTag conditions to check tags later. Useful for coordinating focus fire (e.g., priority target = 1).";
         if (lowerLabel.Contains("tag"))
             return "Slaps number stickers on visible targets so your team can prioritize targets instead of only using the closest target (e.g. 2 enemies attacking but the further one is nearly dead)";
 
