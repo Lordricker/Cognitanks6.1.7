@@ -122,10 +122,10 @@ public class TankMan : MonoBehaviour
     {
         switch (knockback)
         {
-            case "Low": return 20f;
-            case "Medium": return 100f;
-            case "High": return 300f;
-            default: return 1f; // Default bullet mass
+            case "Low": return 1000f;
+            case "Medium": return 4000f;
+            case "High": return 12000f;
+            default: return 1000f; // Default knockback force
         }
     }
 
@@ -181,6 +181,15 @@ public class TankMan : MonoBehaviour
     
     // Knockback state
     private Collider[] wheelColliders;
+    private bool frictionReduced = false;
+    private float frictionRestoreTime = 0f;
+    private Vector3 lastBulletVelocity = Vector3.zero;
+    private float lastBulletKnockback = 0f;
+    
+    // Rotation action state tracking - track the actual target angle to persist across AI iterations
+    private string lastUsedNavNodeId = "";
+    private string lastUsedTurretNodeId = "";
+    private float storedRotationTarget = 0f;
     
     // Debug tracking
     private Quaternion lastTurretRotation = Quaternion.identity; // For turret rotation speed debug
@@ -441,11 +450,38 @@ public class TankMan : MonoBehaviour
     // Ground check using trigger collider
     private void OnTriggerEnter(Collider other)
     {
+        // Skip bullet triggers - they shouldn't affect ground detection
+        if (other.GetComponent<BulletScript>() != null)
+        {
+            // Handle bullet pre-knockback friction reduction
+            if (wheelColliders != null && wheelColliders.Length > 0)
+            {
+                Rigidbody bulletRb = other.GetComponent<Rigidbody>();
+                if (bulletRb != null)
+                {
+                    lastBulletVelocity = bulletRb.linearVelocity;
+                    lastBulletKnockback = other.GetComponent<BulletScript>().GetKnockbackValue();
+                }
+                
+                // Reduce friction immediately before the bullet's main collision hits
+                ReduceWheelFriction();
+                
+                // Set restore time for 0.1 seconds from now
+                frictionRestoreTime = Time.time + 0.1f;
+            }
+            return; // Don't affect ground state
+        }
+        
+        // Check for ground detection (non-bullet objects)
         if (other != null && other != GetComponent<Collider>())
             isGrounded = true;
     }
     private void OnTriggerExit(Collider other)
     {
+        // Skip bullet triggers - they shouldn't affect ground detection
+        if (other.GetComponent<BulletScript>() != null)
+            return;
+            
         if (other != null && other != GetComponent<Collider>())
             isGrounded = false;
     }
@@ -468,6 +504,12 @@ public class TankMan : MonoBehaviour
     
     void Update()
     {
+        // Check if we need to restore wheel friction after knockback
+        if (frictionReduced && Time.time >= frictionRestoreTime)
+        {
+            RestoreWheelFriction();
+        }
+        
         // Debug logging for velocity and turret rotation (every 1 second)
         if (Time.time - lastDebugLogTime >= 1.0f)
         {
@@ -862,7 +904,7 @@ public class TankMan : MonoBehaviour
                 // Execute current node and get next node
                 currentNavNode = ExecuteNode(currentNavNode, navAiTree);
             }
-            catch (System.Exception ex)
+            catch (System.Exception)
             {
                 // Restart from beginning on error
                 currentNavNode = GetFirstNodeFromStart(navAiTree);
@@ -897,7 +939,7 @@ public class TankMan : MonoBehaviour
                 // Execute current node and get next node
                 currentTurretNode = ExecuteNode(currentTurretNode, turretAiTree);
             }
-            catch (System.Exception ex)
+            catch (System.Exception)
             {
                 // Restart from beginning on error
                 currentTurretNode = GetFirstNodeFromStart(turretAiTree);
@@ -1208,6 +1250,8 @@ public class TankMan : MonoBehaviour
             // Update memory and reset time for new node
             cycleNodeMemory[cycleNode.nodeId] = currentChildIndex;
             cycleNodeTimeSpent[cycleNode.nodeId] = 0f;
+            
+            // Note: Rotation targets are now tracked per-node, so no need to clear global state
         }
         
         // Return the current child node
@@ -1494,7 +1538,7 @@ public class TankMan : MonoBehaviour
                 currentNode = FindParentNode(currentNode, tree);
             }
         }
-        catch (System.Exception ex)
+        catch (System.Exception)
         {
         }
         
@@ -1514,7 +1558,7 @@ public class TankMan : MonoBehaviour
         {
             return AllyTargetList.Instance.GetClosestTargetForTeam(myTeamInfo.teamId, transform.position);
         }
-        catch (System.Exception ex)
+        catch (System.Exception)
         {
             return null;
         }
@@ -1897,27 +1941,32 @@ public class TankMan : MonoBehaviour
                 }
                 break;
             case "Wander":
-                currentActionCoroutine = StartCoroutine(WanderAction());
+                currentActionCoroutine = StartCoroutine(WanderAction(actionNode.nodeId, isNavAI));
                 break;
             case "Move":
                 if (currentTarget != null)
                 {
-                    currentActionCoroutine = StartCoroutine(MoveToTarget());
+                    currentActionCoroutine = StartCoroutine(MoveToTarget(actionNode.nodeId, isNavAI));
                 }
                 else
                 {
-                    currentActionCoroutine = StartCoroutine(WanderAction());
+                    currentActionCoroutine = StartCoroutine(WanderAction(actionNode.nodeId, isNavAI));
                 }
                 break;
             case "Stop":
                 StopMovement();
+                // Update node ID tracking even for immediate actions
+                if (isNavAI)
+                    lastUsedNavNodeId = actionNode.nodeId;
+                else
+                    lastUsedTurretNodeId = actionNode.nodeId;
                 break;
             case "Chase":
                 // Chase works with both personal vision and Coms targets
                 // currentTarget was set by IfEnemy or refreshed above if on Coms branch
                 if (currentTarget != null)
                 {
-                    currentActionCoroutine = StartCoroutine(ChaseTarget());
+                    currentActionCoroutine = StartCoroutine(ChaseTarget(actionNode.nodeId, isNavAI));
                 }
                 break;
             case "Flee":
@@ -1925,12 +1974,12 @@ public class TankMan : MonoBehaviour
                 // currentTarget was set by IfEnemy or refreshed above if on Coms branch
                 if (currentTarget != null)
                 {
-                    currentActionCoroutine = StartCoroutine(FleeFromTarget());
+                    currentActionCoroutine = StartCoroutine(FleeFromTarget(actionNode.nodeId, isNavAI));
                 }
                 break;
             case "Wait":
                 StopMovement();
-                currentActionCoroutine = StartCoroutine(WaitAction());
+                currentActionCoroutine = StartCoroutine(WaitAction(actionNode.nodeId, isNavAI));
                 break;
             case "LeadTarget":
                 // LeadTarget works with both personal vision and Coms targets
@@ -1940,7 +1989,7 @@ public class TankMan : MonoBehaviour
                     // Get lead distance from node's numeric value (default 0 for center targeting)
                     float leadDistance = actionNode.numericValue;
                     currentLeadDistance = leadDistance; // Store for CanFire to use
-                    currentActionCoroutine = StartCoroutine(LeadTargetAction(leadDistance));
+                    currentActionCoroutine = StartCoroutine(LeadTargetAction(leadDistance, actionNode.nodeId, isNavAI));
                 }
                 break;
             case "TrackTarget":
@@ -1948,51 +1997,49 @@ public class TankMan : MonoBehaviour
                 if (currentTarget != null)
                 {
                     currentLeadDistance = 0f; // Track target center (no lead)
-                    currentActionCoroutine = StartCoroutine(TrackTargetAction());
+                    currentActionCoroutine = StartCoroutine(TrackTargetAction(actionNode.nodeId, isNavAI));
                 }
                 break;
             case "AlignFront":
-                currentActionCoroutine = StartCoroutine(AlignFrontAction());
+                currentActionCoroutine = StartCoroutine(AlignFrontAction(actionNode.nodeId, isNavAI));
                 break;
             case "AlignRight":
-                currentActionCoroutine = StartCoroutine(AlignRightAction());
+                currentActionCoroutine = StartCoroutine(AlignRightAction(actionNode.nodeId, isNavAI));
                 break;
             case "AlignLeft":
-                currentActionCoroutine = StartCoroutine(AlignLeftAction());
+                currentActionCoroutine = StartCoroutine(AlignLeftAction(actionNode.nodeId, isNavAI));
                 break;
             case "AlignBack":
-                currentActionCoroutine = StartCoroutine(AlignBackAction());
+                currentActionCoroutine = StartCoroutine(AlignBackAction(actionNode.nodeId, isNavAI));
                 break;
             case "RotateUp":
                 // Stop BOTH nav and turret actions to prevent conflicts with other rotation actions
                 if (currentNavActionCoroutine != null) { StopCoroutine(currentNavActionCoroutine); currentNavActionCoroutine = null; }
                 if (currentTurretActionCoroutine != null) { StopCoroutine(currentTurretActionCoroutine); currentTurretActionCoroutine = null; }
-                currentActionCoroutine = StartCoroutine(RotateUpAction(actionNode.numericValue));
+                currentActionCoroutine = StartCoroutine(RotateUpAction(actionNode.numericValue, actionNode.nodeId, isNavAI));
                 break;
             case "RotateDown":
                 // Stop BOTH nav and turret actions to prevent conflicts with other rotation actions
                 if (currentNavActionCoroutine != null) { StopCoroutine(currentNavActionCoroutine); currentNavActionCoroutine = null; }
                 if (currentTurretActionCoroutine != null) { StopCoroutine(currentTurretActionCoroutine); currentTurretActionCoroutine = null; }
-                currentActionCoroutine = StartCoroutine(RotateDownAction(actionNode.numericValue));
+                currentActionCoroutine = StartCoroutine(RotateDownAction(actionNode.numericValue, actionNode.nodeId, isNavAI));
                 break;
             case "MapCenter":
-                currentActionCoroutine = StartCoroutine(MapCenterAction());
+                currentActionCoroutine = StartCoroutine(MapCenterAction(actionNode.nodeId, isNavAI));
                 break;
             case "Home":
-                currentActionCoroutine = StartCoroutine(HomeAction());
+                currentActionCoroutine = StartCoroutine(HomeAction(actionNode.nodeId, isNavAI));
                 break;
             case "Forward":
-                currentActionCoroutine = StartCoroutine(ForwardAction());
+                currentActionCoroutine = StartCoroutine(ForwardAction(actionNode.nodeId, isNavAI));
                 break;
             case "RotateRight":
-                // Get rotation degrees from node's numeric value
-                float rightDegrees = actionNode.numericValue;
-                currentActionCoroutine = StartCoroutine(RotateRightAction(rightDegrees));
+                // Pass the node to the action so it can track which specific node is being executed
+                currentActionCoroutine = StartCoroutine(RotateRightAction(actionNode.numericValue, actionNode.nodeId, isNavAI));
                 break;
             case "RotateLeft":
-                // Get rotation degrees from node's numeric value
-                float leftDegrees = actionNode.numericValue;
-                currentActionCoroutine = StartCoroutine(RotateLeftAction(leftDegrees));
+                // Pass the node to the action so it can track which specific node is being executed
+                currentActionCoroutine = StartCoroutine(RotateLeftAction(actionNode.numericValue, actionNode.nodeId, isNavAI));
                 break;
             default:
                 break;
@@ -2279,10 +2326,21 @@ public class TankMan : MonoBehaviour
         float finalDamage = Mathf.Max(0, damageAmount - armor);
         currentHealth -= finalDamage;
         
-        // Reduce wheel friction temporarily for knockback effect
-        if (wheelColliders != null && wheelColliders.Length > 0)
+        // Apply manual knockback force if we have stored bullet data
+        if (lastBulletVelocity != Vector3.zero && lastBulletKnockback > 0f && rb != null)
         {
-            StartCoroutine(ReduceWheelFrictionTemporarily());
+            // Calculate knockback force based on bullet velocity direction and knockback value
+            Vector3 knockbackDirection = lastBulletVelocity.normalized;
+            float forceMagnitude = lastBulletKnockback; // Direct force value from ParseKnockback()
+            
+            // Apply force in the next FixedUpdate to ensure friction is fully reduced
+            StartCoroutine(ApplyKnockbackForceNextFrame(knockbackDirection * forceMagnitude));
+            
+            Debug.Log($"[{gameObject.name}] Applying manual knockback force: {forceMagnitude:F1} in direction {knockbackDirection}");
+            
+            // Clear stored values
+            lastBulletVelocity = Vector3.zero;
+            lastBulletKnockback = 0f;
         }
         
         if (currentHealth <= 0)
@@ -2292,12 +2350,25 @@ public class TankMan : MonoBehaviour
     }
     
     /// <summary>
-    /// Temporarily reduces wheel collider friction to allow knockback to move the tank
+    /// Applies knockback force after waiting one physics frame
     /// </summary>
-    private System.Collections.IEnumerator ReduceWheelFrictionTemporarily()
+    private System.Collections.IEnumerator ApplyKnockbackForceNextFrame(Vector3 force)
     {
-        // Store original physics materials
-        PhysicsMaterial[] originalMaterials = new PhysicsMaterial[wheelColliders.Length];
+        yield return new WaitForFixedUpdate();
+        if (rb != null)
+        {
+            rb.AddForce(force, ForceMode.Impulse);
+        }
+    }
+    
+    /// <summary>
+    /// Reduces wheel collider friction to allow knockback to slide the tank
+    /// </summary>
+    private void ReduceWheelFriction()
+    {
+        if (frictionReduced) return; // Already reduced
+        
+        Debug.Log($"[{gameObject.name}] Zero friction applied at {Time.time:F2}");
         
         // Create zero-friction material
         PhysicsMaterial zeroFriction = new PhysicsMaterial("ZeroFriction");
@@ -2310,24 +2381,35 @@ public class TankMan : MonoBehaviour
         {
             if (wheelColliders[i] != null)
             {
-                originalMaterials[i] = wheelColliders[i].material;
                 wheelColliders[i].material = zeroFriction;
             }
         }
         
-        // Wait for 0.5 seconds
-        yield return new WaitForSeconds(0.5f);
+        frictionReduced = true;
+    }
+    
+    /// <summary>
+    /// Restores wheel collider friction after knockback effect
+    /// </summary>
+    private void RestoreWheelFriction()
+    {
+        if (!frictionReduced) return;
         
-        // Restore original materials
+        // Create default friction material
+        PhysicsMaterial defaultFriction = new PhysicsMaterial("DefaultFriction");
+        defaultFriction.dynamicFriction = 0.6f;
+        defaultFriction.staticFriction = 0.6f;
+        
+        // Restore friction to all wheel colliders
         for (int i = 0; i < wheelColliders.Length; i++)
         {
             if (wheelColliders[i] != null)
             {
-                wheelColliders[i].material = originalMaterials[i];
+                wheelColliders[i].material = defaultFriction;
             }
         }
         
-        Destroy(zeroFriction);
+        frictionReduced = false;
     }
     
     void Die()
@@ -2482,8 +2564,13 @@ public class TankMan : MonoBehaviour
 
 
     // --- Movement coroutines ---
-    IEnumerator WanderAction()
+    IEnumerator WanderAction(string nodeId, bool isNavAI)
     {
+        // Update the last used node ID to track that we've moved to a different action
+        if (isNavAI)
+            lastUsedNavNodeId = nodeId;
+        else
+            lastUsedTurretNodeId = nodeId;
         
         // Wait for rigidbody to be ready
         float waitStartTime = Time.time;
@@ -2544,8 +2631,14 @@ public class TankMan : MonoBehaviour
         yield return new WaitForSeconds(1f);
     }
     
-    IEnumerator MoveToTarget()
+    IEnumerator MoveToTarget(string nodeId, bool isNavAI)
     {
+        // Update the last used node ID to track that we've moved to a different action
+        if (isNavAI)
+            lastUsedNavNodeId = nodeId;
+        else
+            lastUsedTurretNodeId = nodeId;
+        
         // Wait for rigidbody to be ready
         float waitStartTime = Time.time;
         while (rb == null)
@@ -2614,8 +2707,14 @@ public class TankMan : MonoBehaviour
         }
     }
     
-    IEnumerator ChaseTarget()
+    IEnumerator ChaseTarget(string nodeId, bool isNavAI)
     {
+        // Update the last used node ID to track that we've moved to a different action
+        if (isNavAI)
+            lastUsedNavNodeId = nodeId;
+        else
+            lastUsedTurretNodeId = nodeId;
+        
         // Wait for rigidbody to be ready
         float waitStartTime = Time.time;
         while (rb == null)
@@ -2653,8 +2752,14 @@ public class TankMan : MonoBehaviour
         }
     }
     
-    IEnumerator FleeFromTarget()
+    IEnumerator FleeFromTarget(string nodeId, bool isNavAI)
     {
+        // Update the last used node ID to track that we've moved to a different action
+        if (isNavAI)
+            lastUsedNavNodeId = nodeId;
+        else
+            lastUsedTurretNodeId = nodeId;
+        
         // Wait for rigidbody to be ready
         float waitStartTime = Time.time;
         while (rb == null)
@@ -2695,8 +2800,14 @@ public class TankMan : MonoBehaviour
         }
     }
     
-    IEnumerator MapCenterAction()
+    IEnumerator MapCenterAction(string nodeId, bool isNavAI)
     {
+        // Update the last used node ID to track that we've moved to a different action
+        if (isNavAI)
+            lastUsedNavNodeId = nodeId;
+        else
+            lastUsedTurretNodeId = nodeId;
+        
         // Wait for rigidbody to be ready
         float waitStartTime = Time.time;
         while (rb == null)
@@ -2753,8 +2864,14 @@ public class TankMan : MonoBehaviour
         }
     }
     
-    IEnumerator HomeAction()
+    IEnumerator HomeAction(string nodeId, bool isNavAI)
     {
+        // Update the last used node ID to track that we've moved to a different action
+        if (isNavAI)
+            lastUsedNavNodeId = nodeId;
+        else
+            lastUsedTurretNodeId = nodeId;
+        
         // Wait for rigidbody to be ready
         float waitStartTime = Time.time;
         while (rb == null)
@@ -3025,8 +3142,14 @@ public class TankMan : MonoBehaviour
         return connectedNodes.FirstOrDefault(); // Restart from first node
     }
     
-    IEnumerator WaitAction()
+    IEnumerator WaitAction(string nodeId, bool isNavAI)
     {
+        // Update the last used node ID to track that we've moved to a different action
+        if (isNavAI)
+            lastUsedNavNodeId = nodeId;
+        else
+            lastUsedTurretNodeId = nodeId;
+        
         // Apply both brakes for 0.2 seconds (tank sits still, turret can still track)
         float waitDuration = 0.2f;
         float startTime = Time.time;
@@ -3042,8 +3165,14 @@ public class TankMan : MonoBehaviour
     /// When leadDistance = 0, aims directly at target center (replaces CenterTarget)
     /// When leadDistance > 0, aims ahead of target's movement direction
     /// </summary>
-    IEnumerator LeadTargetAction(float leadDistance)
+    IEnumerator LeadTargetAction(float leadDistance, string nodeId, bool isNavAI)
     {
+        // Update the last used node ID to track that we've moved to a different action
+        if (isNavAI)
+            lastUsedNavNodeId = nodeId;
+        else
+            lastUsedTurretNodeId = nodeId;
+        
         // Reset turret rotation ramp-up when starting to track
         turretRotationStartTime = Time.time;
         previousTurretRotation = turretTransform != null ? turretTransform.rotation : Quaternion.identity;
@@ -3087,9 +3216,9 @@ public class TankMan : MonoBehaviour
     /// <summary>
     /// Legacy TrackTarget action for backward compatibility - calls LeadTargetAction with 0 lead
     /// </summary>
-    IEnumerator TrackTargetAction()
+    IEnumerator TrackTargetAction(string nodeId, bool isNavAI)
     {
-        yield return StartCoroutine(LeadTargetAction(0f));
+        yield return StartCoroutine(LeadTargetAction(0f, nodeId, isNavAI));
     }
     
     #region Turret Alignment Actions
@@ -3097,8 +3226,14 @@ public class TankMan : MonoBehaviour
     /// <summary>
     /// Aligns turret to face forward (Y=0) relative to the tank body
     /// </summary>
-    IEnumerator AlignFrontAction()
+    IEnumerator AlignFrontAction(string nodeId, bool isNavAI)
     {
+        // Update the last used node ID to track that we've moved to a different action
+        if (isNavAI)
+            lastUsedNavNodeId = nodeId;
+        else
+            lastUsedTurretNodeId = nodeId;
+        
         if (turretTransform == null)
         {
             Debug.LogWarning("[AlignFront] No turret transform assigned!");
@@ -3155,8 +3290,14 @@ public class TankMan : MonoBehaviour
     /// <summary>
     /// Aligns turret to face right (Y=90) relative to the tank body
     /// </summary>
-    IEnumerator AlignRightAction()
+    IEnumerator AlignRightAction(string nodeId, bool isNavAI)
     {
+        // Update the last used node ID to track that we've moved to a different action
+        if (isNavAI)
+            lastUsedNavNodeId = nodeId;
+        else
+            lastUsedTurretNodeId = nodeId;
+        
         if (turretTransform == null)
         {
             Debug.LogWarning("[AlignRight] No turret transform assigned!");
@@ -3213,8 +3354,14 @@ public class TankMan : MonoBehaviour
     /// <summary>
     /// Aligns turret to face left (Y=-90) relative to the tank body
     /// </summary>
-    IEnumerator AlignLeftAction()
+    IEnumerator AlignLeftAction(string nodeId, bool isNavAI)
     {
+        // Update the last used node ID to track that we've moved to a different action
+        if (isNavAI)
+            lastUsedNavNodeId = nodeId;
+        else
+            lastUsedTurretNodeId = nodeId;
+        
         if (turretTransform == null)
         {
             Debug.LogWarning("[AlignLeft] No turret transform assigned!");
@@ -3271,8 +3418,14 @@ public class TankMan : MonoBehaviour
     /// <summary>
     /// Aligns turret to face back (Y=180) relative to the tank body
     /// </summary>
-    IEnumerator AlignBackAction()
+    IEnumerator AlignBackAction(string nodeId, bool isNavAI)
     {
+        // Update the last used node ID to track that we've moved to a different action
+        if (isNavAI)
+            lastUsedNavNodeId = nodeId;
+        else
+            lastUsedTurretNodeId = nodeId;
+        
         if (turretTransform == null)
         {
             Debug.LogWarning("[AlignBack] No turret transform assigned!");
@@ -3329,8 +3482,14 @@ public class TankMan : MonoBehaviour
     /// <summary>
     /// Rotates turret up by specified degrees relative to current pitch
     /// </summary>
-    IEnumerator RotateUpAction(float degrees)
+    IEnumerator RotateUpAction(float degrees, string nodeId, bool isNavAI)
     {
+        // Update the last used node ID to track that we've moved to a different action
+        if (isNavAI)
+            lastUsedNavNodeId = nodeId;
+        else
+            lastUsedTurretNodeId = nodeId;
+        
         if (turretTransform == null)
         {
             Debug.LogWarning("[RotateUp] No turret transform assigned!");
@@ -3393,8 +3552,14 @@ public class TankMan : MonoBehaviour
     /// <summary>
     /// Rotates turret down by specified degrees relative to current pitch
     /// </summary>
-    IEnumerator RotateDownAction(float degrees)
+    IEnumerator RotateDownAction(float degrees, string nodeId, bool isNavAI)
     {
+        // Update the last used node ID to track that we've moved to a different action
+        if (isNavAI)
+            lastUsedNavNodeId = nodeId;
+        else
+            lastUsedTurretNodeId = nodeId;
+        
         if (turretTransform == null)
         {
             Debug.LogWarning("[RotateDown] No turret transform assigned!");
@@ -3459,8 +3624,14 @@ public class TankMan : MonoBehaviour
     /// <summary>
     /// Propels the tank forward continuously while active
     /// </summary>
-    IEnumerator ForwardAction()
+    IEnumerator ForwardAction(string nodeId, bool isNavAI)
     {
+        // Update the last used node ID to track that we've moved to a different action
+        if (isNavAI)
+            lastUsedNavNodeId = nodeId;
+        else
+            lastUsedTurretNodeId = nodeId;
+        
         // Wait for rigidbody to be ready
         float waitStartTime = Time.time;
         while (rb == null)
@@ -3495,7 +3666,7 @@ public class TankMan : MonoBehaviour
     /// <summary>
     /// Rotates the tank right by the specified number of degrees
     /// </summary>
-    IEnumerator RotateRightAction(float degrees)
+    IEnumerator RotateRightAction(float degrees, string nodeId, bool isNavAI)
     {
         // Wait for rigidbody to be ready
         float waitStartTime = Time.time;
@@ -3513,6 +3684,23 @@ public class TankMan : MonoBehaviour
         UnstuckTank();
         yield return new WaitForFixedUpdate();
         
+        // If degrees is 0, rotate continuously (no target angle)
+        if (degrees == 0f)
+        {
+            while (true)
+            {
+                if (!isGrounded)
+                {
+                    yield return null;
+                    continue;
+                }
+                
+                // Continuous right rotation
+                SetMovementInput(0f, 1f);
+                yield return new WaitForFixedUpdate();
+            }
+        }
+        
         // Get the parent cycle node if this action is part of a cycle
         AiExecutableNode parentCycle = null;
         if (currentNavActionNode != null)
@@ -3524,11 +3712,34 @@ public class TankMan : MonoBehaviour
             }
         }
         
-        // Record starting rotation
-        float startYRotation = transform.eulerAngles.y;
-        float targetYRotation = startYRotation - degrees; // Negative for right turn
-        float threshold = 2f; // Consider reached when within 2 degrees
+        // Check if this is the same node as last time - if so, reuse the target angle
+        string lastUsedNodeId = isNavAI ? lastUsedNavNodeId : lastUsedTurretNodeId;
+        float targetYRotation;
         
+        if (lastUsedNodeId == nodeId && storedRotationTarget != 0f)
+        {
+            // Same node - reuse the stored target
+            targetYRotation = storedRotationTarget;
+            Debug.Log($"[{gameObject.name}] RotateRight reusing target for node {nodeId}: targetY={targetYRotation:F1}");
+        }
+        else
+        {
+            // Different node or first time - calculate new target
+            float startYRotation = transform.eulerAngles.y;
+            targetYRotation = startYRotation + degrees; // Positive Y = right turn (clockwise from above)
+            
+            // Store for this specific node
+            if (isNavAI)
+                lastUsedNavNodeId = nodeId;
+            else
+                lastUsedTurretNodeId = nodeId;
+            
+            storedRotationTarget = targetYRotation;
+            
+            Debug.Log($"[{gameObject.name}] RotateRight NEW target for node {nodeId}: startY={startYRotation:F1}, degrees={degrees}, targetY={targetYRotation:F1}");
+        }
+        
+        // Continuously try to face the target direction
         while (true)
         {
             if (!isGrounded)
@@ -3543,15 +3754,9 @@ public class TankMan : MonoBehaviour
             // Calculate the shortest angle difference to target
             float angleDiff = Mathf.DeltaAngle(currentY, targetYRotation);
             
-            // Check if we've reached the target rotation
-            if (Mathf.Abs(angleDiff) <= threshold)
-            {
-                // Reached target! Stop movement
-                StopMovement();
-                yield break;
-            }
+            Debug.Log($"[{gameObject.name}] RotateRight: currentY={currentY:F1}, targetY={targetYRotation:F1}, angleDiff={angleDiff:F1}");
             
-            // Rotate towards target
+            // Rotate towards target (never stop trying)
             float turnDirection = Mathf.Sign(angleDiff);
             float turnIntensity = Mathf.Clamp01(Mathf.Abs(angleDiff) / 45f); // Scale turn intensity
             SetMovementInput(0f, turnDirection * turnIntensity);
@@ -3563,7 +3768,7 @@ public class TankMan : MonoBehaviour
     /// <summary>
     /// Rotates the tank left by the specified number of degrees
     /// </summary>
-    IEnumerator RotateLeftAction(float degrees)
+    IEnumerator RotateLeftAction(float degrees, string nodeId, bool isNavAI)
     {
         // Wait for rigidbody to be ready
         float waitStartTime = Time.time;
@@ -3581,6 +3786,23 @@ public class TankMan : MonoBehaviour
         UnstuckTank();
         yield return new WaitForFixedUpdate();
         
+        // If degrees is 0, rotate continuously (no target angle)
+        if (degrees == 0f)
+        {
+            while (true)
+            {
+                if (!isGrounded)
+                {
+                    yield return null;
+                    continue;
+                }
+                
+                // Continuous left rotation
+                SetMovementInput(0f, -1f);
+                yield return new WaitForFixedUpdate();
+            }
+        }
+        
         // Get the parent cycle node if this action is part of a cycle
         AiExecutableNode parentCycle = null;
         if (currentNavActionNode != null)
@@ -3592,11 +3814,34 @@ public class TankMan : MonoBehaviour
             }
         }
         
-        // Record starting rotation
-        float startYRotation = transform.eulerAngles.y;
-        float targetYRotation = startYRotation + degrees; // Positive for left turn
-        float threshold = 2f; // Consider reached when within 2 degrees
+        // Check if this is the same node as last time - if so, reuse the target angle
+        string lastUsedNodeId = isNavAI ? lastUsedNavNodeId : lastUsedTurretNodeId;
+        float targetYRotation;
         
+        if (lastUsedNodeId == nodeId && storedRotationTarget != 0f)
+        {
+            // Same node - reuse the stored target
+            targetYRotation = storedRotationTarget;
+            Debug.Log($"[{gameObject.name}] RotateLeft reusing target for node {nodeId}: targetY={targetYRotation:F1}");
+        }
+        else
+        {
+            // Different node or first time - calculate new target
+            float startYRotation = transform.eulerAngles.y;
+            targetYRotation = startYRotation - degrees; // Negative Y = left turn (counter-clockwise from above)
+            
+            // Store for this specific node
+            if (isNavAI)
+                lastUsedNavNodeId = nodeId;
+            else
+                lastUsedTurretNodeId = nodeId;
+            
+            storedRotationTarget = targetYRotation;
+            
+            Debug.Log($"[{gameObject.name}] RotateLeft NEW target for node {nodeId}: startY={startYRotation:F1}, degrees={degrees}, targetY={targetYRotation:F1}");
+        }
+        
+        // Continuously try to face the target direction
         while (true)
         {
             if (!isGrounded)
@@ -3611,15 +3856,7 @@ public class TankMan : MonoBehaviour
             // Calculate the shortest angle difference to target
             float angleDiff = Mathf.DeltaAngle(currentY, targetYRotation);
             
-            // Check if we've reached the target rotation
-            if (Mathf.Abs(angleDiff) <= threshold)
-            {
-                // Reached target! Stop movement
-                StopMovement();
-                yield break;
-            }
-            
-            // Rotate towards target
+            // Rotate towards target (never stop trying)
             float turnDirection = Mathf.Sign(angleDiff);
             float turnIntensity = Mathf.Clamp01(Mathf.Abs(angleDiff) / 45f); // Scale turn intensity
             SetMovementInput(0f, turnDirection * turnIntensity);

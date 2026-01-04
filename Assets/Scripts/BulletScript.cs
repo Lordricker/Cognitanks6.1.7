@@ -23,6 +23,11 @@ public class BulletScript : MonoBehaviour
     private float knockback;
     
     /// <summary>
+    /// Get the knockback value for manual force application
+    /// </summary>
+    public float GetKnockbackValue() => knockback;
+    
+    /// <summary>
     /// Initialize bullet with combat stats from the firing tank
     /// Explosion prefab is assigned directly in the bullet prefab inspector (used for muzzle flash and impact)
     /// </summary>
@@ -36,11 +41,12 @@ public class BulletScript : MonoBehaviour
         startPosition = transform.position;
         isInitialized = true;
         
-        // Set bullet mass for knockback effect
+        // Set bullet mass to near-zero - knockback is handled manually via forces
         Rigidbody bulletRb = GetComponent<Rigidbody>();
-        if (bulletRb != null && bulletKnockback > 0f)
+        if (bulletRb != null)
         {
-            bulletRb.mass = bulletKnockback;
+            // Minimal mass to prevent any physics-based tipping
+            bulletRb.mass = 0.01f;
         }
         
         // Play gunshot sound at muzzle position with proper volume

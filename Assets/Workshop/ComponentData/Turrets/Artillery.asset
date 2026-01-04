@@ -20,7 +20,7 @@ MonoBehaviour:
   category: 0
   instanceId: 
   customColor: {r: 1, g: 1, b: 1, a: 1}
-  turretType: 0
+  turretType: 1
   damage: 40
   range: 25
   shotspersec: 0.3
