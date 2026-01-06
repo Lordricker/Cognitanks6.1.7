@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Shotgun
   m_EditorClassIdentifier: 
   title: Shotgun
-  description: Double shots double power, spray and pray
+  description: Shoots two bullets, damage and knockback doubled
   cost: 1000
   weight: 5
   modelPrefab: {fileID: 4366391098555595496, guid: 10a2e801364ea6b44adb022eee844c60, type: 3}

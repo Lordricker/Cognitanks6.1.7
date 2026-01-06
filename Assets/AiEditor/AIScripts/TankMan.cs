@@ -26,6 +26,7 @@ public class TankMan : MonoBehaviour
     [Header("Tank Components")]
     [SerializeField] private Transform turretTransform;
     [SerializeField] private Transform firePoint;
+    [SerializeField] private Transform firePoint1;
     
     [Header("Sensor Settings")]
     [SerializeField] private string tankTag = "Tank";
@@ -755,6 +756,13 @@ public class TankMan : MonoBehaviour
     {
         turretTransform = turret;
         firePoint = firePointTransform;
+        
+        // Also look for firePoint1 if it exists (for double-barrel shotguns)
+        Transform firePoint1Transform = turret.Find("FirePoint1");
+        if (firePoint1Transform != null)
+        {
+            firePoint1 = firePoint1Transform;
+        }
     }
     
     /// <summary>
@@ -2376,6 +2384,48 @@ public class TankMan : MonoBehaviour
             }
             else
             {
+            }
+            
+            // Fire second barrel if firePoint1 exists (for double-barrel shotguns)
+            if (firePoint1 != null)
+            {
+                GameObject bullet2 = Instantiate(bulletPrefab, firePoint1.position, Quaternion.LookRotation(direction));
+                
+                // Make artillery bullets twice as fat (wider and taller)
+                if (turretType == TurretType.Artillery)
+                {
+                    bullet2.transform.localScale = new Vector3(2f, 2f, 1f);
+                }
+                
+                // Give bullet velocity based on turret's bullet speed
+                Rigidbody bulletRb2 = bullet2.GetComponent<Rigidbody>();
+                if (bulletRb2 != null)
+                {
+                    // Configure physics based on turret type
+                    if (turretType == TurretType.Artillery)
+                    {
+                        // Artillery uses Unity physics with gravity
+                        bulletRb2.isKinematic = false;
+                        bulletRb2.useGravity = true;
+                        
+                        // Calculate launch velocity with proper angle
+                        Vector3 horizontalDirection = Vector3.ProjectOnPlane(direction, Vector3.up).normalized;
+                        Vector3 launchVelocity = Quaternion.AngleAxis(launchAngle, Vector3.Cross(horizontalDirection, Vector3.up)) * horizontalDirection * bulletSpeed;
+                        bulletRb2.linearVelocity = launchVelocity;
+                    }
+                    else
+                    {
+                        bulletRb2.useGravity = false;
+                        bulletRb2.linearVelocity = direction * bulletSpeed;
+                    }
+                }
+                
+                // Pass combat stats to second bullet
+                BulletScript bulletScript2 = bullet2.GetComponent<BulletScript>();
+                if (bulletScript2 != null)
+                {
+                    bulletScript2.Initialize(damage, range, myTeamInfo.teamId, turretType == TurretType.Artillery, ParseKnockback());
+                }
             }
         }
         
