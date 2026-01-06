@@ -1010,16 +1010,26 @@ public class TankMan : MonoBehaviour
         chain.Add(currentNode.originalLabel);
         visitedNodes.Add(currentNode.nodeId);
         
-        // Walk backwards to find parent conditions
+        // Walk backwards to find parent conditions and cycle nodes
         AiExecutableNode node = currentNode;
         while (node != null && chain.Count < 10) // Limit chain length to prevent infinite loops
         {
             AiExecutableNode parent = FindParentNode(node, tree);
-            if (parent != null && !visitedNodes.Contains(parent.nodeId) && parent.nodeType == AiNodeType.Condition)
+            if (parent != null && !visitedNodes.Contains(parent.nodeId))
             {
-                chain.Insert(0, parent.originalLabel);
-                visitedNodes.Add(parent.nodeId);
-                node = parent;
+                // Include both Condition nodes, Cycle nodes, and Coms action nodes in the chain
+                if (parent.nodeType == AiNodeType.Condition || 
+                    parent.methodName.StartsWith("Cycle") || 
+                    parent.methodName == "Coms")
+                {
+                    chain.Insert(0, parent.originalLabel);
+                    visitedNodes.Add(parent.nodeId);
+                    node = parent;
+                }
+                else
+                {
+                    break;
+                }
             }
             else
             {
@@ -2187,15 +2197,43 @@ public class TankMan : MonoBehaviour
         // Range check removed - fire whenever aimed, bullet will explode after traveling its max range
         if (turretTransform != null)
         {
-            // Use the current lead distance to calculate the aim point
-            Vector3 aimPoint = CalculateLeadPoint(currentTarget, currentLeadDistance);
-            
-            Vector3 turretForward = turretTransform.forward;
-            Vector3 directionToTarget = (aimPoint - turretTransform.position).normalized;
-            float angleToTarget = Vector3.Angle(turretForward, directionToTarget);
-            if (angleToTarget > 2f)
+            if (turretType == TurretType.Artillery)
             {
-                return false;
+                // For artillery, check if turret matches the calculated trajectory angle
+                Transform basePivot = GetTargetBasePivot(currentTarget);
+                Vector3 targetPosition = basePivot.position;
+                
+                float launchAngle;
+                Vector3 horizontalDirection = CalculateArtilleryDirection(out launchAngle, targetPosition);
+                
+                // Calculate what the turret rotation should be
+                Vector3 horizontalDir = Vector3.ProjectOnPlane(horizontalDirection, Vector3.up);
+                if (horizontalDir.magnitude > 0.1f)
+                {
+                    Quaternion horizontalRotation = Quaternion.LookRotation(horizontalDir);
+                    float adjustedAngle = launchAngle - 60f; // Compensate for model's 60-degree default tilt
+                    Quaternion targetRotation = horizontalRotation * Quaternion.Euler(-adjustedAngle, 0f, 0f);
+                    
+                    // Check if turret is within 2 degrees of target rotation
+                    float angleDifference = Quaternion.Angle(turretTransform.rotation, targetRotation);
+                    if (angleDifference > 2f)
+                    {
+                        return false;
+                    }
+                }
+            }
+            else
+            {
+                // Direct fire - check if aimed at lead point
+                Vector3 aimPoint = CalculateLeadPoint(currentTarget, currentLeadDistance);
+                
+                Vector3 turretForward = turretTransform.forward;
+                Vector3 directionToTarget = (aimPoint - turretTransform.position).normalized;
+                float angleToTarget = Vector3.Angle(turretForward, directionToTarget);
+                if (angleToTarget > 2f)
+                {
+                    return false;
+                }
             }
         }
         else
@@ -2301,6 +2339,12 @@ public class TankMan : MonoBehaviour
             
             GameObject bullet = Instantiate(bulletPrefab, firePoint.position, Quaternion.LookRotation(direction));
             
+            // Make artillery bullets twice as fat (wider and taller)
+            if (turretType == TurretType.Artillery)
+            {
+                bullet.transform.localScale = new Vector3(2f, 2f, 1f);
+            }
+            
             // Give bullet velocity based on turret's bullet speed
             Rigidbody bulletRb = bullet.GetComponent<Rigidbody>();
             if (bulletRb != null)
@@ -2308,8 +2352,11 @@ public class TankMan : MonoBehaviour
                 // Configure physics based on turret type
                 if (turretType == TurretType.Artillery)
                 {
+                    // Artillery uses Unity physics with gravity
+                    bulletRb.isKinematic = false;
                     bulletRb.useGravity = true;
-                    // Apply velocity with calculated launch angle
+                    
+                    // Calculate launch velocity with proper angle
                     Vector3 horizontalDirection = Vector3.ProjectOnPlane(direction, Vector3.up).normalized;
                     Vector3 launchVelocity = Quaternion.AngleAxis(launchAngle, Vector3.Cross(horizontalDirection, Vector3.up)) * horizontalDirection * bulletSpeed;
                     bulletRb.linearVelocity = launchVelocity;
@@ -2375,10 +2422,16 @@ public class TankMan : MonoBehaviour
         // Calculate horizontal distance and height difference
         Vector3 horizontalDisplacement = Vector3.ProjectOnPlane(targetPos - firePos, Vector3.up);
         float horizontalDistance = horizontalDisplacement.magnitude;
+        
+        // Apply exponential distance compensation - the further the target, the more we aim short
+        // This compensates for consistent overshooting that increases with distance
+        float distanceCompensation = 7f + (horizontalDistance * 0.001f);
+        horizontalDistance = Mathf.Max(10f, horizontalDistance - distanceCompensation);
+        
         float heightDifference = targetPos.y - firePos.y;
         
         // Use ballistic formula to calculate optimal launch angle
-        // For maximum range with given velocity: angle = 45Â°
+        // For maximum range with given velocity: angle = 45°
         // For hitting specific target: use ballistic trajectory calculation
         float gravity = Physics.gravity.magnitude;
         float velocitySquared = bulletSpeed * bulletSpeed;
@@ -3270,32 +3323,69 @@ public class TankMan : MonoBehaviour
         // This keeps running until the action is stopped by the AI system
         while (currentTarget != null && turretTransform != null)
         {
-            // Calculate lead point based on target velocity and lead distance
-            Vector3 leadPoint = CalculateLeadPoint(currentTarget, leadDistance);
+            Quaternion targetRotation;
             
-            Vector3 targetDirection = leadPoint - turretTransform.position;
-            if (targetDirection.magnitude > 0.1f)
+            // Artillery turrets need special handling - aim at elevation angle
+            if (turretType == TurretType.Artillery)
             {
-                targetDirection.Normalize();
-                Quaternion targetRotation = Quaternion.LookRotation(targetDirection);
+                // Get target position (use BasePivot for accuracy)
+                Transform basePivot = GetTargetBasePivot(currentTarget);
+                Vector3 targetPosition = basePivot.position;
                 
-                // Gradual ramp-up for turret rotation to prevent jumpiness
-                float timeSinceRotationStart = Time.time - turretRotationStartTime;
-                float rampProgress = Mathf.Clamp01(timeSinceRotationStart / turretRampUpTime);
+                // Calculate the artillery trajectory and launch angle
+                float launchAngle;
+                Vector3 horizontalDirection = CalculateArtilleryDirection(out launchAngle, targetPosition);
                 
-                // Smoothly ramp up from 0 to full speed
-                float targetSpeed = TurnSpeed * turretRotationSpeed;
-                currentTurretRotationSpeed = Mathf.Lerp(0f, targetSpeed, rampProgress);
-                
-                // Apply rotation with ramped speed
-                turretTransform.rotation = Quaternion.RotateTowards(
-                    turretTransform.rotation,
-                    targetRotation,
-                    currentTurretRotationSpeed * Time.deltaTime
-                );
-                
-                previousTurretRotation = turretTransform.rotation;
+                // Apply the elevation angle to the turret
+                // First rotate to face the target horizontally
+                Vector3 horizontalDir = Vector3.ProjectOnPlane(horizontalDirection, Vector3.up);
+                if (horizontalDir.magnitude > 0.1f)
+                {
+                    // Create rotation that faces target horizontally, then tilt up by launch angle
+                    Quaternion horizontalRotation = Quaternion.LookRotation(horizontalDir);
+                    // Apply elevation by rotating around the right axis
+                    // Subtract 60 degrees to compensate for artillery model's default 60-degree upward tilt
+                    float adjustedAngle = launchAngle - 60f;
+                    targetRotation = horizontalRotation * Quaternion.Euler(-adjustedAngle, 0f, 0f);
+                }
+                else
+                {
+                    targetRotation = turretTransform.rotation;
+                }
             }
+            else
+            {
+                // Direct fire turrets - aim directly at lead point
+                Vector3 leadPoint = CalculateLeadPoint(currentTarget, leadDistance);
+                Vector3 targetDirection = leadPoint - turretTransform.position;
+                
+                if (targetDirection.magnitude > 0.1f)
+                {
+                    targetDirection.Normalize();
+                    targetRotation = Quaternion.LookRotation(targetDirection);
+                }
+                else
+                {
+                    targetRotation = turretTransform.rotation;
+                }
+            }
+            
+            // Gradual ramp-up for turret rotation to prevent jumpiness
+            float timeSinceRotationStart = Time.time - turretRotationStartTime;
+            float rampProgress = Mathf.Clamp01(timeSinceRotationStart / turretRampUpTime);
+            
+            // Smoothly ramp up from 0 to full speed
+            float targetSpeed = TurnSpeed * turretRotationSpeed;
+            currentTurretRotationSpeed = Mathf.Lerp(0f, targetSpeed, rampProgress);
+            
+            // Apply rotation with ramped speed
+            turretTransform.rotation = Quaternion.RotateTowards(
+                turretTransform.rotation,
+                targetRotation,
+                currentTurretRotationSpeed * Time.deltaTime
+            );
+            
+            previousTurretRotation = turretTransform.rotation;
             
             yield return null;
         }

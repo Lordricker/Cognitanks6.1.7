@@ -63,7 +63,7 @@ public class AiEditorFileUI : MonoBehaviour
         else
             return; // No branch selected
 
-        // Get the filename from the starting node's label (replace spaces with _)
+        // Get the filename from the in-game title field
         // Always get the tree name from FileButtonPanel first, then fallback to FileName field
         string treeName = "NewAI";
         
@@ -78,7 +78,7 @@ public class AiEditorFileUI : MonoBehaviour
         {
             treeName = FileName.text;
         }
-        string assetName = treeName.Replace(' ', '_');
+        string assetName = treeName;
         
         // Check if we're updating an existing file
         if (!string.IsNullOrEmpty(currentJsonPath) && System.IO.File.Exists(currentJsonPath))
@@ -91,6 +91,9 @@ public class AiEditorFileUI : MonoBehaviour
                 
                 if (jsonAsset != null)
                 {
+                    // Check if the tree name has changed
+                    bool treeNameChanged = jsonAsset.TreeName != treeName;
+                    
                     // Update the tree name and title
                     jsonAsset.TreeName = treeName;
                     jsonAsset.title = treeName; // Also update the title
@@ -105,22 +108,20 @@ public class AiEditorFileUI : MonoBehaviour
                     // Update all node data and connections from the current editor state
                     UpdateJsonAssetFromEditor(jsonAsset);
                     
-                    // For existing files, overwrite in place rather than creating a new file
-                    // This prevents duplication when the user changes the tree name
                     string updatedJsonContent = JsonUtility.ToJson(jsonAsset, true);
                     
                     // If the current file is in Assets folder, migrate it to persistent data path
                     if (currentJsonPath.Contains("Assets"))
                     {
-                        // Save to persistent data path with the same filename as the original
+                        // Save to persistent data path with the new filename if tree name changed, otherwise use original
                         string persistentFolderPath = System.IO.Path.Combine(Application.persistentDataPath, "AiTrees", folder);
                         if (!System.IO.Directory.Exists(persistentFolderPath))
                         {
                             System.IO.Directory.CreateDirectory(persistentFolderPath);
                         }
                         
-                        string originalFileName = System.IO.Path.GetFileName(currentJsonPath);
-                        string newFilePath = System.IO.Path.Combine(persistentFolderPath, originalFileName);
+                        string fileName = treeNameChanged ? $"{assetName}.json" : System.IO.Path.GetFileName(currentJsonPath);
+                        string newFilePath = System.IO.Path.Combine(persistentFolderPath, fileName);
                         System.IO.File.WriteAllText(newFilePath, updatedJsonContent);
                         
                         // Delete the old file from Assets folder
@@ -154,8 +155,32 @@ public class AiEditorFileUI : MonoBehaviour
                     }
                     else
                     {
-                        // File is already in persistent data path, just overwrite it
-                        System.IO.File.WriteAllText(currentJsonPath, updatedJsonContent);
+                        // File is already in persistent data path
+                        if (treeNameChanged)
+                        {
+                            // Tree name changed, create new file with new name
+                            string folderPath = System.IO.Path.Combine(Application.persistentDataPath, "AiTrees", folder);
+                            string newFilePath = System.IO.Path.Combine(folderPath, $"{assetName}.json");
+                            System.IO.File.WriteAllText(newFilePath, updatedJsonContent);
+                            
+                            // Delete the old file
+                            try
+                            {
+                                System.IO.File.Delete(currentJsonPath);
+                            }
+                            catch (System.Exception deleteEx)
+                            {
+                                Debug.LogWarning($"[AiEditorFileUI] Could not delete old file {currentJsonPath}: {deleteEx.Message}");
+                            }
+                            
+                            // Update currentJsonPath to the new file
+                            currentJsonPath = newFilePath;
+                        }
+                        else
+                        {
+                            // Tree name didn't change, just overwrite the existing file
+                            System.IO.File.WriteAllText(currentJsonPath, updatedJsonContent);
+                        }
                     }
                     
                     Debug.Log($"[AiEditorFileUI] Updated existing file: {currentJsonPath}");

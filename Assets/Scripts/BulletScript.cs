@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 /// <summary>
 /// Universal bullet script for all tank projectiles
@@ -10,6 +11,7 @@ public class BulletScript : MonoBehaviour
     [SerializeField] private GameObject explosionPrefab; // Assign explosion prefab in bullet prefab inspector
     [SerializeField] private Vector3 explosionScale = new Vector3(10f, 5f, 10f); // Scale modifier for explosions
     [SerializeField] private float explosionFadeDuration = 0.3f; // How long explosions last
+    [SerializeField] private float aoeRadius = 50f; // Area of effect radius for explosion damage
     
     [Header("Combat Stats")]
     [SerializeField] private int damage;
@@ -47,6 +49,9 @@ public class BulletScript : MonoBehaviour
         {
             // Minimal mass to prevent any physics-based tipping
             bulletRb.mass = 0.01f;
+            
+            // Use continuous collision detection to prevent bullets from passing through ground
+            bulletRb.collisionDetectionMode = CollisionDetectionMode.Continuous;
         }
         
         // Play gunshot sound at muzzle position with proper volume
@@ -77,11 +82,39 @@ public class BulletScript : MonoBehaviour
     {
         if (!isInitialized) return;
         
+        // Rotate bullet to face its velocity direction (especially important for artillery arcs)
+        Rigidbody bulletRb = GetComponent<Rigidbody>();
+        if (bulletRb != null && bulletRb.linearVelocity.magnitude > 0.1f)
+        {
+            transform.rotation = Quaternion.LookRotation(bulletRb.linearVelocity.normalized);
+        }
+        
         // Check if bullet has traveled its maximum range
         float distanceTraveled = Vector3.Distance(startPosition, transform.position);
         if (distanceTraveled >= maxRange)
         {
             Explode();
+        }
+    }
+    
+    void FixedUpdate()
+    {
+        if (!isInitialized || !isArtillery) return;
+        
+        // For artillery bullets, manually advance physics 2 extra times per frame (3x total speed)
+        // This keeps the same arc shape but makes the bullet travel along it faster
+        Rigidbody bulletRb = GetComponent<Rigidbody>();
+        if (bulletRb != null)
+        {
+            // Apply 2 extra physics steps worth of gravity and movement
+            for (int i = 0; i < 2; i++)
+            {
+                // Apply extra gravity
+                bulletRb.linearVelocity += Physics.gravity * Time.fixedDeltaTime;
+                
+                // Apply extra movement
+                bulletRb.MovePosition(bulletRb.position + bulletRb.linearVelocity * Time.fixedDeltaTime);
+            }
         }
     }
     
@@ -122,8 +155,16 @@ public class BulletScript : MonoBehaviour
                 
                 if (hitTank != null)
                 {
-                    hitTank.TakeDamage(damage);
-                    Debug.Log($"[BulletScript] Hit enemy tank {hitTank.name} for {damage} damage (bullet mass: {knockback})");
+                    // For artillery, skip direct damage - only use AOE damage from Explode()
+                    if (!isArtillery)
+                    {
+                        hitTank.TakeDamage(damage);
+                        Debug.Log($"[BulletScript] Hit enemy tank {hitTank.name} for {damage} direct damage (bullet mass: {knockback})");
+                    }
+                    else
+                    {
+                        Debug.Log($"[BulletScript] Artillery hit enemy tank {hitTank.name} - using AOE damage only");
+                    }
                     
                     // Play bullet hit sound at collision point
                     if (SoundManager.Instance != null)
@@ -149,11 +190,55 @@ public class BulletScript : MonoBehaviour
     }
     
     /// <summary>
-    /// Handle bullet explosion/destruction
+    /// Handle bullet explosion/destruction with AOE damage and knockback
     /// </summary>
     void Explode()
     {
+        // Apply AOE damage and knockback to all tanks in radius
+        Collider[] hitColliders = Physics.OverlapSphere(transform.position, aoeRadius);
+        HashSet<TankMan> damagedTanks = new HashSet<TankMan>(); // Track tanks already damaged to prevent multiple hits
         
+        foreach (Collider hitCollider in hitColliders)
+        {
+            // Check if we hit a tank
+            TankTeamInfo hitTankTeam = hitCollider.GetComponent<TankTeamInfo>();
+            if (hitTankTeam == null)
+            {
+                hitTankTeam = hitCollider.GetComponentInParent<TankTeamInfo>();
+            }
+            
+            if (hitTankTeam != null && hitTankTeam.teamId != firingTeamId)
+            {
+                // Found enemy tank - apply damage
+                TankMan hitTank = hitTankTeam.GetComponent<TankMan>();
+                if (hitTank == null)
+                {
+                    hitTank = hitTankTeam.GetComponentInParent<TankMan>();
+                }
+                
+                if (hitTank != null && !damagedTanks.Contains(hitTank))
+                {
+                    damagedTanks.Add(hitTank); // Mark this tank as damaged
+                    
+                    // Calculate distance-based damage falloff (full damage at center, 50% at edge)
+                    float distance = Vector3.Distance(transform.position, hitTank.transform.position);
+                    float damageMultiplier = 1f - (distance / aoeRadius) * 0.5f; // 100% to 50% based on distance
+                    int aoeDamage = Mathf.RoundToInt(damage * damageMultiplier);
+                    
+                    Debug.Log($"[BulletScript] Artillery AOE hit {hitTank.name} at distance {distance:F1}, damage: {aoeDamage} (base: {damage}, multiplier: {damageMultiplier:F2})");
+                    hitTank.TakeDamage(aoeDamage);
+                    
+                    // Apply knockback force away from explosion center
+                    if (hitTank.Rb != null)
+                    {
+                        Vector3 knockbackDirection = (hitTank.transform.position - transform.position).normalized;
+                        float knockbackMultiplier = 1f - (distance / aoeRadius); // Stronger at center
+                        float knockbackForce = knockback * knockbackMultiplier;
+                        hitTank.Rb.AddForce(knockbackDirection * knockbackForce, ForceMode.Impulse);
+                    }
+                }
+            }
+        }
         
         // Spawn explosion effect if available
         if (explosionPrefab != null)
@@ -233,6 +318,10 @@ public class BulletScript : MonoBehaviour
             // Draw sphere at max range
             Gizmos.color = Color.yellow;
             Gizmos.DrawWireSphere(startPosition, maxRange);
+            
+            // Draw AOE radius
+            Gizmos.color = Color.orange;
+            Gizmos.DrawWireSphere(transform.position, aoeRadius);
         }
     }
 }

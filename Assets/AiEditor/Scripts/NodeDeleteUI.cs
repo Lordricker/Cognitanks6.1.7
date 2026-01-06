@@ -856,7 +856,7 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
         //Special Nodes
         if (lowerLabel.Contains("cycle"))
             return "Cycles through connected nodes in top to bottom sequence, entered value is number of seconds spent on each action. Returns to the first after completing all.";
-        if (lowerLabel.Contains("if coms") || lowerLabel.Contains("if comms"))
+        if (lowerLabel.Contains("Coms") || lowerLabel.Contains("if comms"))
             return "(Boolean Node)Target nodes used after this will have access to an ally target list in addition to their own vision (all tanks update their teams ally target list every 0.1 sec)";
         
         return "Custom node. Check the node label for behavior details.";

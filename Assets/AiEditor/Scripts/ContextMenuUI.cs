@@ -179,6 +179,28 @@ public class ContextMenuUI : MonoBehaviour
     }
     
     /// <summary>
+    /// Sets up hover handlers for all buttons in a specific panel
+    /// </summary>
+    private void SetupHoverHandlersForPanel(GameObject panel)
+    {
+        if (panel != null)
+        {
+            // Find all buttons in this panel
+            Button[] buttons = panel.GetComponentsInChildren<Button>(true);
+            foreach (Button button in buttons)
+            {
+                // Check if this button already has hover handlers
+                EventTrigger trigger = button.gameObject.GetComponent<EventTrigger>();
+                if (trigger == null || trigger.triggers.Count == 0)
+                {
+                    // Add hover event handlers
+                    AddHoverHandler(button);
+                }
+            }
+        }
+    }
+    
+    /// <summary>
     /// Adds hover event handlers to a button
     /// </summary>
     private void AddHoverHandler(Button button)
@@ -217,6 +239,10 @@ public class ContextMenuUI : MonoBehaviour
         {
             ShowNodeDetails(buttonText);
         }
+        else
+        {
+            Debug.LogWarning($"[ContextMenuUI] Could not get text from button: {button.name}");
+        }
     }
     
     /// <summary>
@@ -232,18 +258,34 @@ public class ContextMenuUI : MonoBehaviour
     /// </summary>
     private string GetButtonText(Button button)
     {
+        if (button == null)
+        {
+            Debug.LogWarning("[ContextMenuUI] Button is null");
+            return "";
+        }
+
         // Try TMP_Text first
         TMPro.TMP_Text tmpText = button.GetComponentInChildren<TMPro.TMP_Text>();
-        if (tmpText != null)
+        if (tmpText != null && !string.IsNullOrEmpty(tmpText.text))
         {
             return tmpText.text;
         }
         
         // Fallback to legacy Text
         Text legacyText = button.GetComponentInChildren<Text>();
-        if (legacyText != null)
+        if (legacyText != null && !string.IsNullOrEmpty(legacyText.text))
         {
             return legacyText.text;
+        }
+        
+        // Debug: Check what components are actually on this button
+        Component[] components = button.GetComponentsInChildren<Component>();
+        foreach (Component comp in components)
+        {
+            if (comp is TMPro.TMP_Text || comp is Text)
+            {
+                Debug.LogWarning($"[ContextMenuUI] Found text component {comp.GetType().Name} on button {button.name} but text is empty");
+            }
         }
         
         return "";
@@ -336,9 +378,9 @@ public class ContextMenuUI : MonoBehaviour
             return "Selects a random point within 100 units of the tanks current location and attempts to move there";
         if (lowerLabel.Contains("move") || lowerLabel.Contains("forward"))
             return "Tank Drives forward, use with Cycle nodes to patrol an area";
-        if (lowerLabel.Contains("rotateright"))
+        if (lowerLabel.Contains("rotate right") || lowerLabel.Contains("rotateright"))
             return "Tank Pivots to the right by the specified degrees.";
-        if (lowerLabel.Contains("rotateleft"))
+        if (lowerLabel.Contains("rotate left") || lowerLabel.Contains("rotateleft"))
             return "Tank Pivots to the left by the specified degrees.";
         if (lowerLabel.Contains("wait"))
             return "Stops movement. Tank remains stationary.";
@@ -346,7 +388,7 @@ public class ContextMenuUI : MonoBehaviour
             return "Continuously pursues the current target, closing distance. Useful for aggressive behavior.";
         if (lowerLabel.Contains("flee"))
             return "Moves away from the current target, can be used for maintaining or increasing distance.";
-        if (lowerLabel.Contains("mapcenter"))
+        if (lowerLabel.Contains("map center") || lowerLabel.Contains("mapcenter"))
             return "Navigates to the center of the map. Useful for controlling key positions.";
         if (lowerLabel.Contains("home"))
             return "Tank Returns to its spawn position.";
@@ -380,7 +422,7 @@ public class ContextMenuUI : MonoBehaviour
         // Special
         if (lowerLabel.Contains("cycle"))
             return "Cycles through connected nodes in top to bottom sequence, entered value is number of seconds spent on each action. Returns to the first after completing all.";
-        if (lowerLabel.Contains("if coms") || lowerLabel.Contains("if comms"))
+        if (lowerLabel.Contains("coms") || lowerLabel.Contains("if comms"))
             return "(Boolean Node)Target nodes used after this will have access to an ally target list in addition to their own vision (all tanks update their teams ally target list every 0.1 sec)";
         
         return "Custom node. Check the node label for behavior details.";
@@ -452,49 +494,63 @@ public class ContextMenuUI : MonoBehaviour
     {
         turretListPanel.SetActive(true);
         navListPanel.SetActive(false);
+        // Ensure hover handlers are set up for newly activated panel
+        SetupHoverHandlersForPanel(turretListPanel);
     }
 
     void OnNavClicked()
     {
         turretListPanel.SetActive(false);
         navListPanel.SetActive(true);
+        // Ensure hover handlers are set up for newly activated panel
+        SetupHoverHandlersForPanel(navListPanel);
     }
 
     void OnConditionTurretClicked()
     {
         HideAllConditionPanels();
         conditionTurretPanel.SetActive(true);
+        SetupHoverHandlersForPanel(conditionTurretPanel);
     }
     void OnConditionArmorClicked()
     {
         HideAllConditionPanels();
         conditionArmorPanel.SetActive(true);
+        SetupHoverHandlersForPanel(conditionArmorPanel);
     }
     void OnConditionHPClicked()
     {
         HideAllConditionPanels();
         conditionHPPanel.SetActive(true);
+        SetupHoverHandlersForPanel(conditionHPPanel);
     }
     void OnConditionRangeClicked()
     {
         HideAllConditionPanels();
         conditionRangePanel.SetActive(true);
+        SetupHoverHandlersForPanel(conditionRangePanel);
     }
     void OnConditionTagClicked()
     {
         HideAllConditionPanels();
         conditionTagPanel.SetActive(true);
+        SetupHoverHandlersForPanel(conditionTagPanel);
     }
     void OnConditionTargetClicked()
     {
         HideAllConditionPanels();
         conditionTargetPanel.SetActive(true);
+        SetupHoverHandlersForPanel(conditionTargetPanel);
     }
     
     void OnConditionSelfClicked()
     {
         HideAllConditionPanels();
-        if (conditionSelfPanel != null) conditionSelfPanel.SetActive(true);
+        if (conditionSelfPanel != null) 
+        {
+            conditionSelfPanel.SetActive(true);
+            SetupHoverHandlersForPanel(conditionSelfPanel);
+        }
     }
 
     /// <summary>
