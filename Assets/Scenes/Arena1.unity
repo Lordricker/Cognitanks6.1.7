@@ -4297,6 +4297,7 @@ MonoBehaviour:
   - You can edit any purchased Ai files.
   - Click component names and it will show a description
   - 'Change tank component colors with slider in the shop to help identify them '
+  - 'Winning returns you the fee plus the fee value x alive tanks '
 --- !u!1 &1248598140
 GameObject:
   m_ObjectHideFlags: 0

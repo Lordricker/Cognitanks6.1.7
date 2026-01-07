@@ -18,6 +18,7 @@ public class PlayerData
 {
     public List<OwnedComponentEntry> ownedComponents = new List<OwnedComponentEntry>(); // IDs and instanceIds of owned components
     public List<TankLoadoutSave> tankLoadouts = new List<TankLoadoutSave>(); // One per tank slot
+    public int playerCash = 10000; // Player's current cash amount
 }
 
 [Serializable]
@@ -58,9 +59,17 @@ public class PlayerDataManager : MonoBehaviour
     {
         Debug.Log("[PlayerDataManager] Starting SavePlayerData...");
         
+        // Sync player cash FROM playerData TO WorkshopUIManager (not the other way around)
+        var workshopUI = FindFirstObjectByType<WorkshopUIManager>();
+        if (workshopUI != null)
+        {
+            workshopUI.playerCash = playerData.playerCash;
+            workshopUI.UpdatePlayerCashUI();
+            Debug.Log($"[PlayerDataManager] Synced player cash to WorkshopUIManager: ${playerData.playerCash}");
+        }
+        
         // Save all unique instanceIds for each owned component (excluding AI components which are stored on disk)
         playerData.ownedComponents.Clear();
-        var workshopUI = FindFirstObjectByType<WorkshopUIManager>();
         if (workshopUI != null)
         {
             var grouped = new Dictionary<string, OwnedComponentEntry>();
@@ -123,6 +132,15 @@ public class PlayerDataManager : MonoBehaviour
             string json = File.ReadAllText(saveFilePath);
             playerData = JsonUtility.FromJson<PlayerData>(json);
             Debug.Log("Player data loaded.");
+            
+            // Load player cash into WorkshopUIManager
+            var workshopUI = FindFirstObjectByType<WorkshopUIManager>();
+            if (workshopUI != null)
+            {
+                workshopUI.playerCash = playerData.playerCash;
+                workshopUI.UpdatePlayerCashUI();
+                Debug.Log($"[PlayerDataManager] Loaded player cash: ${playerData.playerCash}");
+            }
         }
         else
         {
@@ -424,5 +442,71 @@ public class PlayerDataManager : MonoBehaviour
         
         Debug.LogWarning($"[PlayerDataManager] Could not load AI Tree asset with instanceId: {instanceId} and branchType: {branchType} from persistent data path");
         return null;
+    }
+
+    /// <summary>
+    /// Get the current player cash amount
+    /// </summary>
+    public int GetPlayerCash()
+    {
+        return playerData.playerCash;
+    }
+
+    /// <summary>
+    /// Set the player cash amount and save immediately
+    /// </summary>
+    public void SetPlayerCash(int amount)
+    {
+        playerData.playerCash = Mathf.Max(0, amount); // Prevent negative cash
+        SavePlayerData();
+        Debug.Log($"[PlayerDataManager] Player cash set to ${playerData.playerCash}");
+    }
+
+    /// <summary>
+    /// Add cash to the player's balance and save immediately
+    /// </summary>
+    public void AddPlayerCash(int amount)
+    {
+        playerData.playerCash = Mathf.Max(0, playerData.playerCash + amount);
+        
+        // Sync to WorkshopUIManager and update UI
+        var workshopUI = FindFirstObjectByType<WorkshopUIManager>();
+        if (workshopUI != null)
+        {
+            workshopUI.playerCash = playerData.playerCash;
+            workshopUI.UpdatePlayerCashUI();
+        }
+        
+        SavePlayerData();
+        Debug.Log($"[PlayerDataManager] Added ${amount} to player cash. New balance: ${playerData.playerCash}");
+    }
+
+    /// <summary>
+    /// Subtract cash from the player's balance (if sufficient funds) and save immediately
+    /// Returns true if transaction succeeded, false if insufficient funds
+    /// </summary>
+    public bool SpendPlayerCash(int amount)
+    {
+        if (playerData.playerCash >= amount)
+        {
+            playerData.playerCash -= amount;
+            
+            // Sync to WorkshopUIManager and update UI
+            var workshopUI = FindFirstObjectByType<WorkshopUIManager>();
+            if (workshopUI != null)
+            {
+                workshopUI.playerCash = playerData.playerCash;
+                workshopUI.UpdatePlayerCashUI();
+            }
+            
+            SavePlayerData();
+            Debug.Log($"[PlayerDataManager] Spent ${amount}. Remaining balance: ${playerData.playerCash}");
+            return true;
+        }
+        else
+        {
+            Debug.LogWarning($"[PlayerDataManager] Insufficient funds! Need ${amount}, have ${playerData.playerCash}");
+            return false;
+        }
     }
 }
