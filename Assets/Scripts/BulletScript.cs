@@ -7,11 +7,15 @@ using System.Collections.Generic;
 /// </summary>
 public class BulletScript : MonoBehaviour
 {
-    [Header("Explosion Effect")]
-    [SerializeField] private GameObject explosionPrefab; // Assign explosion prefab in bullet prefab inspector
+    [Header("Explosion Effects")]
+    [SerializeField] private GameObject bulletSpawnExplosionPrefab; // Muzzle flash effect when bullet is fired
+    [SerializeField] private GameObject bulletDeathExplosionPrefab; // Impact/explosion effect when bullet hits or expires
     [SerializeField] private Vector3 explosionScale = new Vector3(10f, 5f, 10f); // Scale modifier for explosions
     [SerializeField] private float explosionFadeDuration = 0.3f; // How long explosions last
     [SerializeField] private float aoeRadius = 50f; // Area of effect radius for explosion damage
+    
+    [Header("Trail Effect")]
+    [SerializeField] private GameObject trailEmitterPrefab; // Particle trail for artillery bullets
     
     [Header("Combat Stats")]
     [SerializeField] private int damage;
@@ -62,14 +66,33 @@ public class BulletScript : MonoBehaviour
         }
         
         // Spawn muzzle explosion effect (gunpowder flash)
-        if (explosionPrefab != null)
+        if (bulletSpawnExplosionPrefab != null)
         {
-            GameObject muzzleExplosion = Instantiate(explosionPrefab, transform.position, Quaternion.identity);
+            GameObject muzzleExplosion = Instantiate(bulletSpawnExplosionPrefab, transform.position, Quaternion.identity);
             muzzleExplosion.transform.localScale = explosionScale;
             
             // Start fade out coroutine and destroy after specified duration
             BulletScript tempScript = muzzleExplosion.AddComponent<BulletScript>();
             tempScript.StartCoroutine(tempScript.FadeOutExplosion(muzzleExplosion, explosionFadeDuration));
+        }
+        
+        // Spawn trail emitter for artillery bullets only
+        if (isArtillery && trailEmitterPrefab != null)
+        {
+            GameObject trailEmitter = Instantiate(trailEmitterPrefab, transform.position, Quaternion.identity);
+            trailEmitter.transform.parent = transform; // Attach to bullet so it follows
+            
+            // Speed up the trail particles by 5x for better visual effect
+            ParticleSystem ps = trailEmitter.GetComponent<ParticleSystem>();
+            if (ps != null)
+            {
+                var main = ps.main;
+                main.simulationSpeed = 5f; // 5x faster simulation
+                main.startLifetime = 2f; // Auto-destroy particles after 2 seconds
+                
+                var emission = ps.emission;
+                emission.rateOverTime = emission.rateOverTime.constant * 20f; // 5x more particles
+            }
         }
         
         // Safety cleanup - destroy bullet after reasonable time even if range isn't reached
@@ -194,57 +217,63 @@ public class BulletScript : MonoBehaviour
     /// </summary>
     void Explode()
     {
-        // Apply AOE damage and knockback to all tanks in radius
-        Collider[] hitColliders = Physics.OverlapSphere(transform.position, aoeRadius);
-        HashSet<TankMan> damagedTanks = new HashSet<TankMan>(); // Track tanks already damaged to prevent multiple hits
+        Debug.Log($"[BulletScript] Bullet exploded at {transform.position}");
         
-        foreach (Collider hitCollider in hitColliders)
+        // Only apply AOE damage for artillery bullets
+        if (isArtillery)
         {
-            // Check if we hit a tank
-            TankTeamInfo hitTankTeam = hitCollider.GetComponent<TankTeamInfo>();
-            if (hitTankTeam == null)
-            {
-                hitTankTeam = hitCollider.GetComponentInParent<TankTeamInfo>();
-            }
+            // Apply AOE damage and knockback to all tanks in radius
+            Collider[] hitColliders = Physics.OverlapSphere(transform.position, aoeRadius);
+            HashSet<TankMan> damagedTanks = new HashSet<TankMan>(); // Track tanks already damaged to prevent multiple hits
             
-            if (hitTankTeam != null && hitTankTeam.teamId != firingTeamId)
+            foreach (Collider hitCollider in hitColliders)
             {
-                // Found enemy tank - apply damage
-                TankMan hitTank = hitTankTeam.GetComponent<TankMan>();
-                if (hitTank == null)
+                // Check if we hit a tank
+                TankTeamInfo hitTankTeam = hitCollider.GetComponent<TankTeamInfo>();
+                if (hitTankTeam == null)
                 {
-                    hitTank = hitTankTeam.GetComponentInParent<TankMan>();
+                    hitTankTeam = hitCollider.GetComponentInParent<TankTeamInfo>();
                 }
                 
-                if (hitTank != null && !damagedTanks.Contains(hitTank))
+                if (hitTankTeam != null && hitTankTeam.teamId != firingTeamId)
                 {
-                    damagedTanks.Add(hitTank); // Mark this tank as damaged
-                    
-                    // Calculate distance-based damage falloff (full damage at center, 50% at edge)
-                    float distance = Vector3.Distance(transform.position, hitTank.transform.position);
-                    float damageMultiplier = 1f - (distance / aoeRadius) * 0.5f; // 100% to 50% based on distance
-                    int aoeDamage = Mathf.RoundToInt(damage * damageMultiplier);
-                    
-                    Debug.Log($"[BulletScript] Artillery AOE hit {hitTank.name} at distance {distance:F1}, damage: {aoeDamage} (base: {damage}, multiplier: {damageMultiplier:F2})");
-                    hitTank.TakeDamage(aoeDamage);
-                    
-                    // Apply knockback force away from explosion center
-                    if (hitTank.Rb != null)
+                    // Found enemy tank - apply damage
+                    TankMan hitTank = hitTankTeam.GetComponent<TankMan>();
+                    if (hitTank == null)
                     {
-                        Vector3 knockbackDirection = (hitTank.transform.position - transform.position).normalized;
-                        float knockbackMultiplier = 1f - (distance / aoeRadius); // Stronger at center
-                        float knockbackForce = knockback * knockbackMultiplier;
-                        hitTank.Rb.AddForce(knockbackDirection * knockbackForce, ForceMode.Impulse);
+                        hitTank = hitTankTeam.GetComponentInParent<TankMan>();
+                    }
+                    
+                    if (hitTank != null && !damagedTanks.Contains(hitTank))
+                    {
+                        damagedTanks.Add(hitTank); // Mark this tank as damaged
+                        
+                        // Calculate distance-based damage falloff (full damage at center, 50% at edge)
+                        float distance = Vector3.Distance(transform.position, hitTank.transform.position);
+                        float damageMultiplier = 1f - (distance / aoeRadius) * 0.5f; // 100% to 50% based on distance
+                        int aoeDamage = Mathf.RoundToInt(damage * damageMultiplier);
+                        
+                        Debug.Log($"[BulletScript] Artillery AOE hit {hitTank.name} at distance {distance:F1}, damage: {aoeDamage} (base: {damage}, multiplier: {damageMultiplier:F2})");
+                        hitTank.TakeDamage(aoeDamage);
+                        
+                        // Apply knockback force away from explosion center
+                        if (hitTank.Rb != null)
+                        {
+                            Vector3 knockbackDirection = (hitTank.transform.position - transform.position).normalized;
+                            float knockbackMultiplier = 1f - (distance / aoeRadius); // Stronger at center
+                            float knockbackForce = knockback * knockbackMultiplier;
+                            hitTank.Rb.AddForce(knockbackDirection * knockbackForce, ForceMode.Impulse);
+                        }
                     }
                 }
             }
         }
         
         // Spawn explosion effect if available
-        if (explosionPrefab != null)
+        if (bulletDeathExplosionPrefab != null)
         {
-            GameObject explosion = Instantiate(explosionPrefab, transform.position, Quaternion.identity);
-            explosion.transform.localScale = explosionScale;
+            GameObject explosion = Instantiate(bulletDeathExplosionPrefab, transform.position, Quaternion.identity);
+            explosion.transform.localScale = isArtillery ? explosionScale * 5f : explosionScale;
             
             // Start fade out coroutine and destroy after specified duration
             BulletScript tempScript = explosion.AddComponent<BulletScript>();
@@ -256,25 +285,23 @@ public class BulletScript : MonoBehaviour
     }
     
     /// <summary>
-    /// Fade out explosion effect over specified duration
+    /// Fade out explosion effect over specified duration by manually fading each particle
     /// </summary>
     public System.Collections.IEnumerator FadeOutExplosion(GameObject explosion, float duration)
     {
-        // Get all renderers in the explosion (particles, meshes, etc.)
-        Renderer[] renderers = explosion.GetComponentsInChildren<Renderer>();
+        // Get all particle systems in the explosion
         ParticleSystem[] particleSystems = explosion.GetComponentsInChildren<ParticleSystem>();
         
-        // Store original colors/alphas
-        var originalColors = new System.Collections.Generic.Dictionary<Material, Color>();
-        foreach (var renderer in renderers)
+        // Store references for particle manipulation
+        ParticleSystem.Particle[][] particleArrays = new ParticleSystem.Particle[particleSystems.Length][];
+        Color[][] originalColors = new Color[particleSystems.Length][];
+        
+        // Initialize particle arrays for each system
+        for (int i = 0; i < particleSystems.Length; i++)
         {
-            foreach (var mat in renderer.materials)
-            {
-                if (mat.HasProperty("_Color"))
-                {
-                    originalColors[mat] = mat.color;
-                }
-            }
+            int maxParticles = particleSystems[i].main.maxParticles;
+            particleArrays[i] = new ParticleSystem.Particle[maxParticles];
+            originalColors[i] = new Color[maxParticles];
         }
         
         float elapsed = 0f;
@@ -283,21 +310,34 @@ public class BulletScript : MonoBehaviour
             elapsed += Time.deltaTime;
             float alpha = 1f - (elapsed / duration); // 1 to 0 over duration
             
-            // Fade all materials
-            foreach (var kvp in originalColors)
+            // Fade particles in each particle system
+            for (int i = 0; i < particleSystems.Length; i++)
             {
-                Color color = kvp.Value;
-                color.a = alpha;
-                kvp.Key.color = color;
-            }
-            
-            // Fade particle systems
-            foreach (var ps in particleSystems)
-            {
-                var main = ps.main;
-                Color startColor = main.startColor.color;
-                startColor.a = alpha;
-                main.startColor = startColor;
+                ParticleSystem ps = particleSystems[i];
+                if (ps == null) continue;
+                
+                // Get current active particles
+                int numParticles = ps.GetParticles(particleArrays[i]);
+                
+                // Store original colors on first frame
+                if (elapsed <= Time.deltaTime)
+                {
+                    for (int j = 0; j < numParticles; j++)
+                    {
+                        originalColors[i][j] = particleArrays[i][j].startColor;
+                    }
+                }
+                
+                // Fade each particle
+                for (int j = 0; j < numParticles; j++)
+                {
+                    Color color = originalColors[i][j];
+                    color.a *= alpha; // Multiply original alpha by fade alpha
+                    particleArrays[i][j].startColor = color;
+                }
+                
+                // Apply modified particles back to the system
+                ps.SetParticles(particleArrays[i], numParticles);
             }
             
             yield return null;
