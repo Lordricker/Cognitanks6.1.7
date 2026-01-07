@@ -127,6 +127,12 @@ public class WorkshopUIManager : MonoBehaviour
         
         LoadPlayerInventoryFromSave();
         
+        // Load player cash from PlayerDataManager
+        if (PlayerDataManager.Instance != null)
+        {
+            playerCash = PlayerDataManager.Instance.GetPlayerCash();
+        }
+        
         // Clean up any legacy AI files with old instanceId format
         CleanupLegacyAIFiles();
         
@@ -205,7 +211,7 @@ public class WorkshopUIManager : MonoBehaviour
         return null;
     }
 
-    private void UpdatePlayerCashUI()
+    public void UpdatePlayerCashUI()
     {
         if (playerCashText != null)
             playerCashText.text = $"${playerCash}";
@@ -440,14 +446,13 @@ public class WorkshopUIManager : MonoBehaviour
 
     private void OnBuyComponent(ComponentData component)
     {
-        if (playerCash < component.cost)
+        // Use PlayerDataManager for cash transactions
+        if (!PlayerDataManager.Instance.SpendPlayerCash(component.cost))
         {
             ShowDebugMessage("Not enough cash!");
             return;
         }
         
-        playerCash -= component.cost;
-
         // Always instantiate a new copy for all component types (including AI SOs)
         ComponentData newComp = Instantiate(component);
         
@@ -541,7 +546,7 @@ public class WorkshopUIManager : MonoBehaviour
             }
             
             // Refund half the cost
-            playerCash += component.cost / 2;
+            PlayerDataManager.Instance.AddPlayerCash(component.cost / 2);
         }
         else
         {
@@ -553,7 +558,7 @@ public class WorkshopUIManager : MonoBehaviour
                 if (toRemove != null)
                     playerInventory.Remove(toRemove);
                 
-                playerCash += component.cost / 2;
+                PlayerDataManager.Instance.AddPlayerCash(component.cost / 2);
                 
                 // Remove from player save data (remove instanceId from OwnedComponentEntry)
                 var entry = PlayerDataManager.Instance.playerData.ownedComponents.Find(e => e.id == component.id);

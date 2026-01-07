@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   title: Artillery
   description: It comes out of nowhere
-  cost: 2200
+  cost: 600
   weight: 20
   modelPrefab: {fileID: 6247987888857746735, guid: 0ae77e5428ccf1c488a5b73ef1162a96, type: 3}
   category: 0

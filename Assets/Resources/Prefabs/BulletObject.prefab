@@ -181,6 +181,7 @@ MonoBehaviour:
   explosionPrefab: {fileID: 1781949194303238870, guid: dd986d04bcc6dc748a53d8c3d1d42a6d, type: 3}
   explosionScale: {x: 10, y: 5, z: 10}
   explosionFadeDuration: 0.3
+  aoeRadius: 50
   damage: 0
   maxRange: 0
   firingTeamId: 0
@@ -207,9 +208,9 @@ CapsuleCollider:
   m_Enabled: 1
   serializedVersion: 2
   m_Radius: 0.45751965
-  m_Height: 2.027201
+  m_Height: 3.969575
   m_Direction: 2
-  m_Center: {x: -0.26588476, y: 0.47583568, z: 0.02992928}
+  m_Center: {x: -0.26588476, y: 0.47583568, z: -0.9412577}
 --- !u!54 &4679267157488802506
 Rigidbody:
   m_ObjectHideFlags: 0
