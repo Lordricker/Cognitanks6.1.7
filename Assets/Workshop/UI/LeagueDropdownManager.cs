@@ -67,8 +67,18 @@ public class LeagueDropdownManager : MonoBehaviour
                     
                     Debug.Log($"[LeagueDropdownManager] Arena button {j} configured: {config.SceneName} (League {config.leagueNumber}, Round {config.roundNumber}, Weight Limit: {config.weightLimit}, Entry Fee: ${config.entryFee})");
                     
-                    // Note: Arena buttons should have their OnClick set in the Inspector to call OnArenaButtonClicked(config.SceneName)
-                    // The method now includes full validation based on the config data
+                    // Set up the button listener programmatically with captured config values
+                    var capturedConfig = config; // Capture for closure
+                    config.button.onClick.RemoveAllListeners(); // Clear any existing listeners
+                    config.button.onClick.AddListener(() => OnArenaButtonClicked(
+                        capturedConfig.SceneName, 
+                        capturedConfig.LeagueName, 
+                        capturedConfig.RoundName, 
+                        capturedConfig.weightLimit, 
+                        capturedConfig.entryFee
+                    ));
+                    
+                    Debug.Log($"[LeagueDropdownManager] Listener added for {config.SceneName} -> {config.LeagueName}/{config.RoundName}");
                 }
                 else
                 {
@@ -87,10 +97,10 @@ public class LeagueDropdownManager : MonoBehaviour
         }
     }
 
-    // Call this from the OnClick of any arena button in the Inspector
-    public void OnArenaButtonClicked(string sceneName)
+    // Called programmatically by button listeners set up in Start()
+    public void OnArenaButtonClicked(string sceneName, string leagueName, string roundName, float weightLimit, int entryFee)
     {
-        Debug.Log($"[LeagueDropdownManager] OnArenaButtonClicked called with sceneName={sceneName}");
+        Debug.Log($"[LeagueDropdownManager] OnArenaButtonClicked called: {sceneName} -> {leagueName}/{roundName}, WeightLimit={weightLimit}, EntryFee=${entryFee}");
         
         // Validate that at least one tank is active before starting the match
         if (!ValidateActiveTanks())
@@ -99,71 +109,46 @@ public class LeagueDropdownManager : MonoBehaviour
             return;
         }
         
-        // Find the arena config for this scene to get validation parameters
-        ArenaButtonConfig config = null;
-        string leagueName = "";
-        string roundName = "";
-        
-        foreach (var league in leagues)
-        {
-            foreach (var arenaConfig in league.arenaButtons)
-            {
-                if (arenaConfig.SceneName == sceneName)
-                {
-                    config = arenaConfig;
-                    leagueName = arenaConfig.LeagueName;
-                    roundName = arenaConfig.RoundName;
-                    break;
-                }
-            }
-            if (config != null) break;
-        }
-        
-        if (config == null)
-        {
-            Debug.LogError($"[LeagueDropdownManager] Could not find config for scene {sceneName}");
-            ShowError("Arena configuration error!");
-            return;
-        }
-        
         // Validate weight limit
         float totalWeight = CalculateTotalActiveTankWeight();
-        Debug.Log($"[LeagueDropdownManager] Weight validation: totalWeight={totalWeight:F1}, weightLimit={config.weightLimit:F1}, condition={(config.weightLimit > 0 && totalWeight > config.weightLimit)}");
-        if (config.weightLimit > 0 && totalWeight > config.weightLimit)
+        Debug.Log($"[LeagueDropdownManager] Weight validation: totalWeight={totalWeight:F1}, weightLimit={weightLimit:F1}");
+        if (weightLimit > 0 && totalWeight > weightLimit)
         {
-            ShowError($"Weight Limit Exceeded! Total: {totalWeight:F1}kg / Limit: {config.weightLimit:F1}kg");
+            ShowError($"Weight Limit Exceeded! Total: {totalWeight:F1}kg / Limit: {weightLimit:F1}kg");
             Debug.Log($"[LeagueDropdownManager] Weight limit exceeded - blocking arena entry");
             return;
         }
         
         // Validate entry fee (check player cash)
-        if (config.entryFee > 0)
+        if (entryFee > 0)
         {
             var playerDataManager = PlayerDataManager.Instance;
             int currentCash = playerDataManager != null ? playerDataManager.GetPlayerCash() : 0;
-            Debug.Log($"[LeagueDropdownManager] Cash validation: currentCash=${currentCash}, entryFee=${config.entryFee}, condition={(playerDataManager == null || currentCash < config.entryFee)}");
-            if (playerDataManager == null || currentCash < config.entryFee)
+            Debug.Log($"[LeagueDropdownManager] Cash validation: currentCash=${currentCash}, entryFee=${entryFee}");
+            if (playerDataManager == null || currentCash < entryFee)
             {
-                ShowError($"Insufficient Funds! Need: ${config.entryFee} / Have: ${currentCash}");
+                ShowError($"Insufficient Funds! Need: ${entryFee} / Have: ${currentCash}");
                 Debug.Log($"[LeagueDropdownManager] Insufficient funds - blocking arena entry");
                 return;
             }
             
             // Deduct entry fee
-            playerDataManager.SpendPlayerCash(config.entryFee);
-            Debug.Log($"[LeagueDropdownManager] Deducted entry fee: ${config.entryFee}");
+            playerDataManager.SpendPlayerCash(entryFee);
+            Debug.Log($"[LeagueDropdownManager] Deducted entry fee: ${entryFee}");
         }
+        
+        // Generate arena key for progress tracking
+        string arenaKey = $"{leagueName}_{roundName}_{sceneName}";
         
         // Set PlayerPrefs so ArenaManager knows which enemies to load and rewards to give
         PlayerPrefs.SetString("SelectedLeague", leagueName);
         PlayerPrefs.SetString("SelectedRound", roundName);
-        PlayerPrefs.SetString("SelectedArenaKey", config.ArenaKey);
-        PlayerPrefs.SetInt("ArenaEntryFee", config.entryFee); // Store entry fee for reward calculation
+        PlayerPrefs.SetString("SelectedArenaKey", arenaKey);
+        PlayerPrefs.SetInt("ArenaEntryFee", entryFee);
         PlayerPrefs.Save();
         
-        Debug.Log($"[LeagueDropdownManager] Set PlayerPrefs - League: {leagueName}, Round: {roundName}, ArenaKey: {config.ArenaKey}, Entry Fee: ${config.entryFee}");
-        Debug.Log($"[LeagueDropdownManager] Validation passed - Weight: {totalWeight:F1}kg / {config.weightLimit:F1}kg");
-        Debug.Log($"[LeagueDropdownManager] Loading arena scene: {sceneName}");
+        Debug.Log($"[LeagueDropdownManager] Set PlayerPrefs - League: {leagueName}, Round: {roundName}, ArenaKey: {arenaKey}, Entry Fee: ${entryFee}");
+        Debug.Log($"[LeagueDropdownManager] Validation passed - Loading arena scene: {sceneName}");
         
         UnityEngine.SceneManagement.SceneManager.LoadScene(sceneName);
     }
