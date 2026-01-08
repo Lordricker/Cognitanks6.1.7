@@ -589,6 +589,12 @@ public class ArenaManager : MonoBehaviour
         // Show appropriate panel with fade-in animation
         if (playerWon)
         {
+            // Award victory rewards: refund entry fee + fee per alive tank
+            AwardVictoryRewards(aliveTanksByTeam);
+            
+            // Mark arena as completed for progress unlocking
+            MarkArenaCompleted();
+            
             if (victoryPanel != null)
             {
                 StartCoroutine(FadeInPanel(victoryPanel));
@@ -630,6 +636,61 @@ public class ArenaManager : MonoBehaviour
         {
             Debug.LogWarning("[ArenaManager] Tip panel not found! Please create a 'TipPanel' GameObject under the UI Canvas.");
         }
+    }
+    
+    /// <summary>
+    /// Awards victory rewards: refund entry fee + fee per alive player tank
+    /// </summary>
+    void AwardVictoryRewards(System.Collections.Generic.Dictionary<int, System.Collections.Generic.List<TankMan>> aliveTanksByTeam)
+    {
+        int entryFee = PlayerPrefs.GetInt("ArenaEntryFee", 0);
+        
+        if (entryFee <= 0)
+        {
+            Debug.Log("[ArenaManager] No entry fee to refund (free arena)");
+            return;
+        }
+        
+        // Count alive player tanks (team 0 in singleplayer)
+        int aliveTankCount = 0;
+        if (aliveTanksByTeam.ContainsKey(0))
+        {
+            aliveTankCount = aliveTanksByTeam[0].Count;
+        }
+        
+        // Calculate reward: refund entry fee + fee per alive tank
+        // Example: $10 fee, 2 alive tanks = $10 (refund) + $10 (tank 1) + $10 (tank 2) = $30 total
+        int totalReward = entryFee + (entryFee * aliveTankCount);
+        
+        // Award cash to player
+        if (PlayerDataManager.Instance != null)
+        {
+            PlayerDataManager.Instance.AddPlayerCash(totalReward);
+            Debug.Log($"[ArenaManager] Victory rewards: Entry fee ${entryFee} refunded + ${entryFee} x {aliveTankCount} alive tanks = ${totalReward} total");
+        }
+        else
+        {
+            Debug.LogError("[ArenaManager] PlayerDataManager.Instance is null! Cannot award rewards.");
+        }
+    }
+    
+    /// <summary>
+    /// Marks the current arena as completed in PlayerPrefs for progress unlocking
+    /// </summary>
+    void MarkArenaCompleted()
+    {
+        string arenaKey = PlayerPrefs.GetString("SelectedArenaKey", "");
+        
+        if (string.IsNullOrEmpty(arenaKey))
+        {
+            Debug.LogWarning("[ArenaManager] No arena key found in PlayerPrefs, cannot mark as completed");
+            return;
+        }
+        
+        PlayerPrefs.SetInt($"ArenaCompleted_{arenaKey}", 1);
+        PlayerPrefs.Save();
+        
+        Debug.Log($"[ArenaManager] Marked arena as completed: {arenaKey}");
     }
     
     /// <summary>

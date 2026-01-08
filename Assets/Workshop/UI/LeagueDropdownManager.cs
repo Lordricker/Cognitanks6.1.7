@@ -22,11 +22,13 @@ public class LeagueDropdownManager : MonoBehaviour
         public int roundNumber; // Round folder number (1 = Round1, 2 = Round2, etc.)
         public float weightLimit = 70f; // Maximum total weight of all active tanks
         public int entryFee = 100; // Entry fee cost in cash
+        public GameObject progressUnlock; // Grey box image that blocks this arena until unlocked by completing a previous arena
         
         // Computed properties (read-only in inspector)
         public string SceneName => $"Arena{arenaNumber}";
         public string LeagueName => $"League{leagueNumber}";
         public string RoundName => $"Round{roundNumber}";
+        public string ArenaKey => $"{LeagueName}_{RoundName}_Arena{arenaNumber}"; // Unique identifier for save data
     }
 
     public List<LeagueDropdown> leagues; // Assign in Inspector
@@ -37,6 +39,9 @@ public class LeagueDropdownManager : MonoBehaviour
 
     void Start()
     {
+        // Check for completed arenas and unlock progress blockers
+        CheckAndUnlockProgressBlockers();
+        
         for (int i = 0; i < leagues.Count; i++)
         {
             int index = i; // Capture index for closure
@@ -149,13 +154,15 @@ public class LeagueDropdownManager : MonoBehaviour
             Debug.Log($"[LeagueDropdownManager] Deducted entry fee: ${config.entryFee}");
         }
         
-        // Set PlayerPrefs so ArenaManager knows which enemies to load
+        // Set PlayerPrefs so ArenaManager knows which enemies to load and rewards to give
         PlayerPrefs.SetString("SelectedLeague", leagueName);
         PlayerPrefs.SetString("SelectedRound", roundName);
+        PlayerPrefs.SetString("SelectedArenaKey", config.ArenaKey);
+        PlayerPrefs.SetInt("ArenaEntryFee", config.entryFee); // Store entry fee for reward calculation
         PlayerPrefs.Save();
         
-        Debug.Log($"[LeagueDropdownManager] Set PlayerPrefs - League: {leagueName}, Round: {roundName}");
-        Debug.Log($"[LeagueDropdownManager] Validation passed - Weight: {totalWeight:F1}kg / {config.weightLimit:F1}kg, Entry Fee: ${config.entryFee}");
+        Debug.Log($"[LeagueDropdownManager] Set PlayerPrefs - League: {leagueName}, Round: {roundName}, ArenaKey: {config.ArenaKey}, Entry Fee: ${config.entryFee}");
+        Debug.Log($"[LeagueDropdownManager] Validation passed - Weight: {totalWeight:F1}kg / {config.weightLimit:F1}kg");
         Debug.Log($"[LeagueDropdownManager] Loading arena scene: {sceneName}");
         
         UnityEngine.SceneManagement.SceneManager.LoadScene(sceneName);
@@ -232,6 +239,31 @@ public class LeagueDropdownManager : MonoBehaviour
             errorText.text = message;
             errorText.color = Color.red;
             errorText.gameObject.SetActive(true);
+        }
+    }
+    
+    /// <summary>
+    /// Checks PlayerPrefs for completed arenas and unlocks their associated progress blockers
+    /// </summary>
+    private void CheckAndUnlockProgressBlockers()
+    {
+        foreach (var league in leagues)
+        {
+            foreach (var arenaConfig in league.arenaButtons)
+            {
+                if (arenaConfig.progressUnlock != null)
+                {
+                    // Check if this arena has been completed
+                    bool isCompleted = PlayerPrefs.GetInt($"ArenaCompleted_{arenaConfig.ArenaKey}", 0) == 1;
+                    
+                    if (isCompleted)
+                    {
+                        // Deactivate the progress blocker
+                        arenaConfig.progressUnlock.SetActive(false);
+                        Debug.Log($"[LeagueDropdownManager] Unlocked progress blocker for {arenaConfig.ArenaKey}");
+                    }
+                }
+            }
         }
     }
 }
