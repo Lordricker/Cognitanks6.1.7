@@ -37,7 +37,7 @@ public class BulletScript : MonoBehaviour
     /// Initialize bullet with combat stats from the firing tank
     /// Explosion prefab is assigned directly in the bullet prefab inspector (used for muzzle flash and impact)
     /// </summary>
-    public void Initialize(int bulletDamage, float bulletRange, int teamId, bool artilleryMode = false, float bulletKnockback = 1f)
+    public void Initialize(int bulletDamage, float bulletRange, int teamId, bool artilleryMode = false, float bulletKnockback = 1f, float customAoeRadius = -1f)
     {
         damage = bulletDamage;
         maxRange = bulletRange;
@@ -46,6 +46,12 @@ public class BulletScript : MonoBehaviour
         knockback = bulletKnockback;
         startPosition = transform.position;
         isInitialized = true;
+        
+        // Apply custom AOE radius if provided (for Hammer weapon)
+        if (customAoeRadius > 0f)
+        {
+            aoeRadius = customAoeRadius;
+        }
         
         // Set bullet mass to near-zero - knockback is handled manually via forces
         Rigidbody bulletRb = GetComponent<Rigidbody>();

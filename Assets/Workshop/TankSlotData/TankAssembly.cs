@@ -170,6 +170,21 @@ public class TankAssembly : MonoBehaviour
                 }
                 tankMan.SetTurretComponents(turretInstance.transform, firePoint);
                 
+                // Load and assign hammer animation prefab if specified
+                if (!string.IsNullOrEmpty(data.turretAnimationPrefabPath))
+                {
+                    GameObject animationPrefab = Resources.Load<GameObject>(data.turretAnimationPrefabPath);
+                    if (animationPrefab != null)
+                    {
+                        tankMan.SetHammerAnimationPrefab(animationPrefab, data.turretColor.ToUnityColor());
+                        Debug.Log($"TankAssembly: Loaded and assigned hammer animation prefab: {animationPrefab.name}");
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"TankAssembly: Could not load animation prefab from path: {data.turretAnimationPrefabPath}");
+                    }
+                }
+                
             }
             else
             {

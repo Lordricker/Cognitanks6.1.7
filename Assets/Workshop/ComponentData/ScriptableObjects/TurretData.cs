@@ -3,7 +3,8 @@ using UnityEngine;
 public enum TurretType
 {
     DirectFire,    // Straight-line bullets (rifles, cannons, etc.)
-    Artillery      // Ballistic arc bullets with gravity
+    Artillery,     // Ballistic arc bullets with gravity
+    Hammer         // Melee range with AOE damage
 }
 
 [CreateAssetMenu(fileName = "NewTurret", menuName = "Components/Turret")]
@@ -11,6 +12,10 @@ public class TurretData : ComponentData
 {
     [Header("Turret Type")]
     public TurretType turretType = TurretType.DirectFire;
+    
+    [Header("Animation")]
+    [Tooltip("Optional animation prefab for weapons with firing animations (e.g., HammerDown for Hammer weapon)")]
+    public GameObject animationPrefab;
     
     [Header("Combat Stats")]
     public int damage;

@@ -10,6 +10,9 @@ public class TurretDataJson : ComponentDataJson
     [Header("Turret Type")]
     public TurretType turretType = TurretType.DirectFire;
     
+    [Header("Animation")]
+    public string animationPrefabPath; // Path to animation prefab for firing animations
+    
     [Header("Combat Stats")]
     public int damage;
     public float range;              // Maximum firing range
@@ -57,6 +60,7 @@ public class TurretDataJson : ComponentDataJson
         
         // Copy turret-specific properties
         json.turretType = original.turretType;
+        json.animationPrefabPath = GetPrefabResourcePath(original.animationPrefab);
         json.damage = original.damage;
         json.range = original.range;
         json.shotspersec = original.shotspersec;

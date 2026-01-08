@@ -28,6 +28,11 @@ public class TankMan : MonoBehaviour
     [SerializeField] private Transform firePoint;
     [SerializeField] private Transform firePoint1;
     
+    [Header("Hammer Animation")]
+    [SerializeField] private GameObject hammerDownPrefab; // Animation prefab assigned by TankAssembly
+    private GameObject hammerDownInstance; // Pre-instantiated hammer down model
+    private Coroutine hammerSwingCoroutine;
+    
     [Header("Sensor Settings")]
     [SerializeField] private string tankTag = "Tank";
 
@@ -771,6 +776,45 @@ public class TankMan : MonoBehaviour
     public void SetBulletPrefab(GameObject prefab)
     {
         bulletPrefab = prefab;
+    }
+    
+    /// <summary>
+    /// Set the hammer animation prefab (called by TankAssembly during assembly)
+    /// Pre-instantiates the hammer down model for performance
+    /// </summary>
+    public void SetHammerAnimationPrefab(GameObject prefab, Color turretColor)
+    {
+        hammerDownPrefab = prefab;
+        if (prefab != null && turretTransform != null)
+        {
+            // Pre-instantiate hammer down model as inactive
+            hammerDownInstance = Instantiate(prefab, turretTransform.position, turretTransform.rotation, turretTransform.parent);
+            hammerDownInstance.transform.localScale = turretTransform.localScale;
+            hammerDownInstance.SetActive(false);
+            
+            // Apply the same color as the main turret
+            ApplyColorToModel(hammerDownInstance, turretColor);
+            
+            Debug.Log($"[TankMan] Pre-instantiated hammer animation prefab: {prefab.name} with color: {turretColor}");
+        }
+    }
+    
+    /// <summary>
+    /// Apply color to all renderers in a model (matches TankAssembly implementation)
+    /// </summary>
+    private void ApplyColorToModel(GameObject model, Color color)
+    {
+        var renderers = model.GetComponentsInChildren<Renderer>();
+        foreach (var renderer in renderers)
+        {
+            foreach (var mat in renderer.materials)
+            {
+                if (mat.HasProperty("_BaseColor"))
+                    mat.SetColor("_BaseColor", color);
+                else if (mat.HasProperty("_Color"))
+                    mat.SetColor("_Color", color);
+            }
+        }
     }
     
     /// <summary>
@@ -2380,10 +2424,28 @@ public class TankMan : MonoBehaviour
             BulletScript bulletScript = bullet.GetComponent<BulletScript>();
             if (bulletScript != null)
             {
-                bulletScript.Initialize(damage, range, myTeamInfo.teamId, turretType == TurretType.Artillery, ParseKnockback());
+                // Hammer uses AOE like artillery but with custom radius of 20
+                if (turretType == TurretType.Hammer)
+                {
+                    bulletScript.Initialize(damage, range, myTeamInfo.teamId, true, ParseKnockback(), 20f);
+                }
+                else
+                {
+                    bulletScript.Initialize(damage, range, myTeamInfo.teamId, turretType == TurretType.Artillery, ParseKnockback());
+                }
             }
             else
             {
+            }
+            
+            // Start hammer swing animation when firing
+            if (turretType == TurretType.Hammer)
+            {
+                if (hammerSwingCoroutine != null)
+                {
+                    StopCoroutine(hammerSwingCoroutine);
+                }
+                hammerSwingCoroutine = StartCoroutine(SwingHammer());
             }
             
             // Fire second barrel if firePoint1 exists (for double-barrel shotguns)
@@ -2424,11 +2486,94 @@ public class TankMan : MonoBehaviour
                 BulletScript bulletScript2 = bullet2.GetComponent<BulletScript>();
                 if (bulletScript2 != null)
                 {
-                    bulletScript2.Initialize(damage, range, myTeamInfo.teamId, turretType == TurretType.Artillery, ParseKnockback());
+                    // Hammer uses AOE like artillery but with custom radius of 20
+                    if (turretType == TurretType.Hammer)
+                    {
+                        bulletScript2.Initialize(damage, range, myTeamInfo.teamId, true, ParseKnockback(), 20f);
+                    }
+                    else
+                    {
+                        bulletScript2.Initialize(damage, range, myTeamInfo.teamId, turretType == TurretType.Artillery, ParseKnockback());
+                    }
                 }
             }
         }
         
+    }
+    
+    /// <summary>
+    /// Coroutine to animate hammer swinging down and back up
+    /// Swaps entire turret from HammerUp to HammerDown for 0.15s, then back
+    /// Uses pre-instantiated models for performance
+    /// </summary>
+    IEnumerator SwingHammer()
+    {
+        // Check if animation prefab is assigned and pre-instantiated
+        if (hammerDownInstance == null)
+        {
+            Debug.LogError($"[TankMan] No hammer animation instance available! Make sure TankAssembly loaded it.");
+            yield break;
+        }
+
+        if (turretTransform == null)
+        {
+            Debug.LogError($"[TankMan] turretTransform is null, cannot swing hammer");
+            yield break;
+        }
+
+        Debug.Log($"[TankMan] SwingHammer - Hiding turret: {turretTransform.name}");
+
+        // Sync hammerDown transform with current turret transform
+        hammerDownInstance.transform.position = turretTransform.position;
+        hammerDownInstance.transform.rotation = turretTransform.rotation;
+        hammerDownInstance.transform.localScale = turretTransform.localScale;
+
+        // Hide the hammer up model (entire turret)
+        turretTransform.gameObject.SetActive(false);
+
+        // Show hammer down model
+        hammerDownInstance.SetActive(true);
+
+        Debug.Log($"[TankMan] SwingHammer - Showing HammerDown: {hammerDownInstance.name}");
+
+        // Wait for 0.15 seconds (hammer down)
+        yield return new WaitForSeconds(0.15f);
+
+        // Hide hammer down model
+        hammerDownInstance.SetActive(false);
+
+        // Show hammer up model again
+        turretTransform.gameObject.SetActive(true);
+
+        Debug.Log($"[TankMan] SwingHammer - Restored HammerUp: {turretTransform.name}");
+
+        // Calculate remaining time based on fire rate
+        float fireRate = 1f / shotsPerSec;
+        float remainingTime = Mathf.Max(0f, fireRate - 0.15f);
+
+        // Wait for remaining time
+        yield return new WaitForSeconds(remainingTime);
+
+        hammerSwingCoroutine = null;
+    }
+    
+    /// <summary>
+    /// Helper method to find TurretData ScriptableObject by instance ID
+    /// </summary>
+    private TurretData FindTurretDataByInstanceId(string instanceId)
+    {
+        if (string.IsNullOrEmpty(instanceId))
+            return null;
+            
+        // Search in Resources/ShopComponents/Turrets
+        TurretData[] turrets = Resources.LoadAll<TurretData>("ShopComponents/Turrets");
+        foreach (TurretData turret in turrets)
+        {
+            if (turret.instanceId == instanceId)
+                return turret;
+        }
+        
+        return null;
     }
     
     /// <summary>

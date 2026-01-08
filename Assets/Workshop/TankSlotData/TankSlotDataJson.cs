@@ -35,6 +35,7 @@ public class TankSlotDataJson
     // Component stats - stored directly to avoid ScriptableObject reference issues
     [Header("Turret Stats")]
     public TurretTypeJson turretType = TurretTypeJson.DirectFire;
+    public string turretAnimationPrefabPath; // Path to animation prefab (e.g., HammerDown)
     public int turretDamage;
     public float turretRange;
     public float turretShotsPerSec;
@@ -97,7 +98,8 @@ public class TankSlotDataJson
 public enum TurretTypeJson
 {
     DirectFire,    // Straight-line bullets (rifles, cannons, etc.)
-    Artillery      // Ballistic arc bullets with gravity
+    Artillery,     // Ballistic arc bullets with gravity
+    Hammer         // Melee range with AOE damage
 }
 
 /// <summary>

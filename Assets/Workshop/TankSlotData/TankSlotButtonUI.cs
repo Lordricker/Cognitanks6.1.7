@@ -75,14 +75,27 @@ public class TankSlotButtonUI : MonoBehaviour
             // Copy stats from ComponentData
             if (data is TurretData turretData)
             {
+                slotData.turretType = (TurretTypeJson)turretData.turretType;
                 slotData.turretDamage = turretData.damage;
                 slotData.turretRange = turretData.range;
                 slotData.turretShotsPerSec = turretData.shotspersec;
+                slotData.turretBulletSpeed = turretData.bulletSpeed;
                 slotData.turretKnockback = turretData.knockback;
                 slotData.turretVisionRange = turretData.visionRange;
                 slotData.turretVisionCone = turretData.visionCone;
                 slotData.turretWeight = data.weight;
-                Debug.Log($"[TankSlotButtonUI] Copied turret stats: Damage={turretData.damage}, Range={turretData.range}, ShotsPerSec={turretData.shotspersec}");
+                
+                // Copy animation prefab path if present
+                if (turretData.animationPrefab != null)
+                {
+                    slotData.turretAnimationPrefabPath = ComponentDataJson.GetPrefabResourcePath(turretData.animationPrefab);
+                }
+                else
+                {
+                    slotData.turretAnimationPrefabPath = "";
+                }
+                
+                Debug.Log($"[TankSlotButtonUI] Copied turret stats: Damage={turretData.damage}, Range={turretData.range}, ShotsPerSec={turretData.shotspersec}, AnimPath={slotData.turretAnimationPrefabPath}");
             }
         } else if (data.category == ComponentCategory.AITree) {
             Debug.Log($"AssignComponent: category=AITree, data type={data.GetType().FullName}, instanceId={data.instanceId}");

@@ -60,7 +60,7 @@ public abstract class ComponentDataJson
     /// <summary>
     /// Convert a prefab to a resource path for JSON storage
     /// </summary>
-    protected static string GetPrefabResourcePath(GameObject prefab)
+    public static string GetPrefabResourcePath(GameObject prefab)
     {
         if (prefab == null) return "";
         
