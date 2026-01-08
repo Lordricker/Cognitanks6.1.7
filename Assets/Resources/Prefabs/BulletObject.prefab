@@ -152,9 +152,6 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: a389180d33b5e97479f5873f090c8a1e, type: 3}
       insertIndex: -1
       addedObject: {fileID: 4679267157488802506}
-    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: a389180d33b5e97479f5873f090c8a1e, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 977977049639574118}
   m_SourcePrefab: {fileID: 100100000, guid: a389180d33b5e97479f5873f090c8a1e, type: 3}
 --- !u!4 &2665445765470829340 stripped
 Transform:
@@ -178,10 +175,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2e2fe852d2f3e094f9a54d708b6770cc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  explosionPrefab: {fileID: 1781949194303238870, guid: dd986d04bcc6dc748a53d8c3d1d42a6d, type: 3}
+  bulletSpawnExplosionPrefab: {fileID: 1781949194303238870, guid: 4e35892e4c5444340a0e2189311808e5, type: 3}
+  bulletDeathExplosionPrefab: {fileID: 8295591563862043295, guid: 98c5ce036f68d8941922e7541fb70887, type: 3}
   explosionScale: {x: 10, y: 5, z: 10}
   explosionFadeDuration: 0.3
   aoeRadius: 50
+  trailEmitterPrefab: {fileID: 8295591563862043295, guid: 98c5ce036f68d8941922e7541fb70887, type: 3}
   damage: 0
   maxRange: 0
   firingTeamId: 0
@@ -238,24 +237,3 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
---- !u!135 &977977049639574118
-SphereCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3438006153723077030}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 1
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Radius: 0.49471414
-  m_Center: {x: -0.26047993, y: 0.47779283, z: 10}
