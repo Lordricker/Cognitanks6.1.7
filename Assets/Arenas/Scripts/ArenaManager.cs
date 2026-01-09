@@ -691,6 +691,33 @@ public class ArenaManager : MonoBehaviour
         PlayerPrefs.Save();
         
         Debug.Log($"[ArenaManager] Marked arena as completed: {arenaKey}");
+        
+        // Unlock component rewards (saved to PlayerPrefs, will be loaded in workshop)
+        UnlockArenaRewards(arenaKey);
+    }
+    
+    /// <summary>
+    /// Saves component unlock rewards to PlayerPrefs so they can be loaded in workshop
+    /// </summary>
+    void UnlockArenaRewards(string arenaKey)
+    {
+        // Get the reward data from PlayerPrefs (set by LeagueDropdownManager)
+        string rewardsJson = PlayerPrefs.GetString($"ArenaRewards_{arenaKey}", "");
+        
+        if (!string.IsNullOrEmpty(rewardsJson))
+        {
+            // Parse component IDs and mark them as unlocked
+            string[] componentIds = rewardsJson.Split(',');
+            foreach (string componentId in componentIds)
+            {
+                if (!string.IsNullOrEmpty(componentId))
+                {
+                    PlayerPrefs.SetInt($"ComponentUnlocked_{componentId}", 1);
+                    Debug.Log($"[ArenaManager] Unlocked component: {componentId}");
+                }
+            }
+            PlayerPrefs.Save();
+        }
     }
     
     /// <summary>

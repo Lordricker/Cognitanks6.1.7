@@ -2565,8 +2565,8 @@ public class TankMan : MonoBehaviour
         if (string.IsNullOrEmpty(instanceId))
             return null;
             
-        // Search in Resources/ShopComponents/Turrets
-        TurretData[] turrets = Resources.LoadAll<TurretData>("ShopComponents/Turrets");
+        // Search in Resources/Workshop/ComponentData/Turrets
+        TurretData[] turrets = Resources.LoadAll<TurretData>("Workshop/ComponentData/Turrets");
         foreach (TurretData turret in turrets)
         {
             if (turret.instanceId == instanceId)

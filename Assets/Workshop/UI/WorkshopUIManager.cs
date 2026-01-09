@@ -110,7 +110,12 @@ public class WorkshopUIManager : MonoBehaviour
             quitButton.onClick.AddListener(() => PlayerDataManager.Instance.QuitGame());
         }
 
-        UpdatePlayerCashUI();
+        // Ensure erase data button has its listener assigned
+        if (PlayerDataManager.Instance != null)
+        {
+            PlayerDataManager.Instance.AssignEraseDataButtonListener();
+        }
+
         UpdateToggleColors();
 
         // Setup tank slot button listeners
@@ -125,21 +130,136 @@ public class WorkshopUIManager : MonoBehaviour
         // Load AI components from AI Editor folders FIRST (before loading player inventory)
         LoadAIComponentsFromFolders();
         
+        // Load unlocked components from PlayerPrefs
+        LoadUnlockedComponents();
+        
         LoadPlayerInventoryFromSave();
         
-        // Load player cash from PlayerDataManager
+        // Load player cash from PlayerDataManager and update UI
         if (PlayerDataManager.Instance != null)
         {
             playerCash = PlayerDataManager.Instance.GetPlayerCash();
         }
+        UpdatePlayerCashUI();
+        
+        // Refresh shop display to show unlocked components
+        PopulateComponentList();
         
         // Clean up any legacy AI files with old instanceId format
         CleanupLegacyAIFiles();
         
         // Tank slots are now managed entirely via JSON - no need for ScriptableObject restoration
         
+        // Validate and clear any invalid component references in tank slots
+        ValidateAndClearInvalidTankSlotReferences();
+        
         // Load tank slots from ScriptableObjects AFTER restoring activation states
         LoadTankSlotsFromScriptableObjects();
+    }
+    
+    /// <summary>
+    /// Validates that all instance IDs in tank slot JSON actually exist in player inventory
+    /// Clears any stale references to components that were removed
+    /// </summary>
+    private void ValidateAndClearInvalidTankSlotReferences()
+    {
+        if (tankSlotJsonManager == null) return;
+        
+        // Build a set of all valid instance IDs from player inventory
+        var validInstanceIds = new HashSet<string>();
+        foreach (var comp in playerInventory)
+        {
+            if (!string.IsNullOrEmpty(comp.instanceId))
+                validInstanceIds.Add(comp.instanceId);
+        }
+        
+        // Check each tank slot and clear invalid references
+        var allSlots = tankSlotJsonManager.GetAllTankSlots();
+        foreach (var slotData in allSlots)
+        {
+            bool needsUpdate = false;
+            
+            // Check turret
+            if (!string.IsNullOrEmpty(slotData.turretInstanceId) && !validInstanceIds.Contains(slotData.turretInstanceId))
+            {
+                Debug.LogWarning($"[WorkshopUIManager] Clearing invalid turret reference in {slotData.slotName}: {slotData.turretInstanceId}");
+                slotData.turretInstanceId = "";
+                slotData.turretDamage = 0;
+                slotData.turretRange = 0;
+                slotData.turretShotsPerSec = 0;
+                slotData.turretBulletSpeed = 0;
+                slotData.turretWeight = 0;
+                needsUpdate = true;
+            }
+            
+            // Check armor
+            if (!string.IsNullOrEmpty(slotData.armorInstanceId) && !validInstanceIds.Contains(slotData.armorInstanceId))
+            {
+                Debug.LogWarning($"[WorkshopUIManager] Clearing invalid armor reference in {slotData.slotName}: {slotData.armorInstanceId}");
+                slotData.armorInstanceId = "";
+                slotData.armorHP = 0;
+                slotData.armorWeight = 0;
+                needsUpdate = true;
+            }
+            
+            // Check engine frame
+            if (!string.IsNullOrEmpty(slotData.engineFrameInstanceId) && !validInstanceIds.Contains(slotData.engineFrameInstanceId))
+            {
+                Debug.LogWarning($"[WorkshopUIManager] Clearing invalid engine frame reference in {slotData.slotName}: {slotData.engineFrameInstanceId}");
+                slotData.engineFrameInstanceId = "";
+                slotData.enginePower = 0;
+                slotData.engineWeight = 0;
+                slotData.engineWeightCapacity = 0;
+                needsUpdate = true;
+            }
+            
+            // Check turret AI (validate against disk files)
+            if (!string.IsNullOrEmpty(slotData.turretAIInstanceId))
+            {
+                bool aiExists = validInstanceIds.Contains(slotData.turretAIInstanceId);
+                if (!aiExists)
+                {
+                    // Also check if file exists on disk
+                    string aiFolder = Path.Combine(Application.persistentDataPath, "AiTrees", "TurretFiles");
+                    string aiFilePath = Path.Combine(aiFolder, $"{slotData.turretAIInstanceId}.json");
+                    aiExists = File.Exists(aiFilePath);
+                }
+                
+                if (!aiExists)
+                {
+                    Debug.LogWarning($"[WorkshopUIManager] Clearing invalid turret AI reference in {slotData.slotName}: {slotData.turretAIInstanceId}");
+                    slotData.turretAIInstanceId = "";
+                    needsUpdate = true;
+                }
+            }
+            
+            // Check nav AI (validate against disk files)
+            if (!string.IsNullOrEmpty(slotData.navAIInstanceId))
+            {
+                bool aiExists = validInstanceIds.Contains(slotData.navAIInstanceId);
+                if (!aiExists)
+                {
+                    // Also check if file exists on disk
+                    string aiFolder = Path.Combine(Application.persistentDataPath, "AiTrees", "NavFiles");
+                    string aiFilePath = Path.Combine(aiFolder, $"{slotData.navAIInstanceId}.json");
+                    aiExists = File.Exists(aiFilePath);
+                }
+                
+                if (!aiExists)
+                {
+                    Debug.LogWarning($"[WorkshopUIManager] Clearing invalid nav AI reference in {slotData.slotName}: {slotData.navAIInstanceId}");
+                    slotData.navAIInstanceId = "";
+                    needsUpdate = true;
+                }
+            }
+            
+            // Recalculate total weight if anything was cleared
+            if (needsUpdate)
+            {
+                slotData.totalWeight = slotData.engineWeight + slotData.armorWeight + slotData.turretWeight;
+                tankSlotJsonManager.UpdateTankSlot(slotData.slotIndex, slotData);
+            }
+        }
     }
     
     private void LoadPlayerInventoryFromSave()
@@ -203,11 +323,22 @@ public class WorkshopUIManager : MonoBehaviour
 
     private ComponentData FindComponentPrefabById(string id)
     {
-        // Search all shop lists for a matching id
+        // Search shop lists first
         foreach (var c in turretShopComponents) if (c.id == id) return c;
         foreach (var c in armorShopComponents) if (c.id == id) return c;
         foreach (var c in aiTreeShopComponents) if (c.id == id) return c;
         foreach (var c in engineFrameShopComponents) if (c.id == id) return c;
+        
+        // If not found in shop, search all components from Resources (for owned but not unlocked components)
+        var allTurrets = Resources.LoadAll<TurretData>("Workshop/ComponentData/Turrets");
+        foreach (var c in allTurrets) if (c.id == id) return c;
+        
+        var allArmor = Resources.LoadAll<ArmorData>("Workshop/ComponentData/Armors");
+        foreach (var c in allArmor) if (c.id == id) return c;
+        
+        var allEngineFrames = Resources.LoadAll<EngineFrameData>("Workshop/ComponentData/EngineFrames");
+        foreach (var c in allEngineFrames) if (c.id == id) return c;
+        
         return null;
     }
 
@@ -215,6 +346,163 @@ public class WorkshopUIManager : MonoBehaviour
     {
         if (playerCashText != null)
             playerCashText.text = $"${playerCash}";
+    }
+    
+    /// <summary>
+    /// Unlocks a component and adds it to the appropriate shop category
+    /// Called when player completes arenas
+    /// </summary>
+    public void UnlockComponent(ComponentData component)
+    {
+        if (component == null) return;
+        
+        // Check if already unlocked
+        string unlockKey = $"ComponentUnlocked_{component.id}";
+        if (PlayerPrefs.GetInt(unlockKey, 0) == 1)
+        {
+            Debug.Log($"[WorkshopUIManager] Component already unlocked: {component.title}");
+            return;
+        }
+        
+        // Determine category and add to appropriate list
+        List<ComponentData> targetList = null;
+        string categoryName = "";
+        
+        if (component is TurretData)
+        {
+            targetList = turretShopComponents;
+            categoryName = "Turret";
+        }
+        else if (component is ArmorData)
+        {
+            targetList = armorShopComponents;
+            categoryName = "Armor";
+        }
+        else if (component is EngineFrameData)
+        {
+            targetList = engineFrameShopComponents;
+            categoryName = "Engine Frame";
+        }
+        else if (component is AiTreeAsset)
+        {
+            // Check if it's turret or nav AI based on category field
+            if (component.category == ComponentCategory.TurretAI)
+            {
+                targetList = turretAIShopComponents;
+                categoryName = "Turret AI";
+            }
+            else if (component.category == ComponentCategory.NavAI)
+            {
+                targetList = navAIShopComponents;
+                categoryName = "Nav AI";
+            }
+        }
+        
+        if (targetList != null && !targetList.Contains(component))
+        {
+            targetList.Add(component);
+            PlayerPrefs.SetInt(unlockKey, 1);
+            PlayerPrefs.Save();
+            Debug.Log($"[WorkshopUIManager] Unlocked {categoryName}: {component.title}");
+            
+            // Refresh UI if viewing that category
+            PopulateComponentList();
+        }
+    }
+    
+    /// <summary>
+    /// Unlocks multiple components at once (for arena rewards)
+    /// </summary>
+    public void UnlockComponents(List<ComponentData> components)
+    {
+        if (components == null || components.Count == 0) return;
+        
+        foreach (var component in components)
+        {
+            UnlockComponent(component);
+        }
+    }
+    
+    /// <summary>
+    /// Loads all unlocked components from PlayerPrefs and adds them to shop lists
+    /// Called during Start() to restore progression
+    /// </summary>
+    private void LoadUnlockedComponents()
+    {
+        // Load all component ScriptableObjects from Resources
+        var allTurrets = Resources.LoadAll<TurretData>("Workshop/ComponentData/Turrets");
+        var allArmor = Resources.LoadAll<ArmorData>("Workshop/ComponentData/Armors");
+        var allEngineFrames = Resources.LoadAll<EngineFrameData>("Workshop/ComponentData/EngineFrames");
+        var allTurretAI = Resources.LoadAll<AiTreeAsset>("ShopAI/TurretAI");
+        var allNavAI = Resources.LoadAll<AiTreeAsset>("ShopAI/NavAI");
+        
+        // Check each component if it's unlocked and add to shop if not already there
+        foreach (var turret in allTurrets)
+        {
+            if (PlayerPrefs.GetInt($"ComponentUnlocked_{turret.id}", 0) == 1 && !turretShopComponents.Contains(turret))
+            {
+                turretShopComponents.Add(turret);
+            }
+        }
+        
+        foreach (var armor in allArmor)
+        {
+            if (PlayerPrefs.GetInt($"ComponentUnlocked_{armor.id}", 0) == 1 && !armorShopComponents.Contains(armor))
+            {
+                armorShopComponents.Add(armor);
+            }
+        }
+        
+        foreach (var engineFrame in allEngineFrames)
+        {
+            if (PlayerPrefs.GetInt($"ComponentUnlocked_{engineFrame.id}", 0) == 1 && !engineFrameShopComponents.Contains(engineFrame))
+            {
+                engineFrameShopComponents.Add(engineFrame);
+            }
+        }
+        
+        foreach (var ai in allTurretAI)
+        {
+            if (PlayerPrefs.GetInt($"ComponentUnlocked_{ai.id}", 0) == 1 && !turretAIShopComponents.Contains(ai))
+            {
+                turretAIShopComponents.Add(ai);
+            }
+        }
+        
+        foreach (var ai in allNavAI)
+        {
+            if (PlayerPrefs.GetInt($"ComponentUnlocked_{ai.id}", 0) == 1 && !navAIShopComponents.Contains(ai))
+            {
+                navAIShopComponents.Add(ai);
+            }
+        }
+    }
+
+    public void ClearUnlockedComponentsFromShop()
+    {
+        // Remove unlocked turrets from shop (keep defaults)
+        turretShopComponents.RemoveAll(turret => PlayerPrefs.GetInt($"ComponentUnlocked_{turret.id}", 0) == 1);
+        
+        // Remove unlocked armor from shop (keep defaults)
+        armorShopComponents.RemoveAll(armor => PlayerPrefs.GetInt($"ComponentUnlocked_{armor.id}", 0) == 1);
+        
+        // Remove unlocked engine frames from shop (keep defaults)
+        engineFrameShopComponents.RemoveAll(engineFrame => PlayerPrefs.GetInt($"ComponentUnlocked_{engineFrame.id}", 0) == 1);
+        
+        // Remove unlocked turret AI from shop (keep defaults)
+        turretAIShopComponents.RemoveAll(ai => PlayerPrefs.GetInt($"ComponentUnlocked_{ai.id}", 0) == 1);
+        
+        // Remove unlocked nav AI from shop (keep defaults)
+        navAIShopComponents.RemoveAll(ai => PlayerPrefs.GetInt($"ComponentUnlocked_{ai.id}", 0) == 1);
+        
+        // For AI trees, we need to check the proxy components
+        aiTreeShopComponents.RemoveAll(component => {
+            if (component is AiTreeAsset aiTree)
+            {
+                return PlayerPrefs.GetInt($"ComponentUnlocked_{aiTree.id}", 0) == 1;
+            }
+            return false;
+        });
     }
 
     public static void UpdateSelectableColor(Selectable selectable, bool isSelected)

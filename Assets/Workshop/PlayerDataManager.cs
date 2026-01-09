@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
+using UnityEngine.UI;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
@@ -42,6 +43,9 @@ public class PlayerDataManager : MonoBehaviour
     public PlayerData playerData = new PlayerData();
     private string saveFilePath;
 
+    [Header("UI References")]
+    public Button eraseDataButton; // Assign the erase data button in inspector
+
     void Awake()
     {
         if (Instance == null)
@@ -54,6 +58,28 @@ public class PlayerDataManager : MonoBehaviour
         else
         {
             Destroy(gameObject);
+        }
+    }
+
+    void OnEnable()
+    {
+        // Assign erase data button listener when scene loads
+        AssignEraseDataButtonListener();
+    }
+
+    public void AssignEraseDataButtonListener()
+    {
+        if (eraseDataButton != null)
+        {
+            // Remove any existing listeners to avoid duplicates
+            eraseDataButton.onClick.RemoveAllListeners();
+            // Add the erase data listener
+            eraseDataButton.onClick.AddListener(ErasePlayerData);
+            Debug.Log("[PlayerDataManager] Assigned ErasePlayerData listener to eraseDataButton");
+        }
+        else
+        {
+            Debug.LogWarning("[PlayerDataManager] eraseDataButton is not assigned in inspector");
         }
     }    public void SavePlayerData()
     {
@@ -69,9 +95,10 @@ public class PlayerDataManager : MonoBehaviour
         }
         
         // Save all unique instanceIds for each owned component (excluding AI components which are stored on disk)
-        playerData.ownedComponents.Clear();
+        // ONLY update ownedComponents if WorkshopUIManager exists (i.e., we're in Workshop scene)
         if (workshopUI != null)
         {
+            playerData.ownedComponents.Clear();
             var grouped = new Dictionary<string, OwnedComponentEntry>();
             foreach (var comp in workshopUI.playerInventory)
             {
@@ -91,11 +118,16 @@ public class PlayerDataManager : MonoBehaviour
             }
             playerData.ownedComponents.AddRange(grouped.Values);
         }
+        else
+        {
+            Debug.Log("[PlayerDataManager] WorkshopUIManager not found - skipping inventory update (preserving existing data)");
+        }
 
         // Save tank slot assignments by instanceId
-        playerData.tankLoadouts.Clear();
+        // ONLY update tankLoadouts if WorkshopUIManager exists (i.e., we're in Workshop scene)
         if (workshopUI != null)
         {
+            playerData.tankLoadouts.Clear();
             var tankSlotJsonManager = FindFirstObjectByType<TankSlotJsonManager>();
             if (tankSlotJsonManager != null)
             {
@@ -118,6 +150,10 @@ public class PlayerDataManager : MonoBehaviour
                     playerData.tankLoadouts.Add(save);
                 }
             }
+        }
+        else
+        {
+            Debug.Log("[PlayerDataManager] WorkshopUIManager not found - skipping tank loadouts update (preserving existing data)");
         }
         
         string json = JsonUtility.ToJson(playerData, true);
@@ -154,15 +190,23 @@ public class PlayerDataManager : MonoBehaviour
         if (File.Exists(saveFilePath))
             File.Delete(saveFilePath);
         playerData = new PlayerData();
+        
+        // Clear all progression-related PlayerPrefs
+        ClearProgressionData();
+        
+        // Clear tank loadouts to prevent restoration of stale references
+        playerData.tankLoadouts.Clear();
+        
         // Also clear any runtime inventory if needed
         var workshopUI = FindFirstObjectByType<WorkshopUIManager>();
         if (workshopUI != null)
         {
             workshopUI.playerInventory.Clear();
+            workshopUI.ClearUnlockedComponentsFromShop();
             workshopUI.PopulateComponentList();
         }
         
-        // Clear all instance IDs from tank slot JSONs
+        // Clear all instance IDs from tank slot JSONs and delete the JSON files
         var tankSlotJsonManager = FindFirstObjectByType<TankSlotJsonManager>();
         if (tankSlotJsonManager != null)
         {
@@ -196,7 +240,94 @@ public class PlayerDataManager : MonoBehaviour
             }
         }
         
+        // Delete all tank slot JSON files from persistent data
+        string tankSlotFolder = Path.Combine(Application.persistentDataPath, "TankSlotData");
+        if (Directory.Exists(tankSlotFolder))
+        {
+            try
+            {
+                Directory.Delete(tankSlotFolder, true); // Delete folder and all contents
+                Debug.Log($"[PlayerDataManager] Deleted tank slot data folder: {tankSlotFolder}");
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"[PlayerDataManager] Failed to delete tank slot data folder: {ex.Message}");
+            }
+        }
+        
+        // Delete all AI tree JSON files from persistent data
+        string aiTreesFolder = Path.Combine(Application.persistentDataPath, "AiTrees");
+        if (Directory.Exists(aiTreesFolder))
+        {
+            try
+            {
+                Directory.Delete(aiTreesFolder, true); // Delete folder and all contents
+                Debug.Log($"[PlayerDataManager] Deleted AI trees folder: {aiTreesFolder}");
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"[PlayerDataManager] Failed to delete AI trees folder: {ex.Message}");
+            }
+        }
+        
         Debug.Log("Player data erased.");
+    }
+    
+    /// <summary>
+    /// Clears all progression-related PlayerPrefs (unlocked components and arena progress)
+    /// </summary>
+    private void ClearProgressionData()
+    {
+        // Get all PlayerPrefs keys (Unity doesn't provide a direct way, so we need to be creative)
+        // We'll clear known progression keys by deleting them individually
+        
+        // Clear component unlock flags
+        // Note: We can't enumerate all PlayerPrefs, so we'll clear common ones and let the system recreate them
+        string[] componentUnlockKeys = {
+            "ComponentUnlocked_Hammer",
+            "ComponentUnlocked_Rifle", 
+            "ComponentUnlocked_Shotgun",
+            "ComponentUnlocked_Sniper",
+            "ComponentUnlocked_Artillery",
+            "ComponentUnlocked_Carbon Weave Armor",
+            "ComponentUnlocked_Ceramic Laminate Plating",
+            "ComponentUnlocked_MK-VI Alloy Shell",
+            "ComponentUnlocked_Vortex Engine",
+            "ComponentUnlocked_Accelerator Frame",
+            "ComponentUnlocked_Titan Core",
+            "ComponentUnlocked_Velocity Chassis"
+        };
+        
+        foreach (string key in componentUnlockKeys)
+        {
+            PlayerPrefs.DeleteKey(key);
+        }
+        
+        // Clear arena completion flags (these follow pattern "ArenaCompleted_{arenaKey}")
+        // We'll clear some common ones, but the system will handle missing ones gracefully
+        string[] arenaKeys = {
+            "League1_Round1_Arena1",
+            "League1_Round2_Arena1", 
+            "League1_Round3_Arena1",
+            "League2_Round1_Arena2",
+            "League2_Round2_Arena2",
+            "League2_Round3_Arena2"
+        };
+        
+        foreach (string arenaKey in arenaKeys)
+        {
+            PlayerPrefs.DeleteKey($"ArenaCompleted_{arenaKey}");
+            PlayerPrefs.DeleteKey($"ArenaRewards_{arenaKey}");
+        }
+        
+        // Clear arena selection data
+        PlayerPrefs.DeleteKey("SelectedLeague");
+        PlayerPrefs.DeleteKey("SelectedRound");
+        PlayerPrefs.DeleteKey("SelectedArenaKey");
+        PlayerPrefs.DeleteKey("ArenaEntryFee");
+        
+        PlayerPrefs.Save();
+        Debug.Log("[PlayerDataManager] Cleared all progression data from PlayerPrefs");
     }
 
     /// <summary>

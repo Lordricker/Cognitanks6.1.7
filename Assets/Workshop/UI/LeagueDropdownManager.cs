@@ -24,6 +24,10 @@ public class LeagueDropdownManager : MonoBehaviour
         public int entryFee = 100; // Entry fee cost in cash
         public GameObject progressUnlock; // Grey box image that blocks this arena until unlocked by completing a previous arena
         
+        [Header("Unlock Rewards")]
+        [Tooltip("Components that will be unlocked and added to the shop when this arena is completed")]
+        public List<ComponentData> componentRewards = new List<ComponentData>(); // Components to unlock when arena is won
+        
         // Computed properties (read-only in inspector)
         public string SceneName => $"Arena{arenaNumber}";
         public string LeagueName => $"League{leagueNumber}";
@@ -61,28 +65,24 @@ public class LeagueDropdownManager : MonoBehaviour
                     // Validate configuration
                     if (config.arenaNumber <= 0 || config.leagueNumber <= 0 || config.roundNumber <= 0)
                     {
-                        Debug.LogWarning($"[LeagueDropdownManager] Arena button {j} in league {i} has invalid numbers: Arena={config.arenaNumber}, League={config.leagueNumber}, Round={config.roundNumber}");
+                        Debug.LogWarning($"[LeagueDropdownManager] Arena button {j} in league {i} has invalid numbers");
                         continue;
                     }
-                    
-                    Debug.Log($"[LeagueDropdownManager] Arena button {j} configured: {config.SceneName} (League {config.leagueNumber}, Round {config.roundNumber}, Weight Limit: {config.weightLimit}, Entry Fee: ${config.entryFee})");
                     
                     // Set up the button listener programmatically with captured config values
                     var capturedConfig = config; // Capture for closure
                     config.button.onClick.RemoveAllListeners(); // Clear any existing listeners
-                    config.button.onClick.AddListener(() => OnArenaButtonClicked(
-                        capturedConfig.SceneName, 
-                        capturedConfig.LeagueName, 
-                        capturedConfig.RoundName, 
-                        capturedConfig.weightLimit, 
-                        capturedConfig.entryFee
-                    ));
-                    
-                    Debug.Log($"[LeagueDropdownManager] Listener added for {config.SceneName} -> {config.LeagueName}/{config.RoundName}");
-                }
-                else
-                {
-                    Debug.LogWarning($"[LeagueDropdownManager] Arena button {j} in league {i} is null!");
+                    config.button.onClick.AddListener(() => {
+                        OnArenaButtonClicked(
+                            capturedConfig.SceneName, 
+                            capturedConfig.LeagueName, 
+                            capturedConfig.RoundName, 
+                            capturedConfig.weightLimit, 
+                            capturedConfig.entryFee,
+                            capturedConfig.ArenaKey,
+                            capturedConfig.componentRewards
+                        );
+                    });
                 }
             }
         }
@@ -98,10 +98,8 @@ public class LeagueDropdownManager : MonoBehaviour
     }
 
     // Called programmatically by button listeners set up in Start()
-    public void OnArenaButtonClicked(string sceneName, string leagueName, string roundName, float weightLimit, int entryFee)
+    public void OnArenaButtonClicked(string sceneName, string leagueName, string roundName, float weightLimit, int entryFee, string arenaKey, List<ComponentData> componentRewards)
     {
-        Debug.Log($"[LeagueDropdownManager] OnArenaButtonClicked called: {sceneName} -> {leagueName}/{roundName}, WeightLimit={weightLimit}, EntryFee=${entryFee}");
-        
         // Validate that at least one tank is active before starting the match
         if (!ValidateActiveTanks())
         {
@@ -111,11 +109,9 @@ public class LeagueDropdownManager : MonoBehaviour
         
         // Validate weight limit
         float totalWeight = CalculateTotalActiveTankWeight();
-        Debug.Log($"[LeagueDropdownManager] Weight validation: totalWeight={totalWeight:F1}, weightLimit={weightLimit:F1}");
         if (weightLimit > 0 && totalWeight > weightLimit)
         {
             ShowError($"Weight Limit Exceeded! Total: {totalWeight:F1}kg / Limit: {weightLimit:F1}kg");
-            Debug.Log($"[LeagueDropdownManager] Weight limit exceeded - blocking arena entry");
             return;
         }
         
@@ -124,21 +120,22 @@ public class LeagueDropdownManager : MonoBehaviour
         {
             var playerDataManager = PlayerDataManager.Instance;
             int currentCash = playerDataManager != null ? playerDataManager.GetPlayerCash() : 0;
-            Debug.Log($"[LeagueDropdownManager] Cash validation: currentCash=${currentCash}, entryFee=${entryFee}");
             if (playerDataManager == null || currentCash < entryFee)
             {
                 ShowError($"Insufficient Funds! Need: ${entryFee} / Have: ${currentCash}");
-                Debug.Log($"[LeagueDropdownManager] Insufficient funds - blocking arena entry");
                 return;
             }
             
             // Deduct entry fee
             playerDataManager.SpendPlayerCash(entryFee);
-            Debug.Log($"[LeagueDropdownManager] Deducted entry fee: ${entryFee}");
         }
         
-        // Generate arena key for progress tracking
-        string arenaKey = $"{leagueName}_{roundName}_{sceneName}";
+        // Save component rewards to PlayerPrefs so ArenaManager can unlock them on completion
+        if (componentRewards != null && componentRewards.Count > 0)
+        {
+            string rewardsJson = string.Join(",", componentRewards.ConvertAll(c => c.id));
+            PlayerPrefs.SetString($"ArenaRewards_{arenaKey}", rewardsJson);
+        }
         
         // Set PlayerPrefs so ArenaManager knows which enemies to load and rewards to give
         PlayerPrefs.SetString("SelectedLeague", leagueName);
@@ -147,8 +144,7 @@ public class LeagueDropdownManager : MonoBehaviour
         PlayerPrefs.SetInt("ArenaEntryFee", entryFee);
         PlayerPrefs.Save();
         
-        Debug.Log($"[LeagueDropdownManager] Set PlayerPrefs - League: {leagueName}, Round: {roundName}, ArenaKey: {arenaKey}, Entry Fee: ${entryFee}");
-        Debug.Log($"[LeagueDropdownManager] Validation passed - Loading arena scene: {sceneName}");
+        Debug.Log($"[LeagueDropdownManager] Loading {leagueName}/{roundName} - {sceneName}");
         
         UnityEngine.SceneManagement.SceneManager.LoadScene(sceneName);
     }
@@ -158,22 +154,10 @@ public class LeagueDropdownManager : MonoBehaviour
     /// </summary>
     private bool ValidateActiveTanks()
     {
-        if (TankSlotJsonManager.Instance == null)
-        {
-            Debug.LogError("[LeagueDropdownManager] TankSlotJsonManager.Instance is null!");
-            return false;
-        }
+        if (TankSlotJsonManager.Instance == null) return false;
         
         var activeTanks = TankSlotJsonManager.Instance.GetActiveTankSlots();
-        
-        if (activeTanks == null || activeTanks.Count == 0)
-        {
-            Debug.LogWarning("[LeagueDropdownManager] No active tanks found!");
-            return false;
-        }
-        
-        Debug.Log($"[LeagueDropdownManager] Found {activeTanks.Count} active tank(s)");
-        return true;
+        return activeTanks != null && activeTanks.Count > 0;
     }
     
     /// <summary>
@@ -181,11 +165,7 @@ public class LeagueDropdownManager : MonoBehaviour
     /// </summary>
     private float CalculateTotalActiveTankWeight()
     {
-        if (TankSlotJsonManager.Instance == null)
-        {
-            Debug.LogError("[LeagueDropdownManager] TankSlotJsonManager.Instance is null!");
-            return 0f;
-        }
+        if (TankSlotJsonManager.Instance == null) return 0f;
         
         var activeTanks = TankSlotJsonManager.Instance.GetActiveTankSlots();
         float totalWeight = 0f;
@@ -195,7 +175,6 @@ public class LeagueDropdownManager : MonoBehaviour
             totalWeight += tank.totalWeight;
         }
         
-        Debug.Log($"[LeagueDropdownManager] Calculated total active tank weight: {totalWeight:F1}kg ({activeTanks.Count} active tanks)");
         return totalWeight;
     }
     
@@ -204,8 +183,6 @@ public class LeagueDropdownManager : MonoBehaviour
     /// </summary>
     private void ShowError(string message)
     {
-        Debug.LogWarning($"[LeagueDropdownManager] {message}");
-        
         // Play error sound
         if (SoundManager.Instance != null)
         {
@@ -245,7 +222,6 @@ public class LeagueDropdownManager : MonoBehaviour
                     {
                         // Deactivate the progress blocker
                         arenaConfig.progressUnlock.SetActive(false);
-                        Debug.Log($"[LeagueDropdownManager] Unlocked progress blocker for {arenaConfig.ArenaKey}");
                     }
                 }
             }
