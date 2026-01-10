@@ -424,20 +424,23 @@ public class TankMan : MonoBehaviour
     }
     
     /// <summary>
-    /// Applies a small upward impulse to unstuck the tank from friction
-    /// Call this at the start of movement actions to prevent getting stuck on terrain or after collisions
-    /// Only applies if tank is grounded and has near-zero horizontal velocity (actually stuck)
+    /// Directly translates the tank upward to unstuck it from friction
+    /// Only called from movement actions, so no need to check if trying to move
+    /// Just checks if tank is not moving (stuck)
     /// </summary>
     private void UnstuckTank()
     {
-        if (rb != null && isGrounded)
+        // Don't require isGrounded - tanks can be stuck while technically flagged as airborne
+        if (rb != null)
         {
             // Check if tank is stuck (no horizontal movement)
             Vector3 horizontalVelocity = new Vector3(rb.linearVelocity.x, 0, rb.linearVelocity.z);
             if (horizontalVelocity.magnitude < 0.1f)
             {
-                // Apply small upward impulse (enough to momentarily reduce ground friction)
-                rb.AddForce(Vector3.up * (rb.mass * 2f), ForceMode.Impulse);
+                // Apply strong upward force to lift tank out of stuck position
+                float upwardForce = rb.mass * 20f; // Strong impulse to lift tank
+                rb.AddForce(Vector3.up * upwardForce, ForceMode.Impulse);
+                Debug.Log($"[{gameObject.name}] UnstuckTank: Applied upward force {upwardForce:F0}N (velocity was {horizontalVelocity.magnitude:F3})");
             }
         }
     }
@@ -714,7 +717,8 @@ public class TankMan : MonoBehaviour
         
         return null;
     }    /// <summary>
-    /// Load AI from Resources/ShopAI folders (for enemy tanks referencing shop AI)
+    /// Load AI from Resources/ShopAI folder (for enemy tanks referencing shop AI)
+    /// Searches the entire ShopAI folder for all available AI files
     /// </summary>
     private AiTreeAsset LoadShopAIFromInstanceId(string instanceId)
     {
@@ -723,31 +727,25 @@ public class TankMan : MonoBehaviour
             return null;
         }
         
-        // Search in Resources/ShopAI/NavAI and Resources/ShopAI/TurretAI
-        string[] shopAIFolders = { "ShopAI/NavAI", "ShopAI/TurretAI" };
+        // Load all JSON files from the Resources/ShopAI folder (includes all AI, even ones player can't buy yet)
+        TextAsset[] jsonFiles = Resources.LoadAll<TextAsset>("ShopAI");
         
-        foreach (string folder in shopAIFolders)
+        foreach (TextAsset jsonFile in jsonFiles)
         {
-            // Load all JSON files from the Resources folder
-            TextAsset[] jsonFiles = Resources.LoadAll<TextAsset>(folder);
-            
-            foreach (TextAsset jsonFile in jsonFiles)
+            try
             {
-                try
+                // Create a new AiTreeAsset instance and populate it from JSON
+                var aiTreeData = ScriptableObject.CreateInstance<AiTreeAsset>();
+                JsonUtility.FromJsonOverwrite(jsonFile.text, aiTreeData);
+                
+                // Check if this AI matches the instanceId we're looking for
+                if (aiTreeData != null && aiTreeData.instanceId == instanceId)
                 {
-                    // Create a new AiTreeAsset instance and populate it from JSON
-                    var aiTreeData = ScriptableObject.CreateInstance<AiTreeAsset>();
-                    JsonUtility.FromJsonOverwrite(jsonFile.text, aiTreeData);
-                    
-                    // Check if this AI matches the instanceId we're looking for
-                    if (aiTreeData != null && aiTreeData.instanceId == instanceId)
-                    {
-                        return aiTreeData;
-                    }
+                    return aiTreeData;
                 }
-                catch (System.Exception)
-                {
-                }
+            }
+            catch (System.Exception)
+            {
             }
         }
         
@@ -2931,6 +2929,12 @@ public class TankMan : MonoBehaviour
             wanderStartTime = Time.time;
         }
 
+        // Stuck detection variables for this wander action
+        Vector3 lastWanderPosition = transform.position;
+        float lastWanderPositionCheckTime = Time.time;
+        float wanderStuckCheckInterval = 3f; // Check every 3 seconds
+        float wanderStuckDistanceThreshold = 1.0f; // Must move at least 1 unit to not be considered stuck
+
         // Move towards wander target using force-driven system
         while (true)
         {
@@ -2938,6 +2942,26 @@ public class TankMan : MonoBehaviour
             {
                 yield return null;
                 continue;
+            }
+
+            // Check for stuck - only when grounded since movement commands only work when grounded
+            if (Time.time - lastWanderPositionCheckTime >= wanderStuckCheckInterval)
+            {
+                float distanceMoved = Vector3.Distance(
+                    new Vector3(transform.position.x, 0, transform.position.z),
+                    new Vector3(lastWanderPosition.x, 0, lastWanderPosition.z));
+                
+                // If we barely moved, we're stuck - apply upward force
+                if (distanceMoved < wanderStuckDistanceThreshold)
+                {
+                    float upwardForce = rb.mass * 50f; // Strong impulse to lift tank
+                    rb.AddForce(Vector3.up * upwardForce, ForceMode.Impulse);
+                    Debug.Log($"[{gameObject.name}] Unstuck force applied (moved {distanceMoved:F2}m in {wanderStuckCheckInterval}s)");
+                }
+                
+                // Update position tracking
+                lastWanderPosition = transform.position;
+                lastWanderPositionCheckTime = Time.time;
             }
 
             Vector3 diff = currentWanderTarget - transform.position;

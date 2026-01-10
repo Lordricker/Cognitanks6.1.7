@@ -6,8 +6,8 @@
   "turretPrefabGuid": "",
   "armorPrefabGuid": "",
   "engineFramePrefabGuid": "",
-  "turretAIInstanceId": "Fire test_90cc23b1-2490-4452-8b4c-45ee76c455c9",
-  "navAIInstanceId": "Fleetest_c37fdffd-47ce-4fce-bcca-40fa9e8e884",
+  "turretAIInstanceId": "Fire test_ffb3d528-ce17-4e15-b0e1-91323a77ad9a",
+  "navAIInstanceId": "Fleetest_1b178bf5-089f-4004-b0f5-8b58d0e266e6",
   "turretType": 0,
   "turretDamage": 10,
   "turretRange": 100.0,
@@ -42,5 +42,5 @@
     "b": 1.0,
     "a": 1.0
   },
-  "spawnPointName": "SpawnPoint10"
+  "spawnPointName": "SpawnPoint16"
 }

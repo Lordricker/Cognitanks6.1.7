@@ -718,6 +718,13 @@ public class ArenaManager : MonoBehaviour
             }
             PlayerPrefs.Save();
         }
+        
+        // Copy AI file rewards to shop folders
+        string aiFilesJson = PlayerPrefs.GetString($"ArenaAIRewards_{arenaKey}", "");
+        if (!string.IsNullOrEmpty(aiFilesJson))
+        {
+            CopyAIFilesToShop(aiFilesJson);
+        }
     }
     
     /// <summary>
@@ -765,6 +772,85 @@ public class ArenaManager : MonoBehaviour
         {
             StartCoroutine(FadeInPanel(tipPanel));
             Debug.Log("[ArenaManager] Tip panel shown!");
+        }
+    }
+    
+    /// <summary>
+    /// Copies AI files from Resources/ShopAI to the appropriate shop folder (NavAI or TurretAI)
+    /// </summary>
+    void CopyAIFilesToShop(string aiFileNames)
+    {
+        string[] fileNames = aiFileNames.Split(',');
+        
+        foreach (string fileName in fileNames)
+        {
+            if (string.IsNullOrEmpty(fileName)) continue;
+            
+            // Load the AI file from Resources/ShopAI (one level up from NavAI/TurretAI)
+            TextAsset aiFile = Resources.Load<TextAsset>($"ShopAI/{fileName}");
+            if (aiFile == null)
+            {
+                Debug.LogWarning($"[ArenaManager] Could not find AI file: ShopAI/{fileName}");
+                continue;
+            }
+            
+            // Parse the JSON to determine branch type
+            try
+            {
+                AiTreeAssetJson aiJson = JsonUtility.FromJson<AiTreeAssetJson>(aiFile.text);
+                if (aiJson == null)
+                {
+                    Debug.LogWarning($"[ArenaManager] Could not parse AI JSON: {fileName}");
+                    continue;
+                }
+                
+                // Determine target folder based on branch type
+                string targetFolder;
+                if (aiJson.branchType == AiBranchTypeJson.Nav)
+                {
+                    targetFolder = "NavAI";
+                }
+                else if (aiJson.branchType == AiBranchTypeJson.Turret)
+                {
+                    targetFolder = "TurretAI";
+                }
+                else
+                {
+                    Debug.LogWarning($"[ArenaManager] Unknown branch type for AI file: {fileName}");
+                    continue;
+                }
+                
+                // Copy file to Resources/ShopAI/[NavAI or TurretAI]
+                string sourcePath = System.IO.Path.Combine(Application.dataPath, "Resources", "ShopAI", $"{fileName}.json");
+                string targetPath = System.IO.Path.Combine(Application.dataPath, "Resources", "ShopAI", targetFolder, $"{fileName}.json");
+                
+                // Ensure target directory exists
+                string targetDir = System.IO.Path.GetDirectoryName(targetPath);
+                if (!System.IO.Directory.Exists(targetDir))
+                {
+                    System.IO.Directory.CreateDirectory(targetDir);
+                }
+                
+                // Copy the file if it doesn't already exist
+                if (!System.IO.File.Exists(targetPath))
+                {
+                    System.IO.File.WriteAllText(targetPath, aiFile.text);
+                    Debug.Log($"[ArenaManager] Copied AI file to shop: {targetFolder}/{fileName}.json");
+                    
+#if UNITY_EDITOR
+                    // Refresh asset database in editor
+                    UnityEditor.AssetDatabase.Refresh();
+#endif
+                }
+                else
+                {
+                    Debug.Log($"[ArenaManager] AI file already exists in shop: {targetFolder}/{fileName}.json");
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"[ArenaManager] Error processing AI file {fileName}: {ex.Message}");
+            }
         }
     }
 }

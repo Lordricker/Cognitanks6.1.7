@@ -14,8 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   title: Velocity Chassis
   description: Balanced Weight and Power
-  cost: 125
-  weight: 10
+  cost: 220
+  weight: 25
   modelPrefab: {fileID: 7789181595919938413, guid: dea2914b1d3284749876ec95ecc58bb5, type: 3}
   category: 3
   instanceId: 

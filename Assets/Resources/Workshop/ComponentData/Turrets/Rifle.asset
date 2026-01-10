@@ -13,18 +13,19 @@ MonoBehaviour:
   m_Name: Rifle
   m_EditorClassIdentifier: 
   title: Rifle
-  description: Standard Issue Firearm, Click-Clack-Boom
-  cost: 200
+  description: Fires Bullets... in a straight line.
+  cost: 400
   weight: 5
   modelPrefab: {fileID: 2862102162113885168, guid: aede8caeae5f651409226b471ae31c45, type: 3}
   category: 0
   instanceId: 
   customColor: {r: 1, g: 1, b: 1, a: 1}
   turretType: 0
-  damage: 10
+  animationPrefab: {fileID: 0}
+  damage: 15
   range: 100
   shotspersec: 1
   bulletSpeed: 150
   knockback: Low
   visionRange: 200
-  visionCone: 75
+  visionCone: 50

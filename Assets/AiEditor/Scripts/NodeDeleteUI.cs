@@ -719,7 +719,7 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
         
         // Get the node label and description
         string nodeLabel = GetNodeLabel();
-        string description = GetNodeDescription(nodeLabel);
+        string description = ContextMenuUI.GetNodeDescription(nodeLabel);
         
         // Find and update the TextMeshPro child
         TMPro.TMP_Text descriptionText = nodeDetailsPanel.GetComponentInChildren<TMPro.TMP_Text>();
@@ -785,80 +785,4 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
         }
     }
     
-    private string GetNodeDescription(string nodeLabel)
-    {
-        if (string.IsNullOrEmpty(nodeLabel))
-            return "Unknown node type.";
-        
-        string lowerLabel = nodeLabel.ToLower();
-        
-        // Conditions
-        if (lowerLabel.Contains("if self"))
-            return "Sets only the evaluation target as itself e.g. Ifself - Ifhp<90";
-        if (lowerLabel.Contains("if enemy"))
-            return "Checks for enemies in vision range. Passes to the output if an enemy is detected and sets it as both evaluation and current target.";
-        if (lowerLabel.Contains("if ally"))
-            return "Checks for allies in vision range. Passes to the output if an ally is detected and sets it as both evaluation and current target.";
-        if (lowerLabel.Contains("if any"))
-            return "Checks for any tank (enemy or ally) in vision range. Selects the closest tank as the evaluation and current target.";
-        if (lowerLabel.Contains("if rifle"))
-            return "Checks if the evaluation target has a rifle turret type.";
-        if (lowerLabel.Contains("if hp"))
-            return "Checks the HP of the evaluation target. Passes if target's HP meets the condition.";
-        if (lowerLabel.Contains("if armor"))
-            return "Checks if the evaluation target has a specific armor type.";
-        if (lowerLabel.Contains("if range"))
-            return "Checks the distance to the evaluation target. Passes if distance meets the condition.";
-        if (lowerLabel.Contains("if my tag") || lowerLabel.Contains("if my tag"))
-            return "Checks your personal tag on the evaluation target. Passes if the tag value meets the condition. Personal tags are only visible to you.";
-        if (lowerLabel.Contains("if team tag") || lowerLabel.Contains("if team tag"))
-            return "Checks the team tag on the evaluation target. Passes if the tag value meets the condition. Team tags are shared across all teammates.";
-        
-        // Actions - Movement
-        
-        if (lowerLabel.Contains("wander"))
-            return "Selects a random point within 100 units of the tanks current location and attempts to move there";
-        if (lowerLabel.Contains("forward"))
-            return "Tank Drives forward, use with Cycle nodes to patrol an area";
-        if (lowerLabel.Contains("rotate right"))
-            return "Tank Pivots to the right by the specified degrees.";
-        if (lowerLabel.Contains("rotate left"))
-            return "Tank Pivots to the left by the specified degrees.";
-        if (lowerLabel.Contains("wait"))
-            return "Stops movement. Tank remains stationary.";
-        if (lowerLabel.Contains("chase"))
-            return "Continuously pursues the current target, closing distance. Useful for aggressive behavior.";
-        if (lowerLabel.Contains("flee"))
-            return "Moves away from the current target, can be used for maintaining or increasing distance.";
-        if (lowerLabel.Contains("map center"))
-            return "Navigates to the center of the map. Useful for controlling key positions.";
-        if (lowerLabel.Contains("home"))
-            return "Tank Returns to its spawn position.";
-        
-        // Actions - Turret
-        if (lowerLabel.Contains("fire"))
-            return "Fires the tanks weapon. Use leadtarget to have the turret aim before firing";
-        if (lowerLabel.Contains("leadtarget") || lowerLabel.Contains("lead target"))
-            return "Using this under a Fire node will force it to verify aim before shooting. 0 will point right at target, any other numbers will predict enemy position e.g. leadtarget 15";
-        if (lowerLabel.Contains("align front"))
-            return "Rotates turret to face forward relative to the tank body.";
-        if (lowerLabel.Contains("align right"))
-            return "Rotates turret to face right relative to the tank body.";
-        if (lowerLabel.Contains("align left"))
-            return "Rotates turret to face left relative to the tank body.";
-        if (lowerLabel.Contains("align back"))
-            return "Rotates turret to face backward relative to the tank body.";
-        if (lowerLabel.Contains("rotate up"))
-            return "Tilts turret upward by the specified degrees.";
-        if (lowerLabel.Contains("rotate down"))
-            return "Tilts turret downward by the specified degrees.";
-
-        //Special Nodes
-        if (lowerLabel.Contains("cycle"))
-            return "Cycles through connected nodes in top to bottom sequence, entered value is number of seconds spent on each action. Returns to the first after completing all.";
-        if (lowerLabel.Contains("Coms") || lowerLabel.Contains("if comms"))
-            return "(Boolean Node)Target nodes used after this will have access to an ally target list in addition to their own vision (all tanks update their teams ally target list every 0.1 sec)";
-        
-        return "Custom node. Check the node label for behavior details.";
-    }
 }

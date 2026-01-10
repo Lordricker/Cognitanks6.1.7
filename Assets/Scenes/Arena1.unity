@@ -4295,10 +4295,12 @@ MonoBehaviour:
   - Study enemy patterns to predict their moves.
   - Coordinate your team using Coms in the Ai Editor.
   - You can edit any purchased Ai files.
-  - Click component names and it will show a description
+  - Click component names and it will show stats and description
   - 'Change tank component colors with slider in the shop to help identify them '
   - 'Winning returns you the fee plus the fee value multiplied by alive tanks '
   - Click and drag during arena matches to adjust your camera
+  - If you win the round check the shop for new items!
+  - If you win the round check the shop for new items!
 --- !u!1 &1248598140
 GameObject:
   m_ObjectHideFlags: 0

@@ -341,7 +341,7 @@ public class ContextMenuUI : MonoBehaviour
     /// <summary>
     /// Gets the description for a node based on its label
     /// </summary>
-    private string GetNodeDescription(string nodeLabel)
+    public static string GetNodeDescription(string nodeLabel)
     {
         if (string.IsNullOrEmpty(nodeLabel))
             return "Unknown node type.";
@@ -398,13 +398,13 @@ public class ContextMenuUI : MonoBehaviour
             return "Fires the tanks weapon. Use leadtarget to have the turret aim before firing";
         if (lowerLabel.Contains("leadtarget") || lowerLabel.Contains("lead target"))
             return "Using this under a Fire node will force it to verify aim before shooting. 0 will point right at target, any other numbers will predict enemy position e.g. leadtarget 15";
-        if (lowerLabel.Contains("alignfront"))
+        if (lowerLabel.Contains("align front"))
             return "Rotates turret to face forward relative to the tank body.";
-        if (lowerLabel.Contains("alignright"))
+        if (lowerLabel.Contains("align right"))
             return "Rotates turret to face right relative to the tank body.";
-        if (lowerLabel.Contains("alignleft"))
+        if (lowerLabel.Contains("align left"))
             return "Rotates turret to face left relative to the tank body.";
-        if (lowerLabel.Contains("alignback"))
+        if (lowerLabel.Contains("align back"))
             return "Rotates turret to face backward relative to the tank body.";
         if (lowerLabel.Contains("rotateup"))
             return "Tilts turret upward by the specified degrees.";

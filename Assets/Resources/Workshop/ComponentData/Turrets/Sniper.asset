@@ -14,13 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   title: Sniper
   description: Patience is a virtue. So is excessive damage. (stops before firing)
-  cost: 400
+  cost: 900
   weight: 20
   modelPrefab: {fileID: 339407622525442576, guid: f085541d58a1a35488e21e5de75d3023, type: 3}
   category: 0
   instanceId: 
   customColor: {r: 1, g: 1, b: 1, a: 1}
   turretType: 0
+  animationPrefab: {fileID: 0}
   damage: 20
   range: 700
   shotspersec: 0.5

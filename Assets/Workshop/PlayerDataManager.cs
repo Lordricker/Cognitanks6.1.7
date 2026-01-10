@@ -19,7 +19,7 @@ public class PlayerData
 {
     public List<OwnedComponentEntry> ownedComponents = new List<OwnedComponentEntry>(); // IDs and instanceIds of owned components
     public List<TankLoadoutSave> tankLoadouts = new List<TankLoadoutSave>(); // One per tank slot
-    public int playerCash = 10000; // Player's current cash amount
+    public int playerCash = 1500; // Player's current cash amount
 }
 
 [Serializable]
@@ -43,9 +43,6 @@ public class PlayerDataManager : MonoBehaviour
     public PlayerData playerData = new PlayerData();
     private string saveFilePath;
 
-    [Header("UI References")]
-    public Button eraseDataButton; // Assign the erase data button in inspector
-
     void Awake()
     {
         if (Instance == null)
@@ -58,28 +55,6 @@ public class PlayerDataManager : MonoBehaviour
         else
         {
             Destroy(gameObject);
-        }
-    }
-
-    void OnEnable()
-    {
-        // Assign erase data button listener when scene loads
-        AssignEraseDataButtonListener();
-    }
-
-    public void AssignEraseDataButtonListener()
-    {
-        if (eraseDataButton != null)
-        {
-            // Remove any existing listeners to avoid duplicates
-            eraseDataButton.onClick.RemoveAllListeners();
-            // Add the erase data listener
-            eraseDataButton.onClick.AddListener(ErasePlayerData);
-            Debug.Log("[PlayerDataManager] Assigned ErasePlayerData listener to eraseDataButton");
-        }
-        else
-        {
-            Debug.LogWarning("[PlayerDataManager] eraseDataButton is not assigned in inspector");
         }
     }    public void SavePlayerData()
     {
@@ -270,7 +245,91 @@ public class PlayerDataManager : MonoBehaviour
             }
         }
         
+        // Reset shop AI folders to only have default files
+        ResetShopAIFoldersToDefaults();
+        
         Debug.Log("Player data erased.");
+    }
+    
+    /// <summary>
+    /// Resets the ShopAI/NavAI and ShopAI/TurretAI folders to only contain default files
+    /// Removes all non-default AI files that were unlocked through arena rewards
+    /// </summary>
+    private void ResetShopAIFoldersToDefaults()
+    {
+        // Define the first default file names (should match what you have in the folders)
+        string defaultNavAIFileName = "Round1Nav.json"; // Change this to your actual default Nav AI file name
+        string defaultTurretAIFileName = "Round1Turret.json"; // Change this to your actual default Turret AI file name
+        
+        // Reset NavAI folder
+        string navAIFolder = Path.Combine(Application.dataPath, "Resources", "ShopAI", "NavAI");
+        if (Directory.Exists(navAIFolder))
+        {
+            try
+            {
+                string[] navFiles = Directory.GetFiles(navAIFolder, "*.json");
+                foreach (string file in navFiles)
+                {
+                    string fileName = Path.GetFileName(file);
+                    // Delete all files except the default
+                    if (fileName != defaultNavAIFileName)
+                    {
+                        File.Delete(file);
+                        Debug.Log($"[PlayerDataManager] Deleted non-default Nav AI file: {fileName}");
+                        
+                        // Also delete .meta files if they exist
+                        string metaFile = file + ".meta";
+                        if (File.Exists(metaFile))
+                        {
+                            File.Delete(metaFile);
+                        }
+                    }
+                }
+#if UNITY_EDITOR
+                UnityEditor.AssetDatabase.Refresh();
+#endif
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"[PlayerDataManager] Failed to reset NavAI folder: {ex.Message}");
+            }
+        }
+        
+        // Reset TurretAI folder
+        string turretAIFolder = Path.Combine(Application.dataPath, "Resources", "ShopAI", "TurretAI");
+        if (Directory.Exists(turretAIFolder))
+        {
+            try
+            {
+                string[] turretFiles = Directory.GetFiles(turretAIFolder, "*.json");
+                foreach (string file in turretFiles)
+                {
+                    string fileName = Path.GetFileName(file);
+                    // Delete all files except the default
+                    if (fileName != defaultTurretAIFileName)
+                    {
+                        File.Delete(file);
+                        Debug.Log($"[PlayerDataManager] Deleted non-default Turret AI file: {fileName}");
+                        
+                        // Also delete .meta files if they exist
+                        string metaFile = file + ".meta";
+                        if (File.Exists(metaFile))
+                        {
+                            File.Delete(metaFile);
+                        }
+                    }
+                }
+#if UNITY_EDITOR
+                UnityEditor.AssetDatabase.Refresh();
+#endif
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"[PlayerDataManager] Failed to reset TurretAI folder: {ex.Message}");
+            }
+        }
+        
+        Debug.Log("[PlayerDataManager] Reset shop AI folders to defaults");
     }
     
     /// <summary>

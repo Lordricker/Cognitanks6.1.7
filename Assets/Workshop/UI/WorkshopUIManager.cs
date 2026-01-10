@@ -58,6 +58,9 @@ public class WorkshopUIManager : MonoBehaviour
     [Header("Quit Button")]
     public Button quitButton; // Assign the quit button in inspector
     
+    [Header("Erase Data Button")]
+    public Button eraseDataButton; // Assign the erase data button in inspector
+    
     [Header("Debug UI")]
     public TMP_Text debugText; // Assign in inspector
 
@@ -110,10 +113,10 @@ public class WorkshopUIManager : MonoBehaviour
             quitButton.onClick.AddListener(() => PlayerDataManager.Instance.QuitGame());
         }
 
-        // Ensure erase data button has its listener assigned
-        if (PlayerDataManager.Instance != null)
+        // Setup erase data button listener
+        if (eraseDataButton != null)
         {
-            PlayerDataManager.Instance.AssignEraseDataButtonListener();
+            eraseDataButton.onClick.AddListener(() => PlayerDataManager.Instance.ErasePlayerData());
         }
 
         UpdateToggleColors();

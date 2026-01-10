@@ -28,6 +28,9 @@ public class LeagueDropdownManager : MonoBehaviour
         [Tooltip("Components that will be unlocked and added to the shop when this arena is completed")]
         public List<ComponentData> componentRewards = new List<ComponentData>(); // Components to unlock when arena is won
         
+        [Tooltip("AI JSON files (TextAssets) that will be copied to the shop folders when this arena is completed")]
+        public List<TextAsset> aiFileRewards = new List<TextAsset>(); // AI files to unlock when arena is won
+        
         // Computed properties (read-only in inspector)
         public string SceneName => $"Arena{arenaNumber}";
         public string LeagueName => $"League{leagueNumber}";
@@ -80,7 +83,8 @@ public class LeagueDropdownManager : MonoBehaviour
                             capturedConfig.weightLimit, 
                             capturedConfig.entryFee,
                             capturedConfig.ArenaKey,
-                            capturedConfig.componentRewards
+                            capturedConfig.componentRewards,
+                            capturedConfig.aiFileRewards
                         );
                     });
                 }
@@ -98,7 +102,7 @@ public class LeagueDropdownManager : MonoBehaviour
     }
 
     // Called programmatically by button listeners set up in Start()
-    public void OnArenaButtonClicked(string sceneName, string leagueName, string roundName, float weightLimit, int entryFee, string arenaKey, List<ComponentData> componentRewards)
+    public void OnArenaButtonClicked(string sceneName, string leagueName, string roundName, float weightLimit, int entryFee, string arenaKey, List<ComponentData> componentRewards, List<TextAsset> aiFileRewards)
     {
         // Validate that at least one tank is active before starting the match
         if (!ValidateActiveTanks())
@@ -135,6 +139,13 @@ public class LeagueDropdownManager : MonoBehaviour
         {
             string rewardsJson = string.Join(",", componentRewards.ConvertAll(c => c.id));
             PlayerPrefs.SetString($"ArenaRewards_{arenaKey}", rewardsJson);
+        }
+        
+        // Save AI file rewards to PlayerPrefs so ArenaManager can unlock them on completion
+        if (aiFileRewards != null && aiFileRewards.Count > 0)
+        {
+            string aiRewardsJson = string.Join(",", aiFileRewards.ConvertAll(a => a.name));
+            PlayerPrefs.SetString($"ArenaAIRewards_{arenaKey}", aiRewardsJson);
         }
         
         // Set PlayerPrefs so ArenaManager knows which enemies to load and rewards to give
