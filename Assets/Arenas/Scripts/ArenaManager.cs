@@ -43,10 +43,14 @@ public class ArenaManager : MonoBehaviour
     
     [Header("Victory/Loss System")]
     [SerializeField] private Canvas uiCanvas; // Main UI Canvas
-    [SerializeField] private GameObject victoryPanel; // Victory panel to show when player wins
-    [SerializeField] private GameObject lossPanel; // Loss panel to show when player loses
+    [SerializeField] private GameObject matchFinishedPanel; // Single panel shown when match ends
+    [SerializeField] private GameObject victoryText; // Child of MatchFinishedPanel - shown on win
+    [SerializeField] private GameObject lossText; // Child of MatchFinishedPanel - shown on loss
     [SerializeField] private GameObject tipPanel; // Tip panel to show after victory/loss
     [SerializeField] private float gameEndCheckInterval = 1f; // How often to check game state
+    
+    [Header("Stats Tracking")]
+    private MatchStatsManager statsManager;
     
     [Header("Legacy Team Layer Configuration (Deprecated)")]
     [Tooltip("Unity layer for Team A tanks - DEPRECATED: Use SimpleTeamManager instead")]
@@ -69,6 +73,13 @@ public class ArenaManager : MonoBehaviour
         
         // Force initialization of tank slots
         TankSlotJsonManager.Instance.InitializeTankSlots();
+        
+        // Initialize stats manager
+        statsManager = GetComponent<MatchStatsManager>();
+        if (statsManager == null)
+        {
+            statsManager = gameObject.AddComponent<MatchStatsManager>();
+        }
         
         // Load game mode configuration from PlayerPrefs (set by TeamConfigUI)
         LoadGameModeSettings();
@@ -291,6 +302,13 @@ public class ArenaManager : MonoBehaviour
                 else
                 {
                     Debug.LogError($"[ArenaManager] No TankAssembly component found on tank prefab!");
+                }
+                
+                // Register tank with stats manager
+                TankMan tankMan = tank.GetComponent<TankMan>();
+                if (tankMan != null && statsManager != null)
+                {
+                    statsManager.RegisterTank(tankMan, i);
                 }
                 
                 Debug.Log($"Tank {tank.name} (Player, Team {slot.teamId}) spawned at {tank.transform.position}");
@@ -535,19 +553,30 @@ public class ArenaManager : MonoBehaviour
             return;
         }
         
-        // Look for victory and loss panels under the UI Canvas
-        if (victoryPanel == null)
+        // Look for MatchFinishedPanel and its children under the UI Canvas
+        if (matchFinishedPanel == null)
         {
-            Transform victoryTransform = uiCanvas.transform.Find("VictoryPanel");
-            if (victoryTransform != null)
-                victoryPanel = victoryTransform.gameObject;
+            Transform matchFinishedTransform = uiCanvas.transform.Find("MatchFinishedPanel");
+            if (matchFinishedTransform != null)
+                matchFinishedPanel = matchFinishedTransform.gameObject;
         }
         
-        if (lossPanel == null)
+        if (matchFinishedPanel != null)
         {
-            Transform lossTransform = uiCanvas.transform.Find("LossPanel");
-            if (lossTransform != null)
-                lossPanel = lossTransform.gameObject;
+            // Find VictoryText and LossText children if not assigned
+            if (victoryText == null)
+            {
+                Transform victoryTransform = matchFinishedPanel.transform.Find("VictoryText");
+                if (victoryTransform != null)
+                    victoryText = victoryTransform.gameObject;
+            }
+            
+            if (lossText == null)
+            {
+                Transform lossTransform = matchFinishedPanel.transform.Find("LossText");
+                if (lossTransform != null)
+                    lossText = lossTransform.gameObject;
+            }
         }
         
         if (tipPanel == null)
@@ -586,45 +615,46 @@ public class ArenaManager : MonoBehaviour
             Debug.Log("[ArenaManager] No teams remain - treating as loss");
         }
         
-        // Show appropriate panel with fade-in animation
-        if (playerWon)
+        // Show the MatchFinishedPanel and set VictoryText/LossText visibility
+        if (matchFinishedPanel != null)
         {
-            // Award victory rewards: refund entry fee + fee per alive tank
-            AwardVictoryRewards(aliveTanksByTeam);
+            // Set VictoryText and LossText visibility based on outcome
+            if (victoryText != null)
+                victoryText.SetActive(playerWon);
             
-            // Mark arena as completed for progress unlocking
-            MarkArenaCompleted();
+            if (lossText != null)
+                lossText.SetActive(!playerWon);
             
-            if (victoryPanel != null)
+            // Show the panel with fade-in animation
+            StartCoroutine(FadeInPanel(matchFinishedPanel));
+            
+            // Play appropriate sound
+            if (SoundManager.Instance != null)
             {
-                StartCoroutine(FadeInPanel(victoryPanel));
-                
-                // Play round win sound
-                if (SoundManager.Instance != null)
+                if (playerWon)
                     SoundManager.Instance.PlayRoundWin();
-                
-                Debug.Log("[ArenaManager] Victory panel shown!");
+                else
+                    SoundManager.Instance.PlayRoundLoss();
             }
-            else
-            {
-                Debug.LogWarning("[ArenaManager] Victory panel not found! Please create a 'VictoryPanel' GameObject under the UI Canvas.");
-            }
+            
+            Debug.Log($"[ArenaManager] MatchFinishedPanel shown! Player won: {playerWon}");
         }
         else
         {
-            if (lossPanel != null)
-            {
-                StartCoroutine(FadeInPanel(lossPanel));
-                Debug.Log("[ArenaManager] Loss panel shown!");
-                
-                // Play round loss sound
-                if (SoundManager.Instance != null)
-                    SoundManager.Instance.PlayRoundLoss();
-            }
-            else
-            {
-                Debug.LogWarning("[ArenaManager] Loss panel not found! Please create a 'LossPanel' GameObject under the UI Canvas.");
-            }
+            Debug.LogWarning("[ArenaManager] MatchFinishedPanel not found! Please create a 'MatchFinishedPanel' GameObject under the UI Canvas.");
+        }
+        
+        // Award rewards if player won
+        if (playerWon)
+        {
+            AwardVictoryRewards(aliveTanksByTeam);
+            MarkArenaCompleted();
+        }
+        
+        // Display match stats
+        if (statsManager != null)
+        {
+            statsManager.DisplayStats();
         }
         
         // Show tip panel after a short delay

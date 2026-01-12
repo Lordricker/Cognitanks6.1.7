@@ -27,6 +27,7 @@ public class BulletScript : MonoBehaviour
     [SerializeField] private Vector3 startPosition;
     [SerializeField] private bool isInitialized = false;
     private float knockback;
+    private TankMan firingTank; // Reference to the tank that fired this bullet (for damage tracking)
     
     /// <summary>
     /// Get the knockback value for manual force application
@@ -37,7 +38,7 @@ public class BulletScript : MonoBehaviour
     /// Initialize bullet with combat stats from the firing tank
     /// Explosion prefab is assigned directly in the bullet prefab inspector (used for muzzle flash and impact)
     /// </summary>
-    public void Initialize(int bulletDamage, float bulletRange, int teamId, bool artilleryMode = false, float bulletKnockback = 1f, float customAoeRadius = -1f)
+    public void Initialize(int bulletDamage, float bulletRange, int teamId, bool artilleryMode = false, float bulletKnockback = 1f, float customAoeRadius = -1f, TankMan shooter = null)
     {
         damage = bulletDamage;
         maxRange = bulletRange;
@@ -46,6 +47,7 @@ public class BulletScript : MonoBehaviour
         knockback = bulletKnockback;
         startPosition = transform.position;
         isInitialized = true;
+        firingTank = shooter;
         
         // Apply custom AOE radius if provided (for Hammer weapon)
         if (customAoeRadius > 0f)
@@ -188,6 +190,10 @@ public class BulletScript : MonoBehaviour
                     if (!isArtillery)
                     {
                         hitTank.TakeDamage(damage);
+                        
+                        // Record damage dealt for match stats
+                        RecordDamageDealt(damage);
+                        
                         Debug.Log($"[BulletScript] Hit enemy tank {hitTank.name} for {damage} direct damage (bullet mass: {knockback})");
                     }
                     else
@@ -231,6 +237,7 @@ public class BulletScript : MonoBehaviour
             // Apply AOE damage and knockback to all tanks in radius
             Collider[] hitColliders = Physics.OverlapSphere(transform.position, aoeRadius);
             HashSet<TankMan> damagedTanks = new HashSet<TankMan>(); // Track tanks already damaged to prevent multiple hits
+            int totalAoeDamageDealt = 0; // Track total AOE damage for stats
             
             foreach (Collider hitCollider in hitColliders)
             {
@@ -261,6 +268,7 @@ public class BulletScript : MonoBehaviour
                         
                         Debug.Log($"[BulletScript] Artillery AOE hit {hitTank.name} at distance {distance:F1}, damage: {aoeDamage} (base: {damage}, multiplier: {damageMultiplier:F2})");
                         hitTank.TakeDamage(aoeDamage);
+                        totalAoeDamageDealt += aoeDamage;
                         
                         // Apply knockback force away from explosion center
                         if (hitTank.Rb != null)
@@ -272,6 +280,12 @@ public class BulletScript : MonoBehaviour
                         }
                     }
                 }
+            }
+            
+            // Record total AOE damage dealt for stats
+            if (totalAoeDamageDealt > 0)
+            {
+                RecordDamageDealt(totalAoeDamageDealt);
             }
         }
         
@@ -288,6 +302,17 @@ public class BulletScript : MonoBehaviour
         
         // Destroy the bullet
         Destroy(gameObject);
+    }
+    
+    /// <summary>
+    /// Records damage dealt by the firing tank for match stats
+    /// </summary>
+    void RecordDamageDealt(float damageAmount)
+    {
+        if (firingTank != null && MatchStatsManager.Instance != null)
+        {
+            MatchStatsManager.Instance.RecordDamageDealt(firingTank, damageAmount);
+        }
     }
     
     /// <summary>

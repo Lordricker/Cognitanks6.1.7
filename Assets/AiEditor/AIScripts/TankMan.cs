@@ -122,6 +122,7 @@ public class TankMan : MonoBehaviour
     public TurretType TurretType => turretType;
     public AiTreeAsset AssignedNavAI => runtimeNavAI;
     public AiTreeAsset AssignedTurretAI => runtimeTurretAI;
+    public string TurretTitle => GetTurretTitle();
     public Rigidbody Rb => rb;
 
     public float ParseKnockback()
@@ -179,6 +180,9 @@ public class TankMan : MonoBehaviour
     private GameObject comsTarget; // Target acquired via Coms (AllyTargetList) when on a Coms branch
     private float lastFireTime;
     private float currentLeadDistance = 0f; // Track the lead distance currently being used by tracking actions
+    
+    // Match stats tracking
+    private bool wasSightingEnemy = false; // Track if we were sighting an enemy last frame
     
     // Coms penalty tracking
     private bool isCurrentlyUsingComs = false; // True when the current AI iteration is using Coms intel
@@ -1483,6 +1487,9 @@ public class TankMan : MonoBehaviour
         // Update AllyTargetList with currently detected enemies (in vision cone)
         UpdateAllyTargetList();
         
+        // Track enemy sighted time for match stats
+        UpdateEnemySightedTracking();
+        
         // Remove currentTarget if it is dead
         if (currentTarget != null)
         {
@@ -1494,6 +1501,29 @@ public class TankMan : MonoBehaviour
         }
         // NOTE: We no longer set currentTarget here - let the AI conditions (IfEnemy, IfAny, IfAlly) set it
         // This prevents the target from being cleared/overwritten between condition evaluations in the same branch
+    }
+    
+    /// <summary>
+    /// Updates enemy sighted time tracking for match stats
+    /// </summary>
+    void UpdateEnemySightedTracking()
+    {
+        if (MatchStatsManager.Instance == null) return;
+        
+        bool currentlySightingEnemy = detectedEnemies.Count > 0;
+        
+        if (currentlySightingEnemy && !wasSightingEnemy)
+        {
+            // Started sighting an enemy
+            MatchStatsManager.Instance.StartEnemySighting(this);
+        }
+        else if (!currentlySightingEnemy && wasSightingEnemy)
+        {
+            // Stopped sighting enemies
+            MatchStatsManager.Instance.StopEnemySighting(this);
+        }
+        
+        wasSightingEnemy = currentlySightingEnemy;
     }
     
     /// <summary>
@@ -2425,11 +2455,11 @@ public class TankMan : MonoBehaviour
                 // Hammer uses AOE like artillery but with custom radius of 20
                 if (turretType == TurretType.Hammer)
                 {
-                    bulletScript.Initialize(damage, range, myTeamInfo.teamId, true, ParseKnockback(), 20f);
+                    bulletScript.Initialize(damage, range, myTeamInfo.teamId, true, ParseKnockback(), 20f, this);
                 }
                 else
                 {
-                    bulletScript.Initialize(damage, range, myTeamInfo.teamId, turretType == TurretType.Artillery, ParseKnockback());
+                    bulletScript.Initialize(damage, range, myTeamInfo.teamId, turretType == TurretType.Artillery, ParseKnockback(), -1f, this);
                 }
             }
             else
@@ -2487,11 +2517,11 @@ public class TankMan : MonoBehaviour
                     // Hammer uses AOE like artillery but with custom radius of 20
                     if (turretType == TurretType.Hammer)
                     {
-                        bulletScript2.Initialize(damage, range, myTeamInfo.teamId, true, ParseKnockback(), 20f);
+                        bulletScript2.Initialize(damage, range, myTeamInfo.teamId, true, ParseKnockback(), 20f, this);
                     }
                     else
                     {
-                        bulletScript2.Initialize(damage, range, myTeamInfo.teamId, turretType == TurretType.Artillery, ParseKnockback());
+                        bulletScript2.Initialize(damage, range, myTeamInfo.teamId, turretType == TurretType.Artillery, ParseKnockback(), -1f, this);
                     }
                 }
             }
@@ -2562,16 +2592,71 @@ public class TankMan : MonoBehaviour
     {
         if (string.IsNullOrEmpty(instanceId))
             return null;
+        
+        // Extract title from instanceId format: "Title_GUID"
+        string title = instanceId;
+        int underscoreIndex = instanceId.IndexOf('_');
+        if (underscoreIndex > 0)
+        {
+            title = instanceId.Substring(0, underscoreIndex);
+        }
+        
+        Debug.Log($"[TankMan] FindTurretDataByInstanceId: Looking for turret with title '{title}' from instanceId '{instanceId}'");
             
         // Search in Resources/Workshop/ComponentData/Turrets
         TurretData[] turrets = Resources.LoadAll<TurretData>("Workshop/ComponentData/Turrets");
+        
+        Debug.Log($"[TankMan] FindTurretDataByInstanceId: Found {turrets.Length} turret assets");
+        
         foreach (TurretData turret in turrets)
         {
-            if (turret.instanceId == instanceId)
+            Debug.Log($"[TankMan] FindTurretDataByInstanceId: Checking turret with title='{turret.title}'");
+            
+            // Match by title instead of instanceId
+            if (turret.title == title)
+            {
+                Debug.Log($"[TankMan] FindTurretDataByInstanceId: Matched turret '{turret.title}'");
                 return turret;
+            }
         }
         
+        Debug.LogWarning($"[TankMan] FindTurretDataByInstanceId: No turret found with title '{title}'");
         return null;
+    }
+    
+    /// <summary>
+    /// Gets the display title of the turret (e.g., "Rifle", "Sniper", "Hammer")
+    /// </summary>
+    private string GetTurretTitle()
+    {
+        if (tankSlotData == null)
+        {
+            Debug.LogWarning($"[TankMan] GetTurretTitle: tankSlotData is null for {gameObject.name}");
+            return "None";
+        }
+            
+        if (string.IsNullOrEmpty(tankSlotData.turretInstanceId))
+        {
+            Debug.LogWarning($"[TankMan] GetTurretTitle: turretInstanceId is null/empty for {gameObject.name}");
+            return "None";
+        }
+            
+        TurretData turretData = FindTurretDataByInstanceId(tankSlotData.turretInstanceId);
+        
+        if (turretData == null)
+        {
+            Debug.LogWarning($"[TankMan] GetTurretTitle: Could not find turret data for instanceId '{tankSlotData.turretInstanceId}' on {gameObject.name}");
+            return "Unknown";
+        }
+        
+        if (string.IsNullOrEmpty(turretData.title))
+        {
+            Debug.LogWarning($"[TankMan] GetTurretTitle: turretData.title is null/empty for instanceId '{tankSlotData.turretInstanceId}' on {gameObject.name}");
+            return "Unknown";
+        }
+        
+        Debug.Log($"[TankMan] GetTurretTitle: Found title '{turretData.title}' for {gameObject.name}");
+        return turretData.title;
     }
     
     /// <summary>
@@ -2659,6 +2744,12 @@ public class TankMan : MonoBehaviour
         // Apply armor reduction
         float finalDamage = Mathf.Max(0, damageAmount - armor);
         currentHealth -= finalDamage;
+        
+        // Record damage taken for match stats
+        if (MatchStatsManager.Instance != null)
+        {
+            MatchStatsManager.Instance.RecordDamageTaken(this, finalDamage);
+        }
         
         // Apply manual knockback force if we have stored bullet data
         if (lastBulletVelocity != Vector3.zero && lastBulletKnockback > 0f && rb != null)
