@@ -11,6 +11,10 @@ public class CameraController : MonoBehaviour
     private int currentAnchorIndex = 0;
     private Transform targetAnchor;
 
+    // Separate tracking for turret cameras
+    private List<Transform> turretAnchors = new List<Transform>();
+    private int currentTurretIndex = 0;
+
     [Header("UI Buttons")]
     public Button globalCamButton;
     public Button cycleTankCamButton;
@@ -39,13 +43,17 @@ public class CameraController : MonoBehaviour
     public void RefreshAnchors()
     {
         cameraAnchors.Clear();
-        // Only add tank anchors (not global) to the cycle list
+        turretAnchors.Clear();
+        // Add both tank anchors and turret anchors to the cycle list
         foreach (var anchor in GameObject.FindObjectsByType<Transform>(FindObjectsSortMode.None))
         {
             if (anchor.name == "CameraAnchor")
                 cameraAnchors.Add(anchor);
+            else if (anchor.name == "TurretCameraAnchor")
+                turretAnchors.Add(anchor);
         }
         currentAnchorIndex = 0;
+        currentTurretIndex = 0;
         if (globalAnchor != null)
             SetTargetAnchor(globalAnchor);
         else if (cameraAnchors.Count > 0)
@@ -114,5 +122,16 @@ public class CameraController : MonoBehaviour
         
         // Use the anchor rotation as set by TankAssembly (no override needed)
         Debug.Log($"[CameraController] Switched to tank anchor: {cameraAnchors[currentAnchorIndex].name}");
+    }
+
+    public void SwitchToTurretCamera()
+    {
+        if (turretAnchors.Count == 0) return;
+        
+        // Cycle through turret cameras like CycleTankAnchor does for all cameras
+        currentTurretIndex = (currentTurretIndex + 1) % turretAnchors.Count;
+        SetTargetAnchor(turretAnchors[currentTurretIndex]);
+        
+        Debug.Log($"[CameraController] Switched to turret camera: {turretAnchors[currentTurretIndex].name} ({currentTurretIndex + 1}/{turretAnchors.Count})");
     }
 }

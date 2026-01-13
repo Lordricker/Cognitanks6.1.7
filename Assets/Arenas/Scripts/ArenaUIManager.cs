@@ -7,6 +7,7 @@ public class ArenaUIManager : MonoBehaviour
     [Header("Camera Controls")]
     public Button globalCameraButton;
     public Button cycleTankCameraButton;
+    public Button turretCameraButton; // New dedicated turret camera button
 
     [Header("Game Speed Controls")]
     public Slider speedSlider;
@@ -21,11 +22,17 @@ public class ArenaUIManager : MonoBehaviour
 
     private float[] speedLevels = { 0.2f, 0.5f, 1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f, 9f, 10f };
     private int currentSpeedIndex = 2;
+    private CameraController cameraController; // Found automatically
 
     void Start()
     {
+        // Find camera controller automatically
+        cameraController = FindFirstObjectByType<CameraController>();
+
         globalCameraButton.onClick.AddListener(OnGlobalCamera);
         cycleTankCameraButton.onClick.AddListener(OnCycleTankCamera);
+        if (turretCameraButton != null)
+            turretCameraButton.onClick.AddListener(OnTurretCamera);
         pauseButton.onClick.AddListener(PauseGame);
         resumeButton.onClick.AddListener(ResumeGame);
         settingsButton.onClick.AddListener(OpenSettings);
@@ -44,12 +51,20 @@ public class ArenaUIManager : MonoBehaviour
 
     void OnGlobalCamera()
     {
-        // TODO: Switch to global camera view
+        if (cameraController != null)
+            cameraController.MoveToGlobalAnchor();
     }
 
     void OnCycleTankCamera()
     {
-        // TODO: Cycle through tank cameras
+        if (cameraController != null)
+            cameraController.CycleTankAnchor();
+    }
+
+    void OnTurretCamera()
+    {
+        if (cameraController != null)
+            cameraController.SwitchToTurretCamera();
     }
 
     void OnSpeedSliderChanged(float value)

@@ -10,6 +10,7 @@ public class BulletScript : MonoBehaviour
     [Header("Explosion Effects")]
     [SerializeField] private GameObject bulletSpawnExplosionPrefab; // Muzzle flash effect when bullet is fired
     [SerializeField] private GameObject bulletDeathExplosionPrefab; // Impact/explosion effect when bullet hits or expires
+    [SerializeField] private GameObject hammerDeathExplosionPrefab; // Separate explosion effect for hammer weapon
     [SerializeField] private Vector3 explosionScale = new Vector3(10f, 5f, 10f); // Scale modifier for explosions
     [SerializeField] private float explosionFadeDuration = 0.3f; // How long explosions last
     [SerializeField] private float aoeRadius = 50f; // Area of effect radius for explosion damage
@@ -22,6 +23,7 @@ public class BulletScript : MonoBehaviour
     [SerializeField] private float maxRange;
     [SerializeField] private int firingTeamId;
     [SerializeField] private bool isArtillery = false;
+    [SerializeField] private bool isHammer = false;
     
     [Header("Runtime Data")]
     [SerializeField] private Vector3 startPosition;
@@ -38,12 +40,13 @@ public class BulletScript : MonoBehaviour
     /// Initialize bullet with combat stats from the firing tank
     /// Explosion prefab is assigned directly in the bullet prefab inspector (used for muzzle flash and impact)
     /// </summary>
-    public void Initialize(int bulletDamage, float bulletRange, int teamId, bool artilleryMode = false, float bulletKnockback = 1f, float customAoeRadius = -1f, TankMan shooter = null)
+    public void Initialize(int bulletDamage, float bulletRange, int teamId, bool artilleryMode = false, float bulletKnockback = 1f, float customAoeRadius = -1f, TankMan shooter = null, bool hammerMode = false)
     {
         damage = bulletDamage;
         maxRange = bulletRange;
         firingTeamId = teamId;
         isArtillery = artilleryMode;
+        isHammer = hammerMode;
         knockback = bulletKnockback;
         startPosition = transform.position;
         isInitialized = true;
@@ -186,19 +189,28 @@ public class BulletScript : MonoBehaviour
                 
                 if (hitTank != null)
                 {
-                    // For artillery, skip direct damage - only use AOE damage from Explode()
-                    if (!isArtillery)
+                    // For artillery and hammer, skip direct damage - only use AOE damage from Explode()
+                    if (!isArtillery && !isHammer)
                     {
-                        hitTank.TakeDamage(damage);
+                        // Get bullet velocity for knockback direction
+                        Rigidbody bulletRb = GetComponent<Rigidbody>();
+                        Vector3 knockbackDirection = Vector3.zero;
+                        if (bulletRb != null)
+                        {
+                            knockbackDirection = bulletRb.linearVelocity;
+                        }
+                        
+                        // Apply damage with knockback (handles friction reduction and force application)
+                        hitTank.TakeDamage(damage, knockbackDirection, knockback);
                         
                         // Record damage dealt for match stats
                         RecordDamageDealt(damage);
                         
-                        Debug.Log($"[BulletScript] Hit enemy tank {hitTank.name} for {damage} direct damage (bullet mass: {knockback})");
+                        Debug.Log($"[BulletScript] Hit enemy tank {hitTank.name} for {damage} direct damage (knockback: {knockback})");
                     }
                     else
                     {
-                        Debug.Log($"[BulletScript] Artillery hit enemy tank {hitTank.name} - using AOE damage only");
+                        Debug.Log($"[BulletScript] Artillery/Hammer hit enemy tank {hitTank.name} - using AOE damage only");
                     }
                     
                     // Play bullet hit sound at collision point
@@ -231,8 +243,8 @@ public class BulletScript : MonoBehaviour
     {
         Debug.Log($"[BulletScript] Bullet exploded at {transform.position}");
         
-        // Only apply AOE damage for artillery bullets
-        if (isArtillery)
+        // Apply AOE damage for artillery and hammer bullets
+        if (isArtillery || isHammer)
         {
             // Apply AOE damage and knockback to all tanks in radius
             Collider[] hitColliders = Physics.OverlapSphere(transform.position, aoeRadius);
@@ -261,23 +273,43 @@ public class BulletScript : MonoBehaviour
                     {
                         damagedTanks.Add(hitTank); // Mark this tank as damaged
                         
-                        // Calculate distance-based damage falloff (full damage at center, 50% at edge)
                         float distance = Vector3.Distance(transform.position, hitTank.transform.position);
-                        float damageMultiplier = 1f - (distance / aoeRadius) * 0.5f; // 100% to 50% based on distance
-                        int aoeDamage = Mathf.RoundToInt(damage * damageMultiplier);
+                        int aoeDamage;
                         
-                        Debug.Log($"[BulletScript] Artillery AOE hit {hitTank.name} at distance {distance:F1}, damage: {aoeDamage} (base: {damage}, multiplier: {damageMultiplier:F2})");
-                        hitTank.TakeDamage(aoeDamage);
+                        // Hammer deals full damage across entire AOE (no falloff)
+                        if (isHammer)
+                        {
+                            aoeDamage = damage;
+                            Debug.Log($"[BulletScript] Hammer AOE hit {hitTank.name} at distance {distance:F1}, damage: {aoeDamage} (full damage)");
+                        }
+                        else
+                        {
+                            // Artillery has damage falloff (full damage at center, 50% at edge)
+                            float damageMultiplier = 1f - (distance / aoeRadius) * 0.5f; // 100% to 50% based on distance
+                            aoeDamage = Mathf.RoundToInt(damage * damageMultiplier);
+                            Debug.Log($"[BulletScript] Artillery AOE hit {hitTank.name} at distance {distance:F1}, damage: {aoeDamage} (base: {damage}, multiplier: {damageMultiplier:F2})");
+                        }
+                        
+                        // Calculate knockback force and direction
+                        Vector3 knockbackDirection = (hitTank.transform.position - transform.position);
+                        
+                        // Hammer provides full knockback across entire AOE, artillery has distance falloff
+                        float knockbackForce;
+                        if (isHammer)
+                        {
+                            knockbackForce = knockback; // Full knockback across entire radius
+                        }
+                        else
+                        {
+                            float knockbackMultiplier = 1f - (distance / aoeRadius); // Stronger at center
+                            knockbackForce = knockback * knockbackMultiplier;
+                        }
+                        
+                        // Apply damage with knockback (handles friction reduction and force application)
+                        hitTank.TakeDamage(aoeDamage, knockbackDirection, knockbackForce);
                         totalAoeDamageDealt += aoeDamage;
                         
-                        // Apply knockback force away from explosion center
-                        if (hitTank.Rb != null)
-                        {
-                            Vector3 knockbackDirection = (hitTank.transform.position - transform.position).normalized;
-                            float knockbackMultiplier = 1f - (distance / aoeRadius); // Stronger at center
-                            float knockbackForce = knockback * knockbackMultiplier;
-                            hitTank.Rb.AddForce(knockbackDirection * knockbackForce, ForceMode.Impulse);
-                        }
+                        Debug.Log($"[BulletScript] AOE hit {hitTank.name}: damage={aoeDamage}, knockback={knockbackForce:F1}, isHammer={isHammer}");
                     }
                 }
             }
@@ -289,11 +321,12 @@ public class BulletScript : MonoBehaviour
             }
         }
         
-        // Spawn explosion effect if available
-        if (bulletDeathExplosionPrefab != null)
+        // Spawn explosion effect if available (use hammer-specific prefab if set)
+        GameObject explosionPrefab = (isHammer && hammerDeathExplosionPrefab != null) ? hammerDeathExplosionPrefab : bulletDeathExplosionPrefab;
+        if (explosionPrefab != null)
         {
-            GameObject explosion = Instantiate(bulletDeathExplosionPrefab, transform.position, Quaternion.identity);
-            explosion.transform.localScale = isArtillery ? explosionScale * 5f : explosionScale;
+            GameObject explosion = Instantiate(explosionPrefab, transform.position, Quaternion.identity);
+            explosion.transform.localScale = (isArtillery || isHammer) ? explosionScale * 5f : explosionScale;
             
             // Start fade out coroutine and destroy after specified duration
             BulletScript tempScript = explosion.AddComponent<BulletScript>();

@@ -166,6 +166,14 @@ public class TankMan : MonoBehaviour
     private string lastLoggedNavChain = "";
     private string lastLoggedTurretChain = "";
     
+    // Unstuck tracking
+    private float lastUnstuckCheckTime = 0f;
+    private float lastUnstuckForceTime = 0f;
+    private float timeFirstBecameStuck = -1f;
+    private const float UNSTUCK_CHECK_INTERVAL = 0.5f; // Check every 0.5 seconds
+    private const float UNSTUCK_FORCE_INTERVAL = 2f; // Apply force every 2 seconds max
+    private const float UNSTUCK_INITIAL_DELAY = 2f; // Wait 2 seconds after becoming stuck
+    
     // Cycle node memory - tracks which child node each Cycle instance is currently executing
     private Dictionary<string, int> cycleNodeMemory = new Dictionary<string, int>();
     private Dictionary<string, float> cycleNodeTimeSpent = new Dictionary<string, float>();
@@ -234,7 +242,7 @@ public class TankMan : MonoBehaviour
         rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
         // Allow X and Z rotation so tank follows terrain, only control Y (turning) with forces
         rb.constraints = RigidbodyConstraints.None;
-        rb.centerOfMass = new Vector3(0, -0.5f, 0); // Lower center for stability
+        rb.centerOfMass = new Vector3(0, -2f, 0); // Lower center for stability (prevent tipping from high turret colliders)
 
         // Initialize team info - this is critical for enemy detection
         EnsureTeamInfoExists();
@@ -431,20 +439,56 @@ public class TankMan : MonoBehaviour
     /// Directly translates the tank upward to unstuck it from friction
     /// Only called from movement actions, so no need to check if trying to move
     /// Just checks if tank is not moving (stuck)
+    /// Rate limited to only apply force every 2 seconds after waiting 2 seconds
     /// </summary>
     private void UnstuckTank()
     {
-        // Don't require isGrounded - tanks can be stuck while technically flagged as airborne
+        // Only apply unstuck when grounded
+        if (!isGrounded)
+        {
+            // Reset stuck tracking when airborne
+            timeFirstBecameStuck = -1f;
+            return;
+        }
+
+        // Rate limit checks
+        if (Time.time - lastUnstuckCheckTime < UNSTUCK_CHECK_INTERVAL)
+            return;
+
+        lastUnstuckCheckTime = Time.time;
+
         if (rb != null)
         {
             // Check if tank is stuck (no horizontal movement)
             Vector3 horizontalVelocity = new Vector3(rb.linearVelocity.x, 0, rb.linearVelocity.z);
             if (horizontalVelocity.magnitude < 0.1f)
             {
-                // Apply strong upward force to lift tank out of stuck position
-                float upwardForce = rb.mass * 20f; // Strong impulse to lift tank
-                rb.AddForce(Vector3.up * upwardForce, ForceMode.Impulse);
-                Debug.Log($"[{gameObject.name}] UnstuckTank: Applied upward force {upwardForce:F0}N (velocity was {horizontalVelocity.magnitude:F3})");
+                // Track when we first became stuck
+                if (timeFirstBecameStuck < 0)
+                {
+                    timeFirstBecameStuck = Time.time;
+                    Debug.Log($"[{gameObject.name}] UnstuckTank: Tank became stuck at {Time.time:F1}s");
+                }
+
+                // Wait 2 seconds after becoming stuck, then apply force every 2 seconds
+                float timeStuck = Time.time - timeFirstBecameStuck;
+                if (timeStuck >= UNSTUCK_INITIAL_DELAY && Time.time - lastUnstuckForceTime >= UNSTUCK_FORCE_INTERVAL)
+                {
+                    // Apply strong upward force to lift tank out of stuck position
+                    float upwardForce = rb.mass * 20f; // Strong impulse to lift tank
+                    rb.AddForce(Vector3.up * upwardForce, ForceMode.Impulse);
+                    lastUnstuckForceTime = Time.time;
+                    Debug.Log($"[{gameObject.name}] UnstuckTank: Applied upward force {upwardForce:F0}N after {timeStuck:F1}s stuck (velocity was {horizontalVelocity.magnitude:F3})");
+                }
+            }
+            else
+            {
+                // Tank is moving, reset stuck tracking
+                if (timeFirstBecameStuck >= 0)
+                {
+                    Debug.Log($"[{gameObject.name}] UnstuckTank: Tank is moving again, resetting stuck tracking");
+                    timeFirstBecameStuck = -1f;
+                }
             }
         }
     }
@@ -467,25 +511,9 @@ public class TankMan : MonoBehaviour
     // Ground check using trigger collider
     private void OnTriggerEnter(Collider other)
     {
-        // Skip bullet triggers - they shouldn't affect ground detection
+        // Skip bullets - they handle knockback directly through TakeDamage()
         if (other.GetComponent<BulletScript>() != null)
         {
-            // Handle bullet pre-knockback friction reduction
-            if (wheelColliders != null && wheelColliders.Length > 0)
-            {
-                Rigidbody bulletRb = other.GetComponent<Rigidbody>();
-                if (bulletRb != null)
-                {
-                    lastBulletVelocity = bulletRb.linearVelocity;
-                    lastBulletKnockback = other.GetComponent<BulletScript>().GetKnockbackValue();
-                }
-                
-                // Reduce friction immediately before the bullet's main collision hits
-                ReduceWheelFriction();
-                
-                // Set restore time for 0.1 seconds from now
-                frictionRestoreTime = Time.time + 0.1f;
-            }
             return; // Don't affect ground state
         }
         
@@ -2455,11 +2483,11 @@ public class TankMan : MonoBehaviour
                 // Hammer uses AOE like artillery but with custom radius of 20
                 if (turretType == TurretType.Hammer)
                 {
-                    bulletScript.Initialize(damage, range, myTeamInfo.teamId, true, ParseKnockback(), 20f, this);
+                    bulletScript.Initialize(damage, range, myTeamInfo.teamId, false, ParseKnockback(), 20f, this, true);
                 }
                 else
                 {
-                    bulletScript.Initialize(damage, range, myTeamInfo.teamId, turretType == TurretType.Artillery, ParseKnockback(), -1f, this);
+                    bulletScript.Initialize(damage, range, myTeamInfo.teamId, turretType == TurretType.Artillery, ParseKnockback(), -1f, this, false);
                 }
             }
             else
@@ -2517,11 +2545,11 @@ public class TankMan : MonoBehaviour
                     // Hammer uses AOE like artillery but with custom radius of 20
                     if (turretType == TurretType.Hammer)
                     {
-                        bulletScript2.Initialize(damage, range, myTeamInfo.teamId, true, ParseKnockback(), 20f, this);
+                        bulletScript2.Initialize(damage, range, myTeamInfo.teamId, false, ParseKnockback(), 20f, this, true);
                     }
                     else
                     {
-                        bulletScript2.Initialize(damage, range, myTeamInfo.teamId, turretType == TurretType.Artillery, ParseKnockback(), -1f, this);
+                        bulletScript2.Initialize(damage, range, myTeamInfo.teamId, turretType == TurretType.Artillery, ParseKnockback(), -1f, this, false);
                     }
                 }
             }
@@ -2740,37 +2768,40 @@ public class TankMan : MonoBehaviour
     
     public void TakeDamage(float damageAmount)
     {
-        
-        // Apply armor reduction
-        float finalDamage = Mathf.Max(0, damageAmount - armor);
-        currentHealth -= finalDamage;
-        
+        // Armor only provides extra HP, not damage reduction
+        currentHealth -= damageAmount;
+
         // Record damage taken for match stats
         if (MatchStatsManager.Instance != null)
         {
-            MatchStatsManager.Instance.RecordDamageTaken(this, finalDamage);
+            MatchStatsManager.Instance.RecordDamageTaken(this, damageAmount);
         }
-        
-        // Apply manual knockback force if we have stored bullet data
-        if (lastBulletVelocity != Vector3.zero && lastBulletKnockback > 0f && rb != null)
-        {
-            // Calculate knockback force based on bullet velocity direction and knockback value
-            Vector3 knockbackDirection = lastBulletVelocity.normalized;
-            float forceMagnitude = lastBulletKnockback; // Direct force value from ParseKnockback()
-            
-            // Apply force in the next FixedUpdate to ensure friction is fully reduced
-            StartCoroutine(ApplyKnockbackForceNextFrame(knockbackDirection * forceMagnitude));
-            
-            Debug.Log($"[{gameObject.name}] Applying manual knockback force: {forceMagnitude:F1} in direction {knockbackDirection}");
-            
-            // Clear stored values
-            lastBulletVelocity = Vector3.zero;
-            lastBulletKnockback = 0f;
-        }
-        
+
         if (currentHealth <= 0)
         {
             Die();
+        }
+    }
+    
+    /// <summary>
+    /// Take damage with knockback force applied programmatically
+    /// </summary>
+    public void TakeDamage(float damageAmount, Vector3 knockbackDirection, float knockbackForce)
+    {
+        // Apply damage first
+        TakeDamage(damageAmount);
+        
+        // Apply knockback if valid
+        if (knockbackForce > 0f && rb != null && knockbackDirection != Vector3.zero)
+        {
+            // Reduce friction before applying force
+            ReduceWheelFriction();
+            frictionRestoreTime = Time.time + 0.1f;
+            
+            // Apply force in the next FixedUpdate to ensure friction is fully reduced
+            StartCoroutine(ApplyKnockbackForceNextFrame(knockbackDirection.normalized * knockbackForce));
+            
+            Debug.Log($"[{gameObject.name}] Taking {damageAmount} damage + knockback force: {knockbackForce:F1} in direction {knockbackDirection.normalized}");
         }
     }
     
@@ -3023,14 +3054,19 @@ public class TankMan : MonoBehaviour
         // Stuck detection variables for this wander action
         Vector3 lastWanderPosition = transform.position;
         float lastWanderPositionCheckTime = Time.time;
-        float wanderStuckCheckInterval = 3f; // Check every 3 seconds
+        float wanderStuckCheckInterval = 1f; // Check every 1 second for responsiveness
         float wanderStuckDistanceThreshold = 1.0f; // Must move at least 1 unit to not be considered stuck
+        float timeBecameStuck = -1f; // Track when tank first became stuck (-1 = not stuck)
+        float unstuckForceInterval = 2f; // Apply force every 2 seconds while stuck
+        float lastUnstuckForceTime = 0f; // Track when we last applied unstuck force
 
         // Move towards wander target using force-driven system
         while (true)
         {
             if (!isGrounded)
             {
+                // Reset stuck tracking when airborne
+                timeBecameStuck = -1f;
                 yield return null;
                 continue;
             }
@@ -3041,15 +3077,33 @@ public class TankMan : MonoBehaviour
                 float distanceMoved = Vector3.Distance(
                     new Vector3(transform.position.x, 0, transform.position.z),
                     new Vector3(lastWanderPosition.x, 0, lastWanderPosition.z));
-                
-                // If we barely moved, we're stuck - apply upward force
+
+                // If we barely moved, we're stuck
                 if (distanceMoved < wanderStuckDistanceThreshold)
                 {
-                    float upwardForce = rb.mass * 50f; // Strong impulse to lift tank
-                    rb.AddForce(Vector3.up * upwardForce, ForceMode.Impulse);
-                    Debug.Log($"[{gameObject.name}] Unstuck force applied (moved {distanceMoved:F2}m in {wanderStuckCheckInterval}s)");
+                    // Track when we first became stuck
+                    if (timeBecameStuck < 0)
+                    {
+                        timeBecameStuck = Time.time;
+                        Debug.Log($"[{gameObject.name}] Tank became stuck at {Time.time:F1}s");
+                    }
+
+                    // Wait 2 seconds after becoming stuck, then apply force every 2 seconds
+                    float timeStuck = Time.time - timeBecameStuck;
+                    if (timeStuck >= 2f && Time.time - lastUnstuckForceTime >= unstuckForceInterval)
+                    {
+                        float upwardForce = rb.mass * 50f; // Strong impulse to lift tank
+                        rb.AddForce(Vector3.up * upwardForce, ForceMode.Impulse);
+                        lastUnstuckForceTime = Time.time;
+                        Debug.Log($"[{gameObject.name}] Unstuck force applied after {timeStuck:F1}s stuck (moved {distanceMoved:F2}m in {wanderStuckCheckInterval}s)");
+                    }
                 }
-                
+                else
+                {
+                    // Tank is moving, reset stuck tracking
+                    timeBecameStuck = -1f;
+                }
+
                 // Update position tracking
                 lastWanderPosition = transform.position;
                 lastWanderPositionCheckTime = Time.time;

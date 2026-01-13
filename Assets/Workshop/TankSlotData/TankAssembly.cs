@@ -194,7 +194,7 @@ public class TankAssembly : MonoBehaviour
         
         // AI references are now loaded by TankMan.SetTankSlotData() using instance IDs
 
-        // Add CameraAnchor if not present
+        // Add CameraAnchor if not present (tank body camera)
         Transform anchor = transform.Find("CameraAnchor");
         if (anchor == null)
         {
@@ -202,6 +202,19 @@ public class TankAssembly : MonoBehaviour
             anchorObj.transform.SetParent(transform);
             anchorObj.transform.localPosition = new Vector3(0f, 15f, -30f); // Behind tank (negative Z), elevated
             anchorObj.transform.localRotation = Quaternion.identity; // Y rotation = 0 degrees
+        }
+
+        // Add TurretCameraAnchor if not present (turret following camera)
+        if (turretPivot != null)
+        {
+            Transform turretAnchor = turretPivot.Find("TurretCameraAnchor");
+            if (turretAnchor == null)
+            {
+                GameObject turretAnchorObj = new GameObject("TurretCameraAnchor");
+                turretAnchorObj.transform.SetParent(turretPivot);
+                turretAnchorObj.transform.localPosition = new Vector3(0f, 15f, -30f); // Same offset as tank camera
+                turretAnchorObj.transform.localRotation = Quaternion.identity;
+            }
         }
 
         // Rigidbody configuration is now handled by TankMan.Start() and CalculateStats()
