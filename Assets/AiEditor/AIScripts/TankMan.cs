@@ -205,8 +205,6 @@ public class TankMan : MonoBehaviour
     private Collider[] wheelColliders;
     private bool frictionReduced = false;
     private float frictionRestoreTime = 0f;
-    private Vector3 lastBulletVelocity = Vector3.zero;
-    private float lastBulletKnockback = 0f;
     
     // Rotation action state tracking - track the actual target angle to persist across AI iterations
     private string lastUsedNavNodeId = "";

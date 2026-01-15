@@ -23,7 +23,7 @@ MonoBehaviour:
   turretType: 2
   animationPrefab: {fileID: 8769155102647957026, guid: fd87c9a901805134398c0cbeb2b0822a, type: 3}
   damage: 12
-  range: 10
+  range: 2
   shotspersec: 2
   bulletSpeed: 100
   knockback: medium

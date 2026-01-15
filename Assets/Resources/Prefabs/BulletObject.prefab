@@ -177,7 +177,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   bulletSpawnExplosionPrefab: {fileID: 1781949194303238870, guid: 4e35892e4c5444340a0e2189311808e5, type: 3}
   bulletDeathExplosionPrefab: {fileID: 8295591563862043295, guid: 98c5ce036f68d8941922e7541fb70887, type: 3}
-  hammerDeathExplosionPrefab: {fileID: 0}
+  hammerDeathExplosionPrefab: {fileID: 6822285211326546416, guid: dfda19a3bb502344ba0752e214a68413, type: 3}
   explosionScale: {x: 10, y: 5, z: 10}
   explosionFadeDuration: 0.3
   aoeRadius: 50

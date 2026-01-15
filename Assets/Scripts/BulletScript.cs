@@ -328,9 +328,12 @@ public class BulletScript : MonoBehaviour
             GameObject explosion = Instantiate(explosionPrefab, transform.position, Quaternion.identity);
             explosion.transform.localScale = (isArtillery || isHammer) ? explosionScale * 5f : explosionScale;
             
-            // Start fade out coroutine and destroy after specified duration
-            BulletScript tempScript = explosion.AddComponent<BulletScript>();
-            tempScript.StartCoroutine(tempScript.FadeOutExplosion(explosion, explosionFadeDuration));
+            // Only fade non-hammer explosions (hammer explosions handle their own timing)
+            if (!isHammer)
+            {
+                BulletScript tempScript = explosion.AddComponent<BulletScript>();
+                tempScript.StartCoroutine(tempScript.FadeOutExplosion(explosion, explosionFadeDuration));
+            }
         }
         
         // Destroy the bullet
