@@ -36,8 +36,7 @@ public class CameraController : MonoBehaviour
             SetTargetAnchor(cameraAnchors[0]);
         if (globalCamButton != null)
             globalCamButton.onClick.AddListener(MoveToGlobalAnchor);
-        if (cycleTankCamButton != null)
-            cycleTankCamButton.onClick.AddListener(CycleTankAnchor);
+        // Removed cycleTankCamButton listener to avoid double calls - handled by ArenaUIManager
     }
 
     public void RefreshAnchors()
@@ -52,6 +51,7 @@ public class CameraController : MonoBehaviour
             else if (anchor.name == "TurretCameraAnchor")
                 turretAnchors.Add(anchor);
         }
+        Debug.Log($"[CameraController] Found {cameraAnchors.Count} camera anchors and {turretAnchors.Count} turret anchors");
         currentAnchorIndex = 0;
         currentTurretIndex = 0;
         if (globalAnchor != null)
@@ -121,7 +121,7 @@ public class CameraController : MonoBehaviour
         SetTargetAnchor(cameraAnchors[currentAnchorIndex]);
         
         // Use the anchor rotation as set by TankAssembly (no override needed)
-        Debug.Log($"[CameraController] Switched to tank anchor: {cameraAnchors[currentAnchorIndex].name}");
+        Debug.Log($"[CameraController] Switched to tank anchor: {cameraAnchors[currentAnchorIndex].name} ({currentAnchorIndex + 1}/{cameraAnchors.Count})");
     }
 
     public void SwitchToTurretCamera()

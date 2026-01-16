@@ -8,6 +8,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: -9021784833414768572, guid: 7559ac04db9c0e64cb1c45d9cf4c02a0, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 7559ac04db9c0e64cb1c45d9cf4c02a0, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
@@ -48,9 +52,21 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: -1072954812191987190, guid: 7559ac04db9c0e64cb1c45d9cf4c02a0, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 7559ac04db9c0e64cb1c45d9cf4c02a0, type: 3}
       propertyPath: m_Name
       value: AcceleratorFrame
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 7559ac04db9c0e64cb1c45d9cf4c02a0, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
+    - target: {fileID: 5955610473258316871, guid: 7559ac04db9c0e64cb1c45d9cf4c02a0, type: 3}
+      propertyPath: m_Layer
+      value: 6
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

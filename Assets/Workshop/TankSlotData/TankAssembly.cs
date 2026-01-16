@@ -124,7 +124,7 @@ public class TankAssembly : MonoBehaviour
                 // Force reset local rotation to fix rotation issues in builds
                 engineFrame.transform.localRotation = Quaternion.identity;
                 ApplyColorToTreadMount(engineFrame, data.engineFrameColor.ToUnityColor());
-                SetLayerRecursively(engineFrame, 0);
+                SetLayerRecursively(engineFrame, 6); // Set to Shadow layer
             }
             else
             {
@@ -140,7 +140,7 @@ public class TankAssembly : MonoBehaviour
                 // Apply vertical offset after parenting
                 armor.transform.localPosition += new Vector3(0f, armorYOffset, 0f);
                 ApplyColorToModel(armor, data.armorColor.ToUnityColor());
-                SetLayerRecursively(armor, 0);
+                SetLayerRecursively(armor, 6); // Set to Shadow layer
             }
             else
             {
@@ -156,7 +156,7 @@ public class TankAssembly : MonoBehaviour
             {
                     GameObject turretInstance = Instantiate(turretPrefab, turretPivot.position, turretPivot.rotation, turretPivot);
                 ApplyColorToModel(turretInstance, data.turretColor.ToUnityColor());
-                SetLayerRecursively(turretInstance, 0);
+                SetLayerRecursively(turretInstance, 6); // Set to Shadow layer
                 
                 // Find fire point for turret
                 Transform firePoint = FindFirePointRecursive(turretInstance.transform);

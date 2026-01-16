@@ -57,6 +57,10 @@ PrefabInstance:
       value: BulletObject
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: a389180d33b5e97479f5873f090c8a1e, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a389180d33b5e97479f5873f090c8a1e, type: 3}
       propertyPath: m_IsActive
       value: 1
       objectReference: {fileID: 0}
@@ -129,6 +133,10 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: a389180d33b5e97479f5873f090c8a1e, type: 3}
       propertyPath: m_Name
       value: BulletObject
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: a389180d33b5e97479f5873f090c8a1e, type: 3}
+      propertyPath: m_Layer
+      value: 6
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: a389180d33b5e97479f5873f090c8a1e, type: 3}
       propertyPath: m_IsActive
