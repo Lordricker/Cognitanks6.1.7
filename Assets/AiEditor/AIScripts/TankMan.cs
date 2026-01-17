@@ -2087,12 +2087,17 @@ public class TankMan : MonoBehaviour
         // Use appropriate variables based on AI type
         ref AiExecutableNode currentActionNode = ref (isNavAI ? ref currentNavActionNode : ref currentTurretActionNode);
         ref Coroutine currentActionCoroutine = ref (isNavAI ? ref currentNavActionCoroutine : ref currentTurretActionCoroutine);
+        ref string lastUsedNodeId = ref (isNavAI ? ref lastUsedNavNodeId : ref lastUsedTurretNodeId);
+        
+        // Check if we're already executing this same action - if so, don't restart it
+        // This prevents continuous actions (like LeadTarget) from stuttering every AI update interval
+        bool isSameAction = (lastUsedNodeId == actionNode.nodeId && currentActionCoroutine != null);
         
         // Store current action node for parameter access
         currentActionNode = actionNode;
 
-        // Stop any current action
-        if (currentActionCoroutine != null)
+        // Only stop and restart if this is a different action
+        if (!isSameAction && currentActionCoroutine != null)
         {
             StopCoroutine(currentActionCoroutine);
             currentActionCoroutine = null;
@@ -2119,16 +2124,20 @@ public class TankMan : MonoBehaviour
                 }
                 break;
             case "Wander":
-                currentActionCoroutine = StartCoroutine(WanderAction(actionNode.nodeId, isNavAI));
+                if (!isSameAction)
+                    currentActionCoroutine = StartCoroutine(WanderAction(actionNode.nodeId, isNavAI));
                 break;
             case "Move":
-                if (currentTarget != null)
+                if (!isSameAction)
                 {
-                    currentActionCoroutine = StartCoroutine(MoveToTarget(actionNode.nodeId, isNavAI));
-                }
-                else
-                {
-                    currentActionCoroutine = StartCoroutine(WanderAction(actionNode.nodeId, isNavAI));
+                    if (currentTarget != null)
+                    {
+                        currentActionCoroutine = StartCoroutine(MoveToTarget(actionNode.nodeId, isNavAI));
+                    }
+                    else
+                    {
+                        currentActionCoroutine = StartCoroutine(WanderAction(actionNode.nodeId, isNavAI));
+                    }
                 }
                 break;
             case "Stop":
@@ -2142,7 +2151,7 @@ public class TankMan : MonoBehaviour
             case "Chase":
                 // Chase works with both personal vision and Coms targets
                 // currentTarget was set by IfEnemy or refreshed above if on Coms branch
-                if (currentTarget != null)
+                if (!isSameAction && currentTarget != null)
                 {
                     currentActionCoroutine = StartCoroutine(ChaseTarget(actionNode.nodeId, isNavAI));
                 }
@@ -2150,14 +2159,17 @@ public class TankMan : MonoBehaviour
             case "Flee":
                 // Flee works with both personal vision and Coms targets
                 // currentTarget was set by IfEnemy or refreshed above if on Coms branch
-                if (currentTarget != null)
+                if (!isSameAction && currentTarget != null)
                 {
                     currentActionCoroutine = StartCoroutine(FleeFromTarget(actionNode.nodeId, isNavAI));
                 }
                 break;
             case "Wait":
-                StopMovement();
-                currentActionCoroutine = StartCoroutine(WaitAction(actionNode.nodeId, isNavAI));
+                if (!isSameAction)
+                {
+                    StopMovement();
+                    currentActionCoroutine = StartCoroutine(WaitAction(actionNode.nodeId, isNavAI));
+                }
                 break;
             case "LeadTarget":
                 // LeadTarget works with both personal vision and Coms targets
@@ -2167,57 +2179,73 @@ public class TankMan : MonoBehaviour
                     // Get lead distance from node's numeric value (default 0 for center targeting)
                     float leadDistance = actionNode.numericValue;
                     currentLeadDistance = leadDistance; // Store for CanFire to use
-                    currentActionCoroutine = StartCoroutine(LeadTargetAction(leadDistance, actionNode.nodeId, isNavAI));
+                    if (!isSameAction)
+                        currentActionCoroutine = StartCoroutine(LeadTargetAction(leadDistance, actionNode.nodeId, isNavAI));
                 }
                 break;
             case "TrackTarget":
             case "CenterTarget": // Alias for TrackTarget
-                if (currentTarget != null)
+                if (!isSameAction && currentTarget != null)
                 {
                     currentLeadDistance = 0f; // Track target center (no lead)
                     currentActionCoroutine = StartCoroutine(TrackTargetAction(actionNode.nodeId, isNavAI));
                 }
                 break;
             case "AlignFront":
-                currentActionCoroutine = StartCoroutine(AlignFrontAction(actionNode.nodeId, isNavAI));
+                if (!isSameAction)
+                    currentActionCoroutine = StartCoroutine(AlignFrontAction(actionNode.nodeId, isNavAI));
                 break;
             case "AlignRight":
-                currentActionCoroutine = StartCoroutine(AlignRightAction(actionNode.nodeId, isNavAI));
+                if (!isSameAction)
+                    currentActionCoroutine = StartCoroutine(AlignRightAction(actionNode.nodeId, isNavAI));
                 break;
             case "AlignLeft":
-                currentActionCoroutine = StartCoroutine(AlignLeftAction(actionNode.nodeId, isNavAI));
+                if (!isSameAction)
+                    currentActionCoroutine = StartCoroutine(AlignLeftAction(actionNode.nodeId, isNavAI));
                 break;
             case "AlignBack":
-                currentActionCoroutine = StartCoroutine(AlignBackAction(actionNode.nodeId, isNavAI));
+                if (!isSameAction)
+                    currentActionCoroutine = StartCoroutine(AlignBackAction(actionNode.nodeId, isNavAI));
                 break;
             case "RotateUp":
-                // Stop BOTH nav and turret actions to prevent conflicts with other rotation actions
-                if (currentNavActionCoroutine != null) { StopCoroutine(currentNavActionCoroutine); currentNavActionCoroutine = null; }
-                if (currentTurretActionCoroutine != null) { StopCoroutine(currentTurretActionCoroutine); currentTurretActionCoroutine = null; }
-                currentActionCoroutine = StartCoroutine(RotateUpAction(actionNode.numericValue, actionNode.nodeId, isNavAI));
+                if (!isSameAction)
+                {
+                    // Stop BOTH nav and turret actions to prevent conflicts with other rotation actions
+                    if (currentNavActionCoroutine != null) { StopCoroutine(currentNavActionCoroutine); currentNavActionCoroutine = null; }
+                    if (currentTurretActionCoroutine != null) { StopCoroutine(currentTurretActionCoroutine); currentTurretActionCoroutine = null; }
+                    currentActionCoroutine = StartCoroutine(RotateUpAction(actionNode.numericValue, actionNode.nodeId, isNavAI));
+                }
                 break;
             case "RotateDown":
-                // Stop BOTH nav and turret actions to prevent conflicts with other rotation actions
-                if (currentNavActionCoroutine != null) { StopCoroutine(currentNavActionCoroutine); currentNavActionCoroutine = null; }
-                if (currentTurretActionCoroutine != null) { StopCoroutine(currentTurretActionCoroutine); currentTurretActionCoroutine = null; }
-                currentActionCoroutine = StartCoroutine(RotateDownAction(actionNode.numericValue, actionNode.nodeId, isNavAI));
+                if (!isSameAction)
+                {
+                    // Stop BOTH nav and turret actions to prevent conflicts with other rotation actions
+                    if (currentNavActionCoroutine != null) { StopCoroutine(currentNavActionCoroutine); currentNavActionCoroutine = null; }
+                    if (currentTurretActionCoroutine != null) { StopCoroutine(currentTurretActionCoroutine); currentTurretActionCoroutine = null; }
+                    currentActionCoroutine = StartCoroutine(RotateDownAction(actionNode.numericValue, actionNode.nodeId, isNavAI));
+                }
                 break;
             case "MapCenter":
-                currentActionCoroutine = StartCoroutine(MapCenterAction(actionNode.nodeId, isNavAI));
+                if (!isSameAction)
+                    currentActionCoroutine = StartCoroutine(MapCenterAction(actionNode.nodeId, isNavAI));
                 break;
             case "Home":
-                currentActionCoroutine = StartCoroutine(HomeAction(actionNode.nodeId, isNavAI));
+                if (!isSameAction)
+                    currentActionCoroutine = StartCoroutine(HomeAction(actionNode.nodeId, isNavAI));
                 break;
             case "Forward":
-                currentActionCoroutine = StartCoroutine(ForwardAction(actionNode.nodeId, isNavAI));
+                if (!isSameAction)
+                    currentActionCoroutine = StartCoroutine(ForwardAction(actionNode.nodeId, isNavAI));
                 break;
             case "RotateRight":
                 // Pass the node to the action so it can track which specific node is being executed
-                currentActionCoroutine = StartCoroutine(RotateRightAction(actionNode.numericValue, actionNode.nodeId, isNavAI));
+                if (!isSameAction)
+                    currentActionCoroutine = StartCoroutine(RotateRightAction(actionNode.numericValue, actionNode.nodeId, isNavAI));
                 break;
             case "RotateLeft":
                 // Pass the node to the action so it can track which specific node is being executed
-                currentActionCoroutine = StartCoroutine(RotateLeftAction(actionNode.numericValue, actionNode.nodeId, isNavAI));
+                if (!isSameAction)
+                    currentActionCoroutine = StartCoroutine(RotateLeftAction(actionNode.numericValue, actionNode.nodeId, isNavAI));
                 break;
             case "MyTag":
                 // Assign a personal tag to the current target
@@ -3740,7 +3768,7 @@ public class TankMan : MonoBehaviour
             float targetSpeed = TurnSpeed * turretRotationSpeed;
             currentTurretRotationSpeed = Mathf.Lerp(0f, targetSpeed, rampProgress);
             
-            // Apply rotation with ramped speed
+            // Apply rotation with ramped speed in world space
             turretTransform.rotation = Quaternion.RotateTowards(
                 turretTransform.rotation,
                 targetRotation,
