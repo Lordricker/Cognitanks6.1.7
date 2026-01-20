@@ -149,12 +149,13 @@ public class TankAssembly : MonoBehaviour
         }
         
         // Instantiate turret as child of turretPivot
+        GameObject turretInstance = null;
         if (!string.IsNullOrEmpty(data.turretInstanceId))
         {
             GameObject turretPrefab = FindComponentPrefabByInstanceId(data.turretInstanceId, ComponentCategory.Turret);
             if (turretPrefab != null)
             {
-                    GameObject turretInstance = Instantiate(turretPrefab, turretPivot.position, turretPivot.rotation, turretPivot);
+                    turretInstance = Instantiate(turretPrefab, turretPivot.position, turretPivot.rotation, turretPivot);
                 ApplyColorToModel(turretInstance, data.turretColor.ToUnityColor());
                 SetLayerRecursively(turretInstance, 6); // Set to Shadow layer
                 
@@ -185,6 +186,21 @@ public class TankAssembly : MonoBehaviour
                     }
                 }
                 
+                // Load and assign death model prefab if specified
+                if (!string.IsNullOrEmpty(data.turretDeathModelPrefabPath))
+                {
+                    GameObject deathModelPrefab = Resources.Load<GameObject>(data.turretDeathModelPrefabPath);
+                    if (deathModelPrefab != null)
+                    {
+                        tankMan.SetTurretDeathModelPrefab(deathModelPrefab, data.turretColor.ToUnityColor());
+                        Debug.Log($"TankAssembly: Loaded and assigned turret death model prefab: {deathModelPrefab.name}");
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"TankAssembly: Could not load death model prefab from path: {data.turretDeathModelPrefabPath}");
+                    }
+                }
+                
             }
             else
             {
@@ -205,13 +221,13 @@ public class TankAssembly : MonoBehaviour
         }
 
         // Add TurretCameraAnchor if not present (turret following camera)
-        if (turretPivot != null)
+        if (turretInstance != null)
         {
-            Transform turretAnchor = turretPivot.Find("TurretCameraAnchor");
+            Transform turretAnchor = turretInstance.transform.Find("TurretCameraAnchor");
             if (turretAnchor == null)
             {
                 GameObject turretAnchorObj = new GameObject("TurretCameraAnchor");
-                turretAnchorObj.transform.SetParent(turretPivot);
+                turretAnchorObj.transform.SetParent(turretInstance.transform);
                 turretAnchorObj.transform.localPosition = new Vector3(0f, 15f, -30f); // Same offset as tank camera
                 turretAnchorObj.transform.localRotation = Quaternion.identity;
             }
@@ -543,13 +559,13 @@ public class TankAssembly : MonoBehaviour
         wheelContainer.transform.localPosition = Vector3.zero;
         wheelContainer.transform.localRotation = Quaternion.identity;
         
-        // Sphere positioning - just above the ground detection box (-1.86 + 0.5 = -1.36)
-        float wheelYPosition = -1.36f;
-        float wheelRadius = 0.4f;
+        // Sphere positioning - raised slightly to prevent sinking into terrain
+        float wheelYPosition = -.1f; // Raised from -1.36f
+        float wheelRadius = 2f; // Increased from 0.4f to provide more contact area
         
         // Positioning based on tank dimensions (matching ground detection box size)
         float frontBack = 5f;  // Front/back distance (half of 14 length minus margin)
-        float leftRight = 2.5f; // Left/right distance (half of 7 width minus margin)
+        float leftRight = 3f; // Left/right distance (half of 7 width minus margin)
         
         // Create 4 sphere colliders at corners
         CreateWheelSphere("WheelFL", wheelContainer.transform, new Vector3(-leftRight, wheelYPosition, frontBack), wheelRadius);

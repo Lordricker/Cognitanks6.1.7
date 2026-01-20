@@ -17,6 +17,10 @@ public class TurretData : ComponentData
     [Tooltip("Optional animation prefab for weapons with firing animations (e.g., HammerDown for Hammer weapon)")]
     public GameObject animationPrefab;
     
+    [Header("Death Model")]
+    [Tooltip("Optional damaged/destroyed model to show when tank dies")]
+    public GameObject deathModelPrefab;
+    
     [Header("Combat Stats")]
     public int damage;
     public float range;              // Maximum firing range

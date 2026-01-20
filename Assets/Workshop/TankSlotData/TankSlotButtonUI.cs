@@ -95,7 +95,17 @@ public class TankSlotButtonUI : MonoBehaviour
                     slotData.turretAnimationPrefabPath = "";
                 }
                 
-                Debug.Log($"[TankSlotButtonUI] Copied turret stats: Damage={turretData.damage}, Range={turretData.range}, ShotsPerSec={turretData.shotspersec}, AnimPath={slotData.turretAnimationPrefabPath}");
+                // Copy death model prefab path if present
+                if (turretData.deathModelPrefab != null)
+                {
+                    slotData.turretDeathModelPrefabPath = ComponentDataJson.GetPrefabResourcePath(turretData.deathModelPrefab);
+                }
+                else
+                {
+                    slotData.turretDeathModelPrefabPath = "";
+                }
+                
+                Debug.Log($"[TankSlotButtonUI] Copied turret stats: Damage={turretData.damage}, Range={turretData.range}, ShotsPerSec={turretData.shotspersec}, AnimPath={slotData.turretAnimationPrefabPath}, DeathModelPath={slotData.turretDeathModelPrefabPath}");
             }
         } else if (data.category == ComponentCategory.AITree) {
             Debug.Log($"AssignComponent: category=AITree, data type={data.GetType().FullName}, instanceId={data.instanceId}");

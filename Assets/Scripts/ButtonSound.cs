@@ -1,8 +1,9 @@
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 
 [RequireComponent(typeof(Button))]
-public class ButtonClickSound : MonoBehaviour
+public class ButtonClickSound : MonoBehaviour, IPointerDownHandler
 {
     [Tooltip("Type of sound to play on button click.")]
     public ButtonSoundType soundType = ButtonSoundType.DefaultClick;
@@ -12,10 +13,9 @@ public class ButtonClickSound : MonoBehaviour
     void Awake()
     {
         button = GetComponent<Button>();
-        button.onClick.AddListener(PlayClickSound);
     }
 
-    private void PlayClickSound()
+    public void OnPointerDown(PointerEventData eventData)
     {
         if (SoundManager.Instance != null)
         {

@@ -1,8 +1,8 @@
 {
-    "isActive": false,
-    "teamId": 0,
-    "isPlayerControlled": true,
-    "displayName": "Tank 3",
+    "isActive": true,
+    "teamId": 1,
+    "isPlayerControlled": false,
+    "displayName": "EnemyTank 2",
     "turretPrefabGuid": "",
     "armorPrefabGuid": "",
     "engineFramePrefabGuid": "",

@@ -16,7 +16,7 @@
     "turretBulletSpeed": 55.0,
     "turretKnockback": "High",
     "turretVisionRange": 300.0,
-    "turretVisionCone": 180.0,
+    "turretVisionCone": 140.0,
     "armorHP": 20,
     "engineWeightCapacity": 40,
     "enginePower": 14000,

@@ -70,6 +70,20 @@ public class WorkshopUIManager : MonoBehaviour
     public TMP_Text itemStatsText;
     public TMP_Text descriptionText;
 
+    private void Awake()
+    {
+        // Find all transforms in the hierarchy
+        Transform[] allTransforms = GetComponentsInChildren<Transform>(true);
+        
+        foreach (Transform t in allTransforms)
+        {
+            if (t.gameObject.name.ToLower().Contains("button") && t.GetComponent<ButtonClickSound>() == null)
+            {
+                t.gameObject.AddComponent<ButtonClickSound>();
+            }
+        }
+    }
+
     private void Start()
     {
         // Initialize JSON tank slot manager

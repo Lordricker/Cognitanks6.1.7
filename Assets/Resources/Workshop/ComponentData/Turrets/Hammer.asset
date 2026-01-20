@@ -28,4 +28,4 @@ MonoBehaviour:
   bulletSpeed: 100
   knockback: medium
   visionRange: 100
-  visionCone: 66
+  visionCone: 160

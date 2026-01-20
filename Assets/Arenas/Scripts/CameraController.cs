@@ -126,12 +126,16 @@ public class CameraController : MonoBehaviour
 
     public void SwitchToTurretCamera()
     {
-        if (turretAnchors.Count == 0) return;
+        if (turretAnchors.Count == 0)
+        {
+            Debug.LogWarning("[CameraController] No turret anchors found! Cannot switch to turret camera.");
+            return;
+        }
         
         // Cycle through turret cameras like CycleTankAnchor does for all cameras
         currentTurretIndex = (currentTurretIndex + 1) % turretAnchors.Count;
         SetTargetAnchor(turretAnchors[currentTurretIndex]);
         
-        Debug.Log($"[CameraController] Switched to turret camera: {turretAnchors[currentTurretIndex].name} ({currentTurretIndex + 1}/{turretAnchors.Count})");
+        Debug.Log($"[CameraController] Switched to TURRET camera: {turretAnchors[currentTurretIndex].name} (Parent: {turretAnchors[currentTurretIndex].parent.name}) ({currentTurretIndex + 1}/{turretAnchors.Count})");
     }
 }

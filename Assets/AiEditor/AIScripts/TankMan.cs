@@ -33,6 +33,10 @@ public class TankMan : MonoBehaviour
     private GameObject hammerDownInstance; // Pre-instantiated hammer down model
     private Coroutine hammerSwingCoroutine;
     
+    [Header("Turret Death Model")]
+    [SerializeField] private GameObject turretDeathModelPrefab; // Death model prefab assigned by TankAssembly
+    private GameObject turretDeathModelInstance; // Pre-instantiated death model
+    
     [Header("Sensor Settings")]
     [SerializeField] private string tankTag = "Tank";
 
@@ -46,7 +50,7 @@ public class TankMan : MonoBehaviour
     [SerializeField] private float turnRampUpTime = 1.0f;        // Turn ramp-up time (seconds)
     [SerializeField] private float turnStartPowerPercent = 0.5f; // Starting turn power (0-1)
     [SerializeField] private float dragCoefficient = 0.5f;       // Rolling resistance
-    [SerializeField] private float angularDragCoefficient = 2.0f; // Turn resistance
+    [SerializeField] private float angularDragCoefficient = 1.0f; // Turn resistance
     
     [Header("Airborne Physics")]
     [SerializeField] private float airborneGravityMultiplier = 10f; // Extra downward force when airborne (multiplier of Physics.gravity)
@@ -170,9 +174,13 @@ public class TankMan : MonoBehaviour
     private float lastUnstuckCheckTime = 0f;
     private float lastUnstuckForceTime = 0f;
     private float timeFirstBecameStuck = -1f;
+    private bool hasTriedAiRestart = false; // Track if we've tried AI restart for this stuck period
+    private Vector3 lastStuckCheckPosition;
+    private float lastStuckCheckPositionTime = 0f;
     private const float UNSTUCK_CHECK_INTERVAL = 0.5f; // Check every 0.5 seconds
     private const float UNSTUCK_FORCE_INTERVAL = 2f; // Apply force every 2 seconds max
-    private const float UNSTUCK_INITIAL_DELAY = 2f; // Wait 2 seconds after becoming stuck
+    private const float UNSTUCK_AI_RESTART_DELAY = 1.5f; // Try AI restart after 1.5 seconds
+    private const float UNSTUCK_INITIAL_DELAY = 2.5f; // Wait 2.5 seconds after becoming stuck
     
     // Cycle node memory - tracks which child node each Cycle instance is currently executing
     private Dictionary<string, int> cycleNodeMemory = new Dictionary<string, int>();
@@ -196,6 +204,9 @@ public class TankMan : MonoBehaviour
     private bool isCurrentlyUsingComs = false; // True when the current AI iteration is using Coms intel
     private const float COMS_SPEED_PENALTY = 0.5f; // 50% speed reduction when using Coms
     private const float COMS_ALLY_DELAY_PER_TANK = 0.1f; // Additional AI delay per ally
+    
+    // Wait action tracking
+    private bool isInWaitAction = false; // True when currently executing a Wait action
     
     // Private Tag System: targetInstanceId -> tagValue
     // Personal tags that only this tank can access
@@ -276,6 +287,9 @@ public class TankMan : MonoBehaviour
         }        // Initialize wander origin point
         wanderOrigin = transform.position;
         
+        // Initialize unstuck position tracking
+        lastStuckCheckPosition = transform.position;
+        
         // Store spawn position for Home action
         spawnPosition = transform.position;
         
@@ -322,6 +336,9 @@ public class TankMan : MonoBehaviour
 
         // Apply movement forces based on input
         ApplyMovement();
+        
+        // Check if tank is stuck and apply unstuck logic continuously
+        UnstuckTank();
     }
     
     /// <summary>
@@ -441,6 +458,10 @@ public class TankMan : MonoBehaviour
     /// </summary>
     private void UnstuckTank()
     {
+        // Don't apply unstuck when in wait action - tank is intentionally sitting still
+        if (isInWaitAction)
+            return;
+        
         // Only apply unstuck when grounded
         if (!isGrounded)
         {
@@ -457,26 +478,35 @@ public class TankMan : MonoBehaviour
 
         if (rb != null)
         {
-            // Check if tank is stuck (no horizontal movement)
-            Vector3 horizontalVelocity = new Vector3(rb.linearVelocity.x, 0, rb.linearVelocity.z);
-            if (horizontalVelocity.magnitude < 0.1f)
+            // Check if tank is stuck (no position change)
+            Vector3 currentPos = transform.position;
+            float distanceMoved = Vector3.Distance(currentPos, lastStuckCheckPosition);
+            
+            if (distanceMoved < 1.0f) // Position hasn't changed significantly
             {
                 // Track when we first became stuck
                 if (timeFirstBecameStuck < 0)
                 {
                     timeFirstBecameStuck = Time.time;
-                    Debug.Log($"[{gameObject.name}] UnstuckTank: Tank became stuck at {Time.time:F1}s");
+                    hasTriedAiRestart = false; // Reset AI restart flag for new stuck period
                 }
 
-                // Wait 2 seconds after becoming stuck, then apply force every 2 seconds
+                // Try AI restart first after 1.5 seconds
                 float timeStuck = Time.time - timeFirstBecameStuck;
+                
+                if (timeStuck >= UNSTUCK_AI_RESTART_DELAY && !hasTriedAiRestart)
+                {
+                    RestartAI();
+                    hasTriedAiRestart = true;
+                }
+
+                // Apply physics force after 2.5 seconds if still stuck
                 if (timeStuck >= UNSTUCK_INITIAL_DELAY && Time.time - lastUnstuckForceTime >= UNSTUCK_FORCE_INTERVAL)
                 {
                     // Apply strong upward force to lift tank out of stuck position
                     float upwardForce = rb.mass * 20f; // Strong impulse to lift tank
                     rb.AddForce(Vector3.up * upwardForce, ForceMode.Impulse);
                     lastUnstuckForceTime = Time.time;
-                    Debug.Log($"[{gameObject.name}] UnstuckTank: Applied upward force {upwardForce:F0}N after {timeStuck:F1}s stuck (velocity was {horizontalVelocity.magnitude:F3})");
                 }
             }
             else
@@ -484,10 +514,14 @@ public class TankMan : MonoBehaviour
                 // Tank is moving, reset stuck tracking
                 if (timeFirstBecameStuck >= 0)
                 {
-                    Debug.Log($"[{gameObject.name}] UnstuckTank: Tank is moving again, resetting stuck tracking");
                     timeFirstBecameStuck = -1f;
+                    hasTriedAiRestart = false;
                 }
             }
+            
+            // Update position tracking
+            lastStuckCheckPosition = currentPos;
+            lastStuckCheckPositionTime = Time.time;
         }
     }
 
@@ -507,6 +541,19 @@ public class TankMan : MonoBehaviour
     }
 
     // Ground check using trigger collider
+    private void OnTriggerStay(Collider other)
+    {
+        // Skip bullets - they handle knockback directly through TakeDamage()
+        if (other.GetComponent<BulletScript>() != null)
+        {
+            return; // Don't affect ground state
+        }
+        
+        // Continuously check for ground detection while in contact
+        if (other != null && other != GetComponent<Collider>())
+            isGrounded = true;
+    }
+    
     private void OnTriggerEnter(Collider other)
     {
         // Skip bullets - they handle knockback directly through TakeDamage()
@@ -626,7 +673,7 @@ public class TankMan : MonoBehaviour
             turnRampUpTime = tankSlotData.engineTurnRampTime > 0 ? tankSlotData.engineTurnRampTime : 1.0f;
             turnStartPowerPercent = tankSlotData.engineTurnStartPercent > 0 ? tankSlotData.engineTurnStartPercent : 0.5f;
             dragCoefficient = tankSlotData.dragCoefficient > 0 ? tankSlotData.dragCoefficient : 0.5f;
-            angularDragCoefficient = tankSlotData.angularDragCoefficient > 0 ? tankSlotData.angularDragCoefficient : 2.0f;
+            angularDragCoefficient = tankSlotData.angularDragCoefficient > 0 ? tankSlotData.angularDragCoefficient : 1.0f;
         }
         else
         {
@@ -828,6 +875,27 @@ public class TankMan : MonoBehaviour
     }
     
     /// <summary>
+    /// Set the turret death model prefab (called by TankAssembly during assembly)
+    /// Pre-instantiates the death model for performance
+    /// </summary>
+    public void SetTurretDeathModelPrefab(GameObject prefab, Color turretColor)
+    {
+        turretDeathModelPrefab = prefab;
+        if (prefab != null && turretTransform != null)
+        {
+            // Pre-instantiate death model as inactive
+            turretDeathModelInstance = Instantiate(prefab, turretTransform.position, turretTransform.rotation, turretTransform.parent);
+            turretDeathModelInstance.transform.localScale = turretTransform.localScale;
+            turretDeathModelInstance.SetActive(false);
+            
+            // Apply the same color as the main turret
+            ApplyColorToModel(turretDeathModelInstance, turretColor);
+            
+            Debug.Log($"[TankMan] Pre-instantiated turret death model prefab: {prefab.name} with color: {turretColor}");
+        }
+    }
+    
+    /// <summary>
     /// Apply color to all renderers in a model (matches TankAssembly implementation)
     /// </summary>
     private void ApplyColorToModel(GameObject model, Color color)
@@ -959,6 +1027,63 @@ public class TankMan : MonoBehaviour
         
         // Reset wander state
         isWandering = false;
+        
+        // Reset coms tracking
+        isCurrentlyUsingComs = false;
+        
+        // Reset wait action flag
+        isInWaitAction = false;
+    }
+    
+    /// <summary>
+    /// Restarts AI coroutines without stopping them first (for unstuck recovery)
+    /// </summary>
+    private void RestartAI()
+    {
+        // Stop existing coroutines
+        if (navAiCoroutine != null)
+        {
+            StopCoroutine(navAiCoroutine);
+            navAiCoroutine = null;
+        }
+        
+        if (turretAiCoroutine != null)
+        {
+            StopCoroutine(turretAiCoroutine);
+            turretAiCoroutine = null;
+        }
+        
+        if (currentNavActionCoroutine != null)
+        {
+            StopCoroutine(currentNavActionCoroutine);
+            currentNavActionCoroutine = null;
+        }
+        
+        if (currentTurretActionCoroutine != null)
+        {
+            StopCoroutine(currentTurretActionCoroutine);
+            currentTurretActionCoroutine = null;
+        }
+        
+        // Reset wander state
+        isWandering = false;
+        
+        // Reset coms tracking
+        isCurrentlyUsingComs = false;
+        
+        // Reset wait action flag
+        isInWaitAction = false;
+        
+        // Restart AI
+        if (enableNavAI && runtimeNavAI != null)
+        {
+            navAiCoroutine = StartCoroutine(ExecuteNavAI());
+        }
+        
+        if (enableTurretAI && runtimeTurretAI != null)
+        {
+            turretAiCoroutine = StartCoroutine(ExecuteTurretAI());
+        }
     }
       /// <summary>
     /// Main navigation AI execution loop
@@ -2948,7 +3073,26 @@ public class TankMan : MonoBehaviour
                 // Destroy explosion after 25 seconds (5 extra seconds for particles to finish)
                 Destroy(explosion, 25f);
             }
-            Destroy(turretTransform.gameObject);
+            
+            // Hide the main turret (never destroy it)
+            turretTransform.gameObject.SetActive(false);
+            
+            // If death model exists, show it in place of the turret
+            if (turretDeathModelInstance != null)
+            {
+                // Sync death model transform with current turret transform
+                turretDeathModelInstance.transform.position = turretTransform.position;
+                turretDeathModelInstance.transform.rotation = turretTransform.rotation;
+                turretDeathModelInstance.transform.localScale = turretTransform.localScale;
+                
+                // Show the death model
+                turretDeathModelInstance.SetActive(true);
+                Debug.Log($"[TankMan] Die - Showing turret death model: {turretDeathModelInstance.name}");
+            }
+            else
+            {
+                Debug.Log($"[TankMan] Die - No death model available for this turret, just hiding main turret");
+            }
         }
 
         // Disable the tank (but keep it for visual reference)
@@ -3093,6 +3237,7 @@ public class TankMan : MonoBehaviour
             {
                 // Reset stuck tracking when airborne
                 timeBecameStuck = -1f;
+                lastWanderPosition = transform.position; // Update position while airborne to avoid false stuck detection
                 yield return null;
                 continue;
             }
@@ -3118,10 +3263,15 @@ public class TankMan : MonoBehaviour
                     float timeStuck = Time.time - timeBecameStuck;
                     if (timeStuck >= 2f && Time.time - lastUnstuckForceTime >= unstuckForceInterval)
                     {
-                        float upwardForce = rb.mass * 50f; // Strong impulse to lift tank
+                        // Reduced force to prevent tank from flying too high
+                        float upwardForce = rb.mass * 50f; // Gentler impulse to lift tank
                         rb.AddForce(Vector3.up * upwardForce, ForceMode.Impulse);
                         lastUnstuckForceTime = Time.time;
-                        Debug.Log($"[{gameObject.name}] Unstuck force applied after {timeStuck:F1}s stuck (moved {distanceMoved:F2}m in {wanderStuckCheckInterval}s)");
+                        Debug.Log($"[{gameObject.name}] Wander unstuck force applied after {timeStuck:F1}s stuck (moved {distanceMoved:F2}m in {wanderStuckCheckInterval}s)");
+                        
+                        // Reset position tracking after applying force to give it time to work
+                        lastWanderPosition = transform.position;
+                        lastWanderPositionCheckTime = Time.time;
                     }
                 }
                 else
@@ -3139,7 +3289,10 @@ public class TankMan : MonoBehaviour
             diff.y = 0;
             float distance = diff.magnitude;
             if (distance < wanderReachDistance)
-                break;
+            {
+                SetNewWanderTarget();
+                wanderStartTime = Time.time;
+            }
 
             // Use new nav state logic for wandering
             NavState_MoveToWaypoint(currentWanderTarget);
@@ -3152,14 +3305,6 @@ public class TankMan : MonoBehaviour
 
             yield return new WaitForFixedUpdate();
         }
-
-        // Mark as no longer wandering so a new target will be picked next time
-        isWandering = false;
-
-        
-
-        // Wait briefly at the destination
-        yield return new WaitForSeconds(1f);
     }
     
     IEnumerator MoveToTarget(string nodeId, bool isNavAI)
@@ -3681,6 +3826,9 @@ public class TankMan : MonoBehaviour
         else
             lastUsedTurretNodeId = nodeId;
         
+        // Mark that we're in a wait action
+        isInWaitAction = true;
+        
         // Apply both brakes for 0.2 seconds (tank sits still, turret can still track)
         float waitDuration = 0.2f;
         float startTime = Time.time;
@@ -3689,6 +3837,9 @@ public class TankMan : MonoBehaviour
             NavState_Wait();
             yield return new WaitForFixedUpdate();
         }
+        
+        // Clear wait action flag
+        isInWaitAction = false;
     }
 
     /// <summary>

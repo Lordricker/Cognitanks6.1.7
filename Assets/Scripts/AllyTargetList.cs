@@ -98,6 +98,9 @@ public class AllyTargetList : MonoBehaviour
     // Maximum number of teams supported
     private const int MAX_TEAMS = 4;
     
+    // Target entries automatically expire after this time (in seconds)
+    private const float TARGET_EXPIRATION_TIME = 0.5f;
+    
     void Awake()
     {
         // Singleton setup
@@ -124,12 +127,28 @@ public class AllyTargetList : MonoBehaviour
     
     void Update()
     {
+        // Clean up expired target entries
+        CleanupExpiredTargets();
+        
         // Debug logging of team tag lists
         debugTimer += Time.deltaTime;
         if (debugTimer >= DEBUG_INTERVAL)
         {
             debugTimer = 0f;
             LogTeamTagLists();
+        }
+    }
+    
+    /// <summary>
+    /// Removes target entries that are older than TARGET_EXPIRATION_TIME
+    /// </summary>
+    private void CleanupExpiredTargets()
+    {
+        float currentTime = Time.time;
+        
+        foreach (var teamList in teamTargetLists.Values)
+        {
+            teamList.RemoveAll(entry => currentTime - entry.lastUpdateTime > TARGET_EXPIRATION_TIME);
         }
     }
     
@@ -270,8 +289,16 @@ public class AllyTargetList : MonoBehaviour
         
         foreach (var entry in teamTargetLists[teamId])
         {
+            // Skip expired entries (older than TARGET_EXPIRATION_TIME)
+            if (Time.time - entry.lastUpdateTime > TARGET_EXPIRATION_TIME) continue;
+            
             // Skip null/destroyed targets
             if (entry.targetGameObject == null) continue;
+            
+            // Skip if the reporter (tank providing vision) is dead or null
+            if (entry.reporterGameObject == null) continue;
+            TankMan reporterTankMan = entry.reporterGameObject.GetComponent<TankMan>();
+            if (reporterTankMan == null || reporterTankMan.CurrentHealth <= 0) continue;
             
             // Skip dead targets
             TankMan targetTankMan = entry.targetGameObject.GetComponent<TankMan>();

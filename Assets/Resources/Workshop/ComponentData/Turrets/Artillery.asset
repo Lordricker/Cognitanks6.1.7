@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Artillery
   m_EditorClassIdentifier: 
   title: Artillery
-  description: It comes out of nowhere
+  description: Long Range AOE Shel. High Dmg on direct hit.
   cost: 1200
   weight: 20
   modelPrefab: {fileID: 6247987888857746735, guid: 0ae77e5428ccf1c488a5b73ef1162a96, type: 3}
@@ -28,4 +28,4 @@ MonoBehaviour:
   bulletSpeed: 55
   knockback: High
   visionRange: 300
-  visionCone: 180
+  visionCone: 140

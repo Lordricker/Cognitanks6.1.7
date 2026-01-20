@@ -36,6 +36,7 @@ public class TankSlotDataJson
     [Header("Turret Stats")]
     public TurretTypeJson turretType = TurretTypeJson.DirectFire;
     public string turretAnimationPrefabPath; // Path to animation prefab (e.g., HammerDown)
+    public string turretDeathModelPrefabPath; // Path to death model prefab (e.g., RifleDamaged)
     public int turretDamage;
     public float turretRange;
     public float turretShotsPerSec;
@@ -68,7 +69,7 @@ public class TankSlotDataJson
     
     [Header("Physics Settings")]
     public float dragCoefficient = 0.5f;        // Rolling resistance (0.2-1.2)
-    public float angularDragCoefficient = 2.0f; // Turn resistance (1.0-5.0)
+    public float angularDragCoefficient = 1.0f; // Turn resistance (1.0-5.0)
     
     [Header("Calculated Stats")]
     public float totalWeight;
