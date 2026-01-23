@@ -1192,7 +1192,7 @@ public class TankMan : MonoBehaviour
                 
                 ExecuteAction(node, tree);
                 return GetNextNodeFromAction(node, tree);
-            // SubAI support removed
+            // SubAI nodes are flattened at save time by AiEditorFileUI - no runtime handling needed
             default:
                 // Move to first connected node
                 if (node.connectedNodeIds.Count > 0)

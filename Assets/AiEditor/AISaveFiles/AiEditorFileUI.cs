@@ -933,6 +933,9 @@ public class AiEditorFileUI : MonoBehaviour
     {
         jsonAsset.executableNodes.Clear();
         
+        // First, expand any SubAI nodes by inlining referenced AI trees
+        ExpandSubAINodes(ref nodeList, ref connectionList, jsonAsset.branchType);
+        
         // Find the start node ID (either StartNavButton or StartTurretButton connections)
         jsonAsset.startNodeId = null;
         foreach (var conn in connectionList)
@@ -1023,5 +1026,228 @@ public class AiEditorFileUI : MonoBehaviour
         {
             FileName.text = treeName;
         }
+    }
+    
+    /// <summary>
+    /// Expands SubAI nodes by inlining the referenced AI tree's nodes and connections.
+    /// This "flattens" the tree so TankMan can execute it normally without special SubAI handling.
+    /// </summary>
+    private void ExpandSubAINodes(ref List<AiNodeDataJson> nodeList, ref List<AiConnectionDataJson> connectionList, AiBranchTypeJson branchType)
+    {
+        // Find all SubAI nodes
+        var subAINodes = nodeList.Where(n => n.nodeType.Contains("SubAINode")).ToList();
+        
+        if (subAINodes.Count == 0)
+            return;
+            
+        Debug.Log($"[AiEditorFileUI] Found {subAINodes.Count} SubAI node(s) to expand");
+        
+        // Track which SubAI files we've already loaded to prevent infinite recursion
+        var loadedSubAIs = new HashSet<string>();
+        
+        foreach (var subAINode in subAINodes)
+        {
+            // The node label contains the SubAI file name/title
+            string subAIName = subAINode.nodeLabel;
+            
+            if (string.IsNullOrEmpty(subAIName))
+            {
+                Debug.LogWarning($"[AiEditorFileUI] SubAI node has no label, skipping");
+                continue;
+            }
+            
+            // Prevent infinite recursion if a SubAI references itself
+            if (loadedSubAIs.Contains(subAIName))
+            {
+                Debug.LogWarning($"[AiEditorFileUI] Circular SubAI reference detected: {subAIName}, skipping");
+                continue;
+            }
+            loadedSubAIs.Add(subAIName);
+            
+            // Load the referenced SubAI tree
+            AiTreeAssetJson subAITree = LoadSubAITree(subAIName, branchType);
+            
+            if (subAITree == null)
+            {
+                Debug.LogWarning($"[AiEditorFileUI] Could not load SubAI tree: {subAIName}");
+                continue;
+            }
+            
+            Debug.Log($"[AiEditorFileUI] Expanding SubAI: {subAIName} with {subAITree.nodes.Count} nodes");
+            
+            // Generate unique prefix for inlined node IDs to avoid collisions
+            string nodeIdPrefix = $"SubAI_{System.Guid.NewGuid().ToString().Substring(0, 8)}_";
+            
+            // Find connections TO the SubAI node (these will connect to the SubAI's start)
+            var incomingConnections = connectionList.Where(c => c.toNodeId == subAINode.nodeId).ToList();
+            
+            // Find connections FROM the SubAI node (these will connect from the SubAI's end nodes)
+            var outgoingConnections = connectionList.Where(c => c.fromNodeId == subAINode.nodeId).ToList();
+            
+            // Find the start node of the SubAI tree
+            string subAIStartNodeId = null;
+            foreach (var conn in subAITree.connections)
+            {
+                if (conn.fromNodeId == "StartNavButton" || conn.fromNodeId == "StartTurretButton")
+                {
+                    subAIStartNodeId = conn.toNodeId;
+                    break;
+                }
+            }
+            
+            if (string.IsNullOrEmpty(subAIStartNodeId))
+            {
+                Debug.LogWarning($"[AiEditorFileUI] SubAI tree {subAIName} has no start node connection");
+                continue;
+            }
+            
+            // Copy all nodes from the SubAI tree with new IDs
+            var nodeIdMapping = new Dictionary<string, string>(); // Old ID -> New ID
+            foreach (var subNode in subAITree.nodes)
+            {
+                string newNodeId = nodeIdPrefix + subNode.nodeId;
+                nodeIdMapping[subNode.nodeId] = newNodeId;
+                
+                // Create a copy of the node with the new ID
+                var newNode = new AiNodeDataJson
+                {
+                    nodeId = newNodeId,
+                    nodeType = subNode.nodeType,
+                    nodeLabel = subNode.nodeLabel,
+                    position = new Vector2(
+                        subAINode.position.x + subNode.position.x,
+                        subAINode.position.y + subNode.position.y - 100 // Offset below SubAI node position
+                    ),
+                    properties = new List<NodePropertyJson>(subNode.properties)
+                };
+                
+                nodeList.Add(newNode);
+            }
+            
+            // Copy all connections from the SubAI tree with mapped IDs
+            foreach (var subConn in subAITree.connections)
+            {
+                // Skip start button connections - we'll handle those separately
+                if (subConn.fromNodeId == "StartNavButton" || subConn.fromNodeId == "StartTurretButton")
+                    continue;
+                    
+                // Map the node IDs
+                string newFromId = nodeIdMapping.ContainsKey(subConn.fromNodeId) ? nodeIdMapping[subConn.fromNodeId] : subConn.fromNodeId;
+                string newToId = nodeIdMapping.ContainsKey(subConn.toNodeId) ? nodeIdMapping[subConn.toNodeId] : subConn.toNodeId;
+                
+                connectionList.Add(new AiConnectionDataJson
+                {
+                    fromNodeId = newFromId,
+                    fromPortId = subConn.fromPortId,
+                    toNodeId = newToId,
+                    toPortId = subConn.toPortId
+                });
+            }
+            
+            // Rewire incoming connections to point to the SubAI's start node
+            string mappedStartNodeId = nodeIdMapping.ContainsKey(subAIStartNodeId) ? nodeIdMapping[subAIStartNodeId] : subAIStartNodeId;
+            foreach (var inConn in incomingConnections)
+            {
+                inConn.toNodeId = mappedStartNodeId;
+            }
+            
+            // Find end nodes in the SubAI tree (nodes with no outgoing connections)
+            var subAIEndNodeIds = new List<string>();
+            foreach (var subNode in subAITree.nodes)
+            {
+                bool hasOutgoing = subAITree.connections.Any(c => c.fromNodeId == subNode.nodeId);
+                if (!hasOutgoing)
+                {
+                    string mappedId = nodeIdMapping.ContainsKey(subNode.nodeId) ? nodeIdMapping[subNode.nodeId] : subNode.nodeId;
+                    subAIEndNodeIds.Add(mappedId);
+                }
+            }
+            
+            // Rewire outgoing connections from SubAI node to come from the SubAI's end nodes
+            foreach (var outConn in outgoingConnections)
+            {
+                // Remove the original outgoing connection
+                connectionList.Remove(outConn);
+                
+                // Add new connections from each end node to the original destination
+                foreach (var endNodeId in subAIEndNodeIds)
+                {
+                    connectionList.Add(new AiConnectionDataJson
+                    {
+                        fromNodeId = endNodeId,
+                        fromPortId = outConn.fromPortId,
+                        toNodeId = outConn.toNodeId,
+                        toPortId = outConn.toPortId
+                    });
+                }
+            }
+            
+            // Remove the original SubAI node from the node list
+            nodeList.Remove(subAINode);
+            
+            // Remove connections that referenced the SubAI node (they've been rewired)
+            connectionList.RemoveAll(c => c.fromNodeId == subAINode.nodeId || c.toNodeId == subAINode.nodeId);
+        }
+        
+        Debug.Log($"[AiEditorFileUI] After SubAI expansion: {nodeList.Count} nodes, {connectionList.Count} connections");
+    }
+    
+    /// <summary>
+    /// Loads a SubAI tree by name from the appropriate folder
+    /// </summary>
+    private AiTreeAssetJson LoadSubAITree(string subAIName, AiBranchTypeJson branchType)
+    {
+        // Determine folder based on branch type
+        string folderName = branchType == AiBranchTypeJson.Turret ? "TurretFiles" : "NavFiles";
+        
+        // Try persistent data path first (user-created AI)
+        string persistentFolder = System.IO.Path.Combine(Application.persistentDataPath, "AiTrees", folderName);
+        if (System.IO.Directory.Exists(persistentFolder))
+        {
+            string[] jsonFiles = System.IO.Directory.GetFiles(persistentFolder, "*.json");
+            foreach (string filePath in jsonFiles)
+            {
+                try
+                {
+                    string jsonContent = System.IO.File.ReadAllText(filePath);
+                    var aiTree = JsonUtility.FromJson<AiTreeAssetJson>(jsonContent);
+                    
+                    // Match by tree name/title
+                    if (aiTree != null && (aiTree.TreeName == subAIName || aiTree.title == subAIName))
+                    {
+                        Debug.Log($"[AiEditorFileUI] Loaded SubAI from persistent: {filePath}");
+                        return aiTree;
+                    }
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogWarning($"[AiEditorFileUI] Error reading SubAI file {filePath}: {e.Message}");
+                }
+            }
+        }
+        
+        // Try Assets folder (editor-time .asset files)
+        string assetFolder = System.IO.Path.Combine(Application.dataPath, "AiEditor/AISaveFiles", folderName);
+        if (System.IO.Directory.Exists(assetFolder))
+        {
+            string[] assetFiles = System.IO.Directory.GetFiles(assetFolder, "*.asset");
+            foreach (string filePath in assetFiles)
+            {
+#if UNITY_EDITOR
+                string relativePath = "Assets" + filePath.Substring(Application.dataPath.Length);
+                var aiTreeAsset = UnityEditor.AssetDatabase.LoadAssetAtPath<AiTreeAsset>(relativePath);
+                if (aiTreeAsset != null && (aiTreeAsset.TreeName == subAIName || aiTreeAsset.title == subAIName))
+                {
+                    // Convert ScriptableObject to JSON format
+                    var jsonVersion = AiTreeAssetJson.FromScriptableObject(aiTreeAsset);
+                    Debug.Log($"[AiEditorFileUI] Loaded SubAI from assets: {relativePath}");
+                    return jsonVersion;
+                }
+#endif
+            }
+        }
+        
+        Debug.LogWarning($"[AiEditorFileUI] SubAI tree not found: {subAIName}");
+        return null;
     }
 }
