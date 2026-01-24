@@ -586,7 +586,8 @@ public class ContextMenuUI : MonoBehaviour
             return;
         }
         
-        string folderPath = Path.Combine(Application.dataPath, "AiEditor/AISaveFiles", folderName);
+        // Use persistent data path for player files
+        string folderPath = Path.Combine(Application.persistentDataPath, "AiTrees", folderName);
         
         if (!Directory.Exists(folderPath))
         {
@@ -594,8 +595,8 @@ public class ContextMenuUI : MonoBehaviour
             return;
         }
         
-        // Get all .asset files in the folder
-        string[] files = Directory.GetFiles(folderPath, "*.asset");
+        // Get all .json files in the folder
+        string[] files = Directory.GetFiles(folderPath, "*.json");
         
         // Get the current file name to exclude it from the list
         string currentFileName = GetCurrentFileName();
@@ -613,27 +614,33 @@ public class ContextMenuUI : MonoBehaviour
             // Create file button
             GameObject fileButton = Instantiate(fileButtonPrefab, subAIContent);
             
-            // Set the button text to display the SO's title instead of filename
+            // Set the button text to display the tree's title from JSON
             TMPro.TMP_Text buttonText = fileButton.GetComponentInChildren<TMPro.TMP_Text>();
             if (buttonText != null)
             {
-                // Convert file path to relative asset path for Unity
-                string relativePath = "Assets" + filePath.Substring(Application.dataPath.Length);
-                
-#if UNITY_EDITOR
-                // Load the actual ScriptableObject to get its title
-                var aiTreeAsset = UnityEditor.AssetDatabase.LoadAssetAtPath<AiTreeAsset>(relativePath);
-                if (aiTreeAsset != null && !string.IsNullOrEmpty(aiTreeAsset.TreeName))
+                try
                 {
-                    buttonText.text = aiTreeAsset.TreeName; // Use the SO's title
+                    // Read the JSON file to get the title
+                    string jsonContent = File.ReadAllText(filePath);
+                    var aiTreeJson = JsonUtility.FromJson<AiTreeAssetJson>(jsonContent);
+                    if (aiTreeJson != null && !string.IsNullOrEmpty(aiTreeJson.title))
+                    {
+                        buttonText.text = aiTreeJson.title; // Use the tree's title
+                    }
+                    else if (aiTreeJson != null && !string.IsNullOrEmpty(aiTreeJson.treeName))
+                    {
+                        buttonText.text = aiTreeJson.treeName; // Fallback to treeName
+                    }
+                    else
+                    {
+                        buttonText.text = fileName; // Fallback to filename
+                    }
                 }
-                else
+                catch (System.Exception ex)
                 {
-                    buttonText.text = fileName; // Fallback to filename if no title
+                    Debug.LogWarning($"[ContextMenuUI] Failed to read SubAI file {filePath}: {ex.Message}");
+                    buttonText.text = fileName; // Fallback to filename on error
                 }
-#else
-                buttonText.text = fileName; // Runtime fallback
-#endif
             }
             
             // Add click listener
