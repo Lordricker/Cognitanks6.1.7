@@ -124,6 +124,14 @@ public class TankAssembly : MonoBehaviour
                 // Force reset local rotation to fix rotation issues in builds
                 engineFrame.transform.localRotation = Quaternion.identity;
                 ApplyColorToTreadMount(engineFrame, data.engineFrameColor.ToUnityColor());
+                
+                // Apply skin if available (from ComponentCustomizationManager)
+                string engineSkinPath = ComponentCustomizationManager.Instance?.GetSkin(data.engineFrameInstanceId);
+                if (!string.IsNullOrEmpty(engineSkinPath))
+                {
+                    ApplySkinToModel(engineFrame, engineSkinPath);
+                }
+                
                 SetLayerRecursively(engineFrame, 6); // Set to Shadow layer
             }
             else
@@ -140,6 +148,14 @@ public class TankAssembly : MonoBehaviour
                 // Apply vertical offset after parenting
                 armor.transform.localPosition += new Vector3(0f, armorYOffset, 0f);
                 ApplyColorToModel(armor, data.armorColor.ToUnityColor());
+                
+                // Apply skin if available (from ComponentCustomizationManager)
+                string armorSkinPath = ComponentCustomizationManager.Instance?.GetSkin(data.armorInstanceId);
+                if (!string.IsNullOrEmpty(armorSkinPath))
+                {
+                    ApplySkinToModel(armor, armorSkinPath);
+                }
+                
                 SetLayerRecursively(armor, 6); // Set to Shadow layer
             }
             else
@@ -157,6 +173,21 @@ public class TankAssembly : MonoBehaviour
             {
                     turretInstance = Instantiate(turretPrefab, turretPivot.position, turretPivot.rotation, turretPivot);
                 ApplyColorToModel(turretInstance, data.turretColor.ToUnityColor());
+                
+                // Apply skin if available (from ComponentCustomizationManager)
+                string turretSkinPath = ComponentCustomizationManager.Instance?.GetSkin(data.turretInstanceId);
+                if (!string.IsNullOrEmpty(turretSkinPath))
+                {
+                    ApplySkinToModel(turretInstance, turretSkinPath);
+                }
+                
+                // Apply decal if available (from ComponentCustomizationManager)
+                string turretDecalPath = ComponentCustomizationManager.Instance?.GetDecal(data.turretInstanceId);
+                if (!string.IsNullOrEmpty(turretDecalPath))
+                {
+                    ApplyDecalToModel(turretInstance, turretDecalPath);
+                }
+                
                 SetLayerRecursively(turretInstance, 6); // Set to Shadow layer
                 
                 // Find fire point for turret
@@ -330,6 +361,85 @@ public class TankAssembly : MonoBehaviour
                 else if (mat.HasProperty("_Color"))
                     mat.SetColor("_Color", color);
             }
+        }
+    }
+    
+    /// <summary>
+    /// Applies a skin texture to a model by loading from Resources and setting as main texture
+    /// </summary>
+    private void ApplySkinToModel(GameObject model, string skinPath)
+    {
+        if (string.IsNullOrEmpty(skinPath))
+            return;
+            
+        // Load texture from Resources
+        Texture2D skinTexture = Resources.Load<Texture2D>(skinPath);
+        if (skinTexture == null)
+        {
+            Debug.LogWarning($"TankAssembly: Could not load skin texture from: {skinPath}");
+            return;
+        }
+        
+        // Apply to all renderers (except SpriteRenderer which is for decals)
+        var renderers = model.GetComponentsInChildren<Renderer>();
+        foreach (var renderer in renderers)
+        {
+            if (renderer is SpriteRenderer) continue; // Skip sprite renderers
+            
+            foreach (var mat in renderer.materials)
+            {
+                if (mat.HasProperty("_MainTex") || mat.HasProperty("_BaseMap"))
+                {
+                    if (mat.HasProperty("_MainTex"))
+                        mat.SetTexture("_MainTex", skinTexture);
+                    if (mat.HasProperty("_BaseMap"))
+                        mat.SetTexture("_BaseMap", skinTexture);
+                }
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Applies a decal texture to a turret model's SpriteRenderer child
+    /// </summary>
+    private void ApplyDecalToModel(GameObject model, string decalPath)
+    {
+        if (string.IsNullOrEmpty(decalPath))
+            return;
+            
+        // Load texture from Resources
+        Texture2D decalTexture = Resources.Load<Texture2D>(decalPath);
+        if (decalTexture == null)
+        {
+            Debug.LogWarning($"TankAssembly: Could not load decal texture from: {decalPath}");
+            return;
+        }
+        
+        // Find the "Decal" child object by name
+        Transform decalTransform = model.transform.Find("Decal");
+        if (decalTransform == null)
+        {
+            Debug.LogWarning($"TankAssembly: No child named 'Decal' found on turret model {model.name}");
+            return;
+        }
+        
+        // Get the SpriteRenderer component on the Decal object
+        SpriteRenderer spriteRenderer = decalTransform.GetComponent<SpriteRenderer>();
+        if (spriteRenderer != null)
+        {
+            // Create a sprite from the texture
+            Sprite decalSprite = Sprite.Create(
+                decalTexture,
+                new Rect(0, 0, decalTexture.width, decalTexture.height),
+                new Vector2(0.5f, 0.5f),
+                100f // pixels per unit
+            );
+            spriteRenderer.sprite = decalSprite;
+            Debug.Log($"TankAssembly: Applied decal sprite to {decalTransform.name} on {model.name}");
+        }
+        else
+        {
+            Debug.LogWarning($"TankAssembly: No SpriteRenderer component found on 'Decal' child of {model.name}");
         }
     }
     

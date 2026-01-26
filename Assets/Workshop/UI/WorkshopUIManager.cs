@@ -630,6 +630,14 @@ public class WorkshopUIManager : MonoBehaviour
                 (changedComponent) => {
                     // Handle color changes for components
                     OnComponentColorChanged(changedComponent);
+                },
+                (comp, skinPath) => {
+                    // Handle skin selection
+                    OnSkinSelected(comp, skinPath);
+                },
+                (comp, decalPath) => {
+                    // Handle decal selection (turret only)
+                    OnDecalSelected(comp, decalPath);
                 }
             );
         }
@@ -666,7 +674,10 @@ public class WorkshopUIManager : MonoBehaviour
 
         // Show tank preview for selected slot
         if (modelPreview != null)
-            modelPreview.ShowTank(GetEquippedComponentsForSlot(selectedTankSlot));
+        {
+            var slotData = TankSlotJsonManager.Instance.GetTankSlot(selectedTankSlot.slotIndex);
+            modelPreview.ShowTank(GetEquippedComponentsForSlot(selectedTankSlot), slotData);
+        }
         
         // Sum weights of all equipped components and update ItemStats text, clear description
         float totalWeight = CalculateAndSaveTotalWeight(selectedTankSlot);
@@ -881,7 +892,10 @@ public class WorkshopUIManager : MonoBehaviour
         PopulateComponentList();
         
         if (selectedTankSlot != null && modelPreview != null)
-            modelPreview.ShowTank(GetEquippedComponentsForSlot(selectedTankSlot));
+        {
+            var slotData = TankSlotJsonManager.Instance.GetTankSlot(selectedTankSlot.slotIndex);
+            modelPreview.ShowTank(GetEquippedComponentsForSlot(selectedTankSlot), slotData);
+        }
     }
 
     private void OnEquipComponent(ComponentData component)
@@ -1158,7 +1172,10 @@ public class WorkshopUIManager : MonoBehaviour
         {
             // Show tank preview for selected slot
             if (modelPreview != null)
-                modelPreview.ShowTank(GetEquippedComponentsForSlot(selectedTankSlot));
+            {
+                var slotData = TankSlotJsonManager.Instance.GetTankSlot(selectedTankSlot.slotIndex);
+                modelPreview.ShowTank(GetEquippedComponentsForSlot(selectedTankSlot), slotData);
+            }
 
             // Sum weights of all equipped components and update ItemStats text, clear description
             float totalWeight = CalculateAndSaveTotalWeight(selectedTankSlot);
@@ -1228,12 +1245,85 @@ public class WorkshopUIManager : MonoBehaviour
         if (selectedTankSlot != null && componentUpdated && modelPreview != null)
         {
             // If a tank slot is selected and this component is part of it, refresh the tank preview
-            modelPreview.ShowTank(GetEquippedComponentsForSlot(selectedTankSlot));
+            var slotData = TankSlotJsonManager.Instance.GetTankSlot(selectedTankSlot.slotIndex);
+            modelPreview.ShowTank(GetEquippedComponentsForSlot(selectedTankSlot), slotData);
         }
         else if (selectedComponent == changedComponent && modelPreview != null)
         {
             // If this component is currently selected for individual preview, refresh it
             modelPreview.ShowModel(changedComponent);
+        }
+    }
+    
+    /// <summary>
+    /// Handle skin selection for a component
+    /// </summary>
+    private void OnSkinSelected(ComponentData component, string skinPath)
+    {
+        if (component == null) return;
+        
+        Debug.Log($"Skin selected for {component.title} (instanceId: {component.instanceId}): {(string.IsNullOrEmpty(skinPath) ? "None" : skinPath)}");
+        
+        // Update the component's runtime field
+        component.skinPath = skinPath ?? "";
+        
+        // Save skin to ComponentCustomizationManager (per-instanceId)
+        if (ComponentCustomizationManager.Instance != null)
+        {
+            ComponentCustomizationManager.Instance.SetSkin(component.instanceId, skinPath);
+        }
+        
+        // Refresh preview
+        if (modelPreview != null)
+        {
+            // If this component is in the selected tank slot, refresh tank view
+            if (selectedTankSlot != null && selectedTankSlot.HasComponent(component))
+            {
+                var slotData = TankSlotJsonManager.Instance.GetTankSlot(selectedTankSlot.slotIndex);
+                modelPreview.ShowTank(GetEquippedComponentsForSlot(selectedTankSlot), slotData);
+            }
+            else
+            {
+                // Always refresh single component preview when skin is selected
+                // (since user is interacting with this component's skin button)
+                modelPreview.ShowModel(component);
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Handle decal selection for a turret component
+    /// </summary>
+    private void OnDecalSelected(ComponentData component, string decalPath)
+    {
+        if (component == null || component.category != ComponentCategory.Turret) return;
+        
+        Debug.Log($"Decal selected for {component.title} (instanceId: {component.instanceId}): {(string.IsNullOrEmpty(decalPath) ? "None" : decalPath)}");
+        
+        // Update the component's runtime field
+        component.decalPath = decalPath ?? "";
+        
+        // Save decal to ComponentCustomizationManager (per-instanceId)
+        if (ComponentCustomizationManager.Instance != null)
+        {
+            ComponentCustomizationManager.Instance.SetDecal(component.instanceId, decalPath);
+        }
+        
+        // Refresh preview
+        if (modelPreview != null)
+        {
+            // If this component is in the selected tank slot, refresh tank view
+            if (selectedTankSlot != null && selectedTankSlot.HasComponent(component))
+            {
+                var slotData = TankSlotJsonManager.Instance.GetTankSlot(selectedTankSlot.slotIndex);
+                modelPreview.ShowTank(GetEquippedComponentsForSlot(selectedTankSlot), slotData);
+            }
+            else
+            {
+                // Always refresh single component preview when decal is selected
+                // (since user is interacting with this component's decal button)
+                modelPreview.ShowModel(component);
+            }
         }
     }
     

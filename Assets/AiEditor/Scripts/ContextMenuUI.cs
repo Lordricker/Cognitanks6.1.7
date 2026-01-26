@@ -422,8 +422,10 @@ public class ContextMenuUI : MonoBehaviour
         // Special
         if (lowerLabel.Contains("cycle"))
             return "Cycles through connected nodes in top to bottom sequence, entered value is number of seconds spent on each action. Returns to the first after completing all.";
-        if (lowerLabel.Contains("coms") || lowerLabel.Contains("if comms"))
+        if (lowerLabel.Contains("coms"))
             return "(Boolean Node)Target nodes used after this will have access to an ally target list in addition to their own vision (all tanks update their teams ally target list every 0.1 sec)";
+        if (lowerLabel.Contains("subai"))
+            return "Embeds another AI Tree as a subroutine. Use this to modularize complex behaviors or reuse common logic across multiple AI trees.";
         
         return "Custom node. Check the node label for behavior details.";
     }

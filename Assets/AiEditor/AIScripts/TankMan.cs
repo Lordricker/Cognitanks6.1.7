@@ -54,10 +54,13 @@ public class TankMan : MonoBehaviour
     
     [Header("Airborne Physics")]
     [SerializeField] private float airborneGravityMultiplier = 10f; // Extra downward force when airborne (multiplier of Physics.gravity)
+    [SerializeField] private float fallRespawnHeight = -50f; // Y position below which tank respawns at spawn point
 
     [Header("Turret Rotation")]
     [SerializeField] private float turretRotationSpeed = 1.5f; // Multiplier for turret rotation speed (relative to tank turn speed)
     [SerializeField] private float turretRampUpTime = 0.3f; // Time to ramp up to full turret rotation speed
+    [SerializeField] private float minPitchAngle = -30f; // Minimum pitch angle (down) in degrees
+    [SerializeField] private float maxPitchAngle = 30f; // Maximum pitch angle (up) in degrees
 
     private Rigidbody rb;
     private float currentMoveInput = 0f;
@@ -458,6 +461,9 @@ public class TankMan : MonoBehaviour
     /// </summary>
     private void UnstuckTank()
     {
+        // DISABLED: Return immediately to disable unstuck functionality
+        return;
+        
         // Don't apply unstuck when in wait action - tank is intentionally sitting still
         if (isInWaitAction)
             return;
@@ -578,7 +584,6 @@ public class TankMan : MonoBehaviour
     
     void LateUpdate()
     {
-        // LateUpdate runs after all other updates, so NavMeshAgent won't override our rotation
         
         // Lock turret to tank body tilt - turret is mechanically fixed to the tank chassis
         // Only allow Y-axis (horizontal rotation) and X-axis (pitch) freedom for aiming
@@ -587,13 +592,27 @@ public class TankMan : MonoBehaviour
         {
             // Work with local rotation to preserve AI-controlled Y and X rotations
             Vector3 turretLocalEuler = turretTransform.localEulerAngles;
-            // Z should always be 0 in local space (no roll relative to tank body)
-            turretTransform.localEulerAngles = new Vector3(turretLocalEuler.x, turretLocalEuler.y, 0f);
+            
+            // Clamp the pitch (X rotation) relative to tank body
+            float localPitch = turretLocalEuler.x;
+            // Convert from 0-360 to -180 to 180 range
+            if (localPitch > 180f) localPitch -= 360f;
+            // Clamp pitch to configured limits
+            localPitch = Mathf.Clamp(localPitch, minPitchAngle, maxPitchAngle);
+            
+            // Apply clamped rotation - Z should always be 0 in local space (no roll relative to tank body)
+            turretTransform.localEulerAngles = new Vector3(localPitch, turretLocalEuler.y, 0f);
         }
     }
     
     void Update()
     {
+        // Check if tank has fallen out of the map
+        if (transform.position.y < fallRespawnHeight)
+        {
+            RespawnAtSpawnPoint();
+        }
+        
         // Check if we need to restore wheel friction after knockback
         if (frictionReduced && Time.time >= frictionRestoreTime)
         {
@@ -2519,6 +2538,32 @@ public class TankMan : MonoBehaviour
     }
     
     /// <summary>
+    /// Clamps a rotation quaternion's pitch (X-axis rotation) to specified limits
+    /// The pitch is calculated relative to the tank body to prevent turret clipping
+    /// </summary>
+    Quaternion ClampTurretPitch(Quaternion targetWorldRotation)
+    {
+        // Convert target rotation to local space relative to tank body
+        Quaternion localRotation = Quaternion.Inverse(transform.rotation) * targetWorldRotation;
+        Vector3 localEuler = localRotation.eulerAngles;
+        
+        // Get the local pitch (X rotation)
+        float localPitch = localEuler.x;
+        
+        // Convert from 0-360 to -180 to 180 range
+        if (localPitch > 180f) localPitch -= 360f;
+        
+        // Clamp the pitch relative to tank body
+        localPitch = Mathf.Clamp(localPitch, minPitchAngle, maxPitchAngle);
+        
+        // Reconstruct the local rotation with clamped pitch
+        Quaternion clampedLocalRotation = Quaternion.Euler(localPitch, localEuler.y, localEuler.z);
+        
+        // Convert back to world space
+        return transform.rotation * clampedLocalRotation;
+    }
+    
+    /// <summary>
     /// Calculates the lead point for targeting - adds lead distance in direction of target's movement
     /// LeadDistance = 0: aims at target center (replaces CenterTarget)
     /// LeadDistance > 0: aims ahead of target's movement
@@ -3097,6 +3142,32 @@ public class TankMan : MonoBehaviour
 
         // Disable the tank (but keep it for visual reference)
         enabled = false;
+    }
+    
+    /// <summary>
+    /// Respawns the tank at its original spawn position
+    /// Called when tank falls out of the map
+    /// </summary>
+    void RespawnAtSpawnPoint()
+    {
+        // Reset position and rotation to spawn point
+        transform.position = spawnPosition;
+        transform.rotation = Quaternion.identity;
+        
+        // Reset velocity
+        if (rb != null)
+        {
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+        }
+        
+        // Reset turret rotation to neutral
+        if (turretTransform != null)
+        {
+            turretTransform.localRotation = Quaternion.identity;
+        }
+        
+        Debug.Log($"[TankMan] {gameObject.name} fell out of map and respawned at spawn point: {spawnPosition}");
     }
     
     /// <summary>
@@ -3919,6 +3990,9 @@ public class TankMan : MonoBehaviour
             float targetSpeed = TurnSpeed * turretRotationSpeed;
             currentTurretRotationSpeed = Mathf.Lerp(0f, targetSpeed, rampProgress);
             
+            // Clamp the target rotation's pitch before applying
+            targetRotation = ClampTurretPitch(targetRotation);
+            
             // Apply rotation with ramped speed in world space
             turretTransform.rotation = Quaternion.RotateTowards(
                 turretTransform.rotation,
@@ -4226,27 +4300,29 @@ public class TankMan : MonoBehaviour
             }
         }
         
-        // Get current X rotation (pitch)
-        float currentX = turretTransform.eulerAngles.x;
+        // Get current local X rotation (pitch) relative to tank body
+        Vector3 localEuler = turretTransform.localEulerAngles;
+        float currentLocalX = localEuler.x;
         // Convert from 0-360 to -180 to 180 range
-        if (currentX > 180f) currentX -= 360f;
+        if (currentLocalX > 180f) currentLocalX -= 360f;
         
         // Calculate target X rotation (subtract degrees for pitch up)
-        float targetX = currentX - degrees;
+        float targetLocalX = currentLocalX - degrees;
         
-        // Clamp pitch to reasonable limits (e.g., -45 to 45 degrees)
-        targetX = Mathf.Clamp(targetX, -45f, 45f);
+        // Clamp pitch to configured limits (relative to tank body)
+        targetLocalX = Mathf.Clamp(targetLocalX, minPitchAngle, maxPitchAngle);
         
         float threshold = 2f; // Consider reached when within 2 degrees
         
         while (turretTransform != null)
         {
-            // Get current pitch
-            currentX = turretTransform.eulerAngles.x;
-            if (currentX > 180f) currentX -= 360f;
+            // Get current local pitch relative to tank body
+            localEuler = turretTransform.localEulerAngles;
+            currentLocalX = localEuler.x;
+            if (currentLocalX > 180f) currentLocalX -= 360f;
             
             // Calculate difference
-            float angleDiff = targetX - currentX;
+            float angleDiff = targetLocalX - currentLocalX;
             
             // Check if we've reached the target
             if (Mathf.Abs(angleDiff) <= threshold)
@@ -4257,12 +4333,10 @@ public class TankMan : MonoBehaviour
             
             // Rotate towards target
             float rotationSpeed = TurnSpeed * 0.5f * Time.deltaTime;
-            float newX = Mathf.MoveTowards(currentX, targetX, rotationSpeed);
+            float newLocalX = Mathf.MoveTowards(currentLocalX, targetLocalX, rotationSpeed);
             
-            // Maintain current Y (yaw) and lock Z to parent tank's Z rotation
-            float currentY = turretTransform.eulerAngles.y;
-            float tankZ = transform.eulerAngles.z;
-            turretTransform.rotation = Quaternion.Euler(newX, currentY, tankZ);
+            // Apply local rotation - maintain current Y (yaw), set clamped X, and zero Z
+            turretTransform.localRotation = Quaternion.Euler(newLocalX, localEuler.y, 0f);
             
             yield return null;
         }
@@ -4296,27 +4370,29 @@ public class TankMan : MonoBehaviour
             }
         }
         
-        // Get current X rotation (pitch)
-        float currentX = turretTransform.eulerAngles.x;
+        // Get current local X rotation (pitch) relative to tank body
+        Vector3 localEuler = turretTransform.localEulerAngles;
+        float currentLocalX = localEuler.x;
         // Convert from 0-360 to -180 to 180 range
-        if (currentX > 180f) currentX -= 360f;
+        if (currentLocalX > 180f) currentLocalX -= 360f;
         
         // Calculate target X rotation (add degrees for pitch down)
-        float targetX = currentX + degrees;
+        float targetLocalX = currentLocalX + degrees;
         
-        // Clamp pitch to reasonable limits (e.g., -45 to 45 degrees)
-        targetX = Mathf.Clamp(targetX, -45f, 45f);
+        // Clamp pitch to configured limits (relative to tank body)
+        targetLocalX = Mathf.Clamp(targetLocalX, minPitchAngle, maxPitchAngle);
         
         float threshold = 2f; // Consider reached when within 2 degrees
         
         while (turretTransform != null)
         {
-            // Get current pitch
-            currentX = turretTransform.eulerAngles.x;
-            if (currentX > 180f) currentX -= 360f;
+            // Get current local pitch relative to tank body
+            localEuler = turretTransform.localEulerAngles;
+            currentLocalX = localEuler.x;
+            if (currentLocalX > 180f) currentLocalX -= 360f;
             
             // Calculate difference
-            float angleDiff = targetX - currentX;
+            float angleDiff = targetLocalX - currentLocalX;
             
             // Check if we've reached the target
             if (Mathf.Abs(angleDiff) <= threshold)
@@ -4327,12 +4403,10 @@ public class TankMan : MonoBehaviour
             
             // Rotate towards target
             float rotationSpeed = TurnSpeed * 0.5f * Time.deltaTime;
-            float newX = Mathf.MoveTowards(currentX, targetX, rotationSpeed);
+            float newLocalX = Mathf.MoveTowards(currentLocalX, targetLocalX, rotationSpeed);
             
-            // Maintain current Y (yaw) and lock Z to parent tank's Z rotation
-            float currentY = turretTransform.eulerAngles.y;
-            float tankZ = transform.eulerAngles.z;
-            turretTransform.rotation = Quaternion.Euler(newX, currentY, tankZ);
+            // Apply local rotation - maintain current Y (yaw), set clamped X, and zero Z
+            turretTransform.localRotation = Quaternion.Euler(newLocalX, localEuler.y, 0f);
             
             yield return null;
         }

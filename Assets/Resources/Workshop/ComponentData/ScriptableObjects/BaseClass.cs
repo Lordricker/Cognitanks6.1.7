@@ -28,5 +28,9 @@ public abstract class ComponentData : ScriptableObject
     
     // Custom color for this component (used for visual customization)
     public Color customColor = Color.white;
+    
+    // Skin and decal paths for this component instance (loaded from ComponentCustomizationManager)
+    [System.NonSerialized] public string skinPath = "";
+    [System.NonSerialized] public string decalPath = "";  // Turrets only
 }
 

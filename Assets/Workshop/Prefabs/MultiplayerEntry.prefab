@@ -160,6 +160,14 @@ PrefabInstance:
       propertyPath: m_Name
       value: Username
       objectReference: {fileID: 0}
+    - target: {fileID: 2110409663530548460, guid: 3db6894528e5f414cbd804b8c7f4c0e3, type: 3}
+      propertyPath: m_AnchorMax.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2110409663530548460, guid: 3db6894528e5f414cbd804b8c7f4c0e3, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 2875402807087464540, guid: 3db6894528e5f414cbd804b8c7f4c0e3, type: 3}
       propertyPath: m_AnchorMax.y
       value: 0
@@ -244,6 +252,14 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 4205292236234821892, guid: 3db6894528e5f414cbd804b8c7f4c0e3, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4205292236234821892, guid: 3db6894528e5f414cbd804b8c7f4c0e3, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 4626470300816910399, guid: 3db6894528e5f414cbd804b8c7f4c0e3, type: 3}
       propertyPath: m_Name
       value: TeamName
@@ -276,6 +292,26 @@ PrefabInstance:
       propertyPath: m_AnchoredPosition.y
       value: -19
       objectReference: {fileID: 0}
+    - target: {fileID: 5664636001666724629, guid: 3db6894528e5f414cbd804b8c7f4c0e3, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5975970546571212926, guid: 3db6894528e5f414cbd804b8c7f4c0e3, type: 3}
+      propertyPath: m_AnchorMax.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5975970546571212926, guid: 3db6894528e5f414cbd804b8c7f4c0e3, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5975970546571212926, guid: 3db6894528e5f414cbd804b8c7f4c0e3, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5975970546571212926, guid: 3db6894528e5f414cbd804b8c7f4c0e3, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 6319013251959697544, guid: 3db6894528e5f414cbd804b8c7f4c0e3, type: 3}
       propertyPath: m_text
       value: 'Elo:'
@@ -296,6 +332,14 @@ PrefabInstance:
       propertyPath: m_Name
       value: MultiplayerEntry
       objectReference: {fileID: 0}
+    - target: {fileID: 6712450536292901066, guid: 3db6894528e5f414cbd804b8c7f4c0e3, type: 3}
+      propertyPath: m_AnchorMax.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6712450536292901066, guid: 3db6894528e5f414cbd804b8c7f4c0e3, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 7027511978314201294, guid: 3db6894528e5f414cbd804b8c7f4c0e3, type: 3}
       propertyPath: m_margin.w
       value: 9.597839
@@ -305,6 +349,14 @@ PrefabInstance:
       value: -235.70471
       objectReference: {fileID: 0}
     - target: {fileID: 8946958889918304047, guid: 3db6894528e5f414cbd804b8c7f4c0e3, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9218542514193510385, guid: 3db6894528e5f414cbd804b8c7f4c0e3, type: 3}
+      propertyPath: m_AnchorMax.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9218542514193510385, guid: 3db6894528e5f414cbd804b8c7f4c0e3, type: 3}
       propertyPath: m_AnchorMax.y
       value: 0
       objectReference: {fileID: 0}

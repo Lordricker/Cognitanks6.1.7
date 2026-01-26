@@ -84,6 +84,13 @@ public class TankSlotDataJson
     public ColorJson armorColor = new ColorJson(1f, 1f, 1f, 1f);
     public ColorJson turretColor = new ColorJson(1f, 1f, 1f, 1f);
     
+    // Skin paths for visual customization (material/texture variants)
+    [Header("Skin & Decal Customization")]
+    public string engineFrameSkinPath = "";  // Path to skin texture in Resources (e.g., "KritaArt/Skins/MetalRust")
+    public string armorSkinPath = "";        // Path to skin texture in Resources
+    public string turretSkinPath = "";       // Path to skin texture in Resources
+    public string turretDecalPath = "";      // Path to decal texture in Resources (turret only, e.g., "KritaArt/Decals/Skull")
+    
     // DEPRECATED: Tank-level instanceId and metadata (use slotIndex instead)
     // These were used in old system but aren't needed - each tank slot has a fixed index 0-9
     public string instanceId = "";     // Not actively used

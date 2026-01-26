@@ -44,10 +44,27 @@ public class WorkshopModelPreview : MonoBehaviour
             else
                 ApplyColorToModel(model, componentData.customColor);
 
+            // Apply skin if available (from ComponentCustomizationManager)
+            string skinPath = ComponentCustomizationManager.Instance?.GetSkin(componentData.instanceId);
+            if (!string.IsNullOrEmpty(skinPath))
+            {
+                ApplySkinToModel(model, skinPath);
+            }
+            
+            // Apply decal if available (turrets only, from ComponentCustomizationManager)
+            if (componentData.category == ComponentCategory.Turret)
+            {
+                string decalPath = ComponentCustomizationManager.Instance?.GetDecal(componentData.instanceId);
+                if (!string.IsNullOrEmpty(decalPath))
+                {
+                    ApplyDecalToModel(model, decalPath);
+                }
+            }
+
             currentModels.Add(model);
         }
     }
-    public void ShowTank(Dictionary<ComponentCategory, ComponentData> equipped)
+    public void ShowTank(Dictionary<ComponentCategory, ComponentData> equipped, TankSlotDataJson slotData = null)
     {
         ClearPreview();        // Engine Frame (base)
         if (equipped.TryGetValue(ComponentCategory.EngineFrame, out var engineFrame) && engineFrame.modelPrefab != null)
@@ -57,6 +74,14 @@ public class WorkshopModelPreview : MonoBehaviour
             model.transform.localRotation = Quaternion.identity;
             SetLayerRecursively(model, previewLayer);
             ApplyColorToTreadMount(model, engineFrame.customColor);
+            
+            // Apply skin if available (from ComponentCustomizationManager)
+            string engineSkinPath = ComponentCustomizationManager.Instance?.GetSkin(engineFrame.instanceId);
+            if (!string.IsNullOrEmpty(engineSkinPath))
+            {
+                ApplySkinToModel(model, engineSkinPath);
+            }
+            
             currentModels.Add(model);
         }
 
@@ -68,6 +93,21 @@ public class WorkshopModelPreview : MonoBehaviour
             model.transform.localRotation = Quaternion.identity;
             SetLayerRecursively(model, previewLayer);
             ApplyColorToModel(model, turret.customColor);
+            
+            // Apply skin if available (from ComponentCustomizationManager)
+            string turretSkinPath = ComponentCustomizationManager.Instance?.GetSkin(turret.instanceId);
+            if (!string.IsNullOrEmpty(turretSkinPath))
+            {
+                ApplySkinToModel(model, turretSkinPath);
+            }
+            
+            // Apply decal if available (from ComponentCustomizationManager)
+            string turretDecalPath = ComponentCustomizationManager.Instance?.GetDecal(turret.instanceId);
+            if (!string.IsNullOrEmpty(turretDecalPath))
+            {
+                ApplyDecalToModel(model, turretDecalPath);
+            }
+            
             currentModels.Add(model);
         }
 
@@ -79,6 +119,14 @@ public class WorkshopModelPreview : MonoBehaviour
             model.transform.localRotation = Quaternion.identity;
             SetLayerRecursively(model, previewLayer);
             ApplyColorToModel(model, armor.customColor);
+            
+            // Apply skin if available (from ComponentCustomizationManager)
+            string armorSkinPath = ComponentCustomizationManager.Instance?.GetSkin(armor.instanceId);
+            if (!string.IsNullOrEmpty(armorSkinPath))
+            {
+                ApplySkinToModel(model, armorSkinPath);
+            }
+            
             currentModels.Add(model);
         }
 
@@ -131,6 +179,87 @@ public class WorkshopModelPreview : MonoBehaviour
                         mat.SetColor("_Color", color);
                 }
             }
+        }
+    }
+    
+    /// <summary>
+    /// Applies a skin texture to a model by loading from Resources and setting as main texture
+    /// </summary>
+    private void ApplySkinToModel(GameObject model, string skinPath)
+    {
+        if (string.IsNullOrEmpty(skinPath))
+            return;
+            
+        // Load texture from Resources
+        Texture2D skinTexture = Resources.Load<Texture2D>(skinPath);
+        if (skinTexture == null)
+        {
+            Debug.LogWarning($"Could not load skin texture from: {skinPath}");
+            return;
+        }
+        
+        Debug.Log($"Applying skin texture: {skinPath}");
+        
+        // Apply to all renderers
+        var renderers = model.GetComponentsInChildren<Renderer>();
+        foreach (var renderer in renderers)
+        {
+            foreach (var mat in renderer.materials)
+            {
+                if (mat.HasProperty("_MainTex") || mat.HasProperty("_BaseMap"))
+                {
+                    if (mat.HasProperty("_MainTex"))
+                        mat.SetTexture("_MainTex", skinTexture);
+                    if (mat.HasProperty("_BaseMap"))
+                        mat.SetTexture("_BaseMap", skinTexture);
+                }
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Applies a decal texture to a turret model's SpriteRenderer child
+    /// </summary>
+    private void ApplyDecalToModel(GameObject model, string decalPath)
+    {
+        if (string.IsNullOrEmpty(decalPath))
+            return;
+            
+        // Load texture from Resources
+        Texture2D decalTexture = Resources.Load<Texture2D>(decalPath);
+        if (decalTexture == null)
+        {
+            Debug.LogWarning($"Could not load decal texture from: {decalPath}");
+            return;
+        }
+        
+        Debug.Log($"Applying decal texture: {decalPath}");
+        
+        // Find the "Decal" child object by name
+        Transform decalTransform = model.transform.Find("Decal");
+        if (decalTransform == null)
+        {
+            Debug.LogWarning($"No child named 'Decal' found on turret model {model.name}");
+            return;
+        }
+        
+        // Get the SpriteRenderer component on the Decal object
+        SpriteRenderer spriteRenderer = decalTransform.GetComponent<SpriteRenderer>();
+        if (spriteRenderer != null)
+        {
+            // Create a sprite from the texture
+            Sprite decalSprite = Sprite.Create(
+                decalTexture,
+                new Rect(0, 0, decalTexture.width, decalTexture.height),
+                new Vector2(0.5f, 0.5f),
+                100f // pixels per unit
+            );
+            spriteRenderer.sprite = decalSprite;
+            Debug.Log($"Applied decal sprite to {decalTransform.name}");
+        }
+        else
+        {
+            Debug.LogWarning($"No SpriteRenderer component found on 'Decal' child of {model.name}");
         }
     }
 }
