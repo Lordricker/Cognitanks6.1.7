@@ -670,16 +670,18 @@ public class ArenaManager : MonoBehaviour
     
     /// <summary>
     /// Awards victory rewards: refund entry fee + fee per alive player tank
+    /// First round (League1 Round1) is free but still awards money to prevent softlock
+    /// First ever win on ANY round: DOUBLE rewards
+    /// Subsequent wins: normal rewards
     /// </summary>
     void AwardVictoryRewards(System.Collections.Generic.Dictionary<int, System.Collections.Generic.List<TankMan>> aliveTanksByTeam)
     {
         int entryFee = PlayerPrefs.GetInt("ArenaEntryFee", 0);
+        bool isFirstRound = PlayerPrefs.GetInt("IsFirstRound", 0) == 1;
+        string arenaKey = PlayerPrefs.GetString("SelectedArenaKey", "");
         
-        if (entryFee <= 0)
-        {
-            Debug.Log("[ArenaManager] No entry fee to refund (free arena)");
-            return;
-        }
+        // Check if this is the player's first ever win on this specific arena
+        bool hasWonThisArenaBefore = PlayerPrefs.GetInt($"HasWonArena_{arenaKey}", 0) == 1;
         
         // Count alive player tanks (team 0 in singleplayer)
         int aliveTankCount = 0;
@@ -688,15 +690,69 @@ public class ArenaManager : MonoBehaviour
             aliveTankCount = aliveTanksByTeam[0].Count;
         }
         
+        // First round (League1, Round1) is free - no entry fee was charged
+        if (isFirstRound)
+        {
+            int firstRoundReward;
+            if (!hasWonThisArenaBefore)
+            {
+                // First ever win: double rewards (50 base + 50 per alive tank) * 2
+                firstRoundReward = (50 + (50 * aliveTankCount)) * 2;
+                
+                // Mark that the player has won this arena
+                PlayerPrefs.SetInt($"HasWonArena_{arenaKey}", 1);
+                PlayerPrefs.Save();
+                
+                Debug.Log($"[ArenaManager] First ever win on {arenaKey}! Double reward: ($50 base + $50 x {aliveTankCount} tanks) x 2 = ${firstRoundReward}");
+            }
+            else
+            {
+                // Subsequent wins: flat 50 reward
+                firstRoundReward = 50;
+                Debug.Log($"[ArenaManager] Round 1 victory reward: ${firstRoundReward}");
+            }
+            
+            if (PlayerDataManager.Instance != null)
+            {
+                PlayerDataManager.Instance.AddPlayerCash(firstRoundReward);
+            }
+            else
+            {
+                Debug.LogError("[ArenaManager] PlayerDataManager.Instance is null! Cannot award rewards.");
+            }
+            return;
+        }
+        
+        if (entryFee <= 0)
+        {
+            Debug.Log("[ArenaManager] No entry fee to refund (free arena)");
+            return;
+        }
+        
         // Calculate reward: refund entry fee + fee per alive tank
-        // Example: $10 fee, 2 alive tanks = $10 (refund) + $10 (tank 1) + $10 (tank 2) = $30 total
+        // Example: $150 fee, 2 alive tanks = $150 (refund) + $150 x 2 = $450 total
         int totalReward = entryFee + (entryFee * aliveTankCount);
+        
+        // First ever win on this arena: DOUBLE the rewards
+        if (!hasWonThisArenaBefore)
+        {
+            totalReward *= 2;
+            
+            // Mark that the player has won this arena
+            PlayerPrefs.SetInt($"HasWonArena_{arenaKey}", 1);
+            PlayerPrefs.Save();
+            
+            Debug.Log($"[ArenaManager] First ever win on {arenaKey}! Double reward: (${entryFee} refund + ${entryFee} x {aliveTankCount} tanks) x 2 = ${totalReward}");
+        }
+        else
+        {
+            Debug.Log($"[ArenaManager] Victory rewards: Entry fee ${entryFee} refunded + ${entryFee} x {aliveTankCount} alive tanks = ${totalReward} total");
+        }
         
         // Award cash to player
         if (PlayerDataManager.Instance != null)
         {
             PlayerDataManager.Instance.AddPlayerCash(totalReward);
-            Debug.Log($"[ArenaManager] Victory rewards: Entry fee ${entryFee} refunded + ${entryFee} x {aliveTankCount} alive tanks = ${totalReward} total");
         }
         else
         {

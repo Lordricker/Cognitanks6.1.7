@@ -69,6 +69,9 @@ public class TankPreview : MonoBehaviour
         var renderers = model.GetComponentsInChildren<Renderer>();
         foreach (var renderer in renderers)
         {
+            // Skip SpriteRenderers (used for decals) - they should not be affected by color
+            if (renderer is SpriteRenderer) continue;
+            
             foreach (var mat in renderer.materials)
             {
                 if (mat.HasProperty("_BaseColor"))
@@ -88,6 +91,9 @@ public class TankPreview : MonoBehaviour
             var renderers = treadMount.GetComponentsInChildren<Renderer>();
             foreach (var renderer in renderers)
             {
+                // Skip SpriteRenderers (used for decals) - they should not be affected by color
+                if (renderer is SpriteRenderer) continue;
+                
                 foreach (var mat in renderer.materials)
                 {
                     if (mat.HasProperty("_BaseColor"))

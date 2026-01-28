@@ -152,6 +152,9 @@ public class WorkshopModelPreview : MonoBehaviour
         var renderers = model.GetComponentsInChildren<Renderer>();
         foreach (var renderer in renderers)
         {
+            // Skip SpriteRenderers (used for decals) - they should not be affected by color
+            if (renderer is SpriteRenderer) continue;
+            
             foreach (var mat in renderer.materials)
             {
                 if (mat.HasProperty("_BaseColor"))
@@ -171,6 +174,9 @@ public class WorkshopModelPreview : MonoBehaviour
             var renderers = treadMount.GetComponentsInChildren<Renderer>();
             foreach (var renderer in renderers)
             {
+                // Skip SpriteRenderers (used for decals) - they should not be affected by color
+                if (renderer is SpriteRenderer) continue;
+                
                 foreach (var mat in renderer.materials)
                 {
                     if (mat.HasProperty("_BaseColor"))
@@ -184,6 +190,7 @@ public class WorkshopModelPreview : MonoBehaviour
     
     /// <summary>
     /// Applies a skin texture to a model by loading from Resources and setting as main texture
+    /// Also loads additional maps (normal, height, metallic/roughness) from a subfolder with the same name
     /// </summary>
     private void ApplySkinToModel(GameObject model, string skinPath)
     {
@@ -200,18 +207,76 @@ public class WorkshopModelPreview : MonoBehaviour
         
         Debug.Log($"Applying skin texture: {skinPath}");
         
+        // Try to load additional maps from a subfolder with the same name as the texture
+        // e.g., if skinPath is "KritaArt/Skins/MySkin", look in "KritaArt/Skins/MySkin/" for additional maps
+        Texture2D normalMap = null;
+        Texture2D heightMap = null;
+        Texture2D metallicMap = null;
+        
+        string additionalMapsPath = skinPath; // Folder has same name as the texture file
+        Texture2D[] additionalTextures = Resources.LoadAll<Texture2D>(additionalMapsPath);
+        
+        if (additionalTextures != null && additionalTextures.Length > 0)
+        {
+            foreach (var tex in additionalTextures)
+            {
+                string nameLower = tex.name.ToLower();
+                if (nameLower.Contains("nor"))
+                {
+                    normalMap = tex;
+                    Debug.Log($"Found normal map: {tex.name}");
+                }
+                else if (nameLower.Contains("disp"))
+                {
+                    heightMap = tex;
+                    Debug.Log($"Found height map: {tex.name}");
+                }
+                else if (nameLower.Contains("rough"))
+                {
+                    metallicMap = tex;
+                    Debug.Log($"Found metallic/roughness map: {tex.name}");
+                }
+            }
+        }
+        
         // Apply to all renderers
         var renderers = model.GetComponentsInChildren<Renderer>();
         foreach (var renderer in renderers)
         {
+            // Skip SpriteRenderers (used for decals)
+            if (renderer is SpriteRenderer) continue;
+            
             foreach (var mat in renderer.materials)
             {
+                // Apply base map / main texture
                 if (mat.HasProperty("_MainTex") || mat.HasProperty("_BaseMap"))
                 {
                     if (mat.HasProperty("_MainTex"))
                         mat.SetTexture("_MainTex", skinTexture);
                     if (mat.HasProperty("_BaseMap"))
                         mat.SetTexture("_BaseMap", skinTexture);
+                }
+                
+                // Apply normal map
+                if (normalMap != null && mat.HasProperty("_BumpMap"))
+                {
+                    mat.SetTexture("_BumpMap", normalMap);
+                    mat.EnableKeyword("_NORMALMAP");
+                }
+                
+                // Apply height/displacement map (parallax)
+                if (heightMap != null && mat.HasProperty("_ParallaxMap"))
+                {
+                    mat.SetTexture("_ParallaxMap", heightMap);
+                    mat.EnableKeyword("_PARALLAXMAP");
+                }
+                
+                // Apply metallic/roughness map
+                // In URP, roughness is stored in the alpha of the metallic map, or use _SmoothnessTextureChannel
+                if (metallicMap != null && mat.HasProperty("_MetallicGlossMap"))
+                {
+                    mat.SetTexture("_MetallicGlossMap", metallicMap);
+                    mat.EnableKeyword("_METALLICSPECGLOSSMAP");
                 }
             }
         }

@@ -179,8 +179,8 @@ MonoBehaviour:
   m_StartAxis: 0
   m_CellSize: {x: 45, y: 45}
   m_Spacing: {x: 10, y: 1}
-  m_Constraint: 0
-  m_ConstraintCount: 2
+  m_Constraint: 2
+  m_ConstraintCount: 1
 --- !u!114 &1035197707422985890
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -194,7 +194,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_HorizontalFit: 0
-  m_VerticalFit: 2
+  m_VerticalFit: 0
 --- !u!1 &911785094524984867
 GameObject:
   m_ObjectHideFlags: 0
@@ -2875,12 +2875,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Content: {fileID: 2422578792801568746}
-  m_Horizontal: 0
-  m_Vertical: 1
-  m_MovementType: 1
+  m_Horizontal: 1
+  m_Vertical: 0
+  m_MovementType: 0
   m_Elasticity: 0.1
   m_Inertia: 1
-  m_DecelerationRate: 0.135
+  m_DecelerationRate: 0.01
   m_ScrollSensitivity: 1
   m_Viewport: {fileID: 2360697500434069219}
   m_HorizontalScrollbar: {fileID: 5592617629635660148}

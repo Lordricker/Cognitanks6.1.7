@@ -255,12 +255,43 @@ public class ComponentEntryUI : MonoBehaviour
         Debug.Log($"Loading assets from Resources/{resourcePath}");
         
         // Try loading as both Texture2D and Sprite
-        Texture2D[] textures = Resources.LoadAll<Texture2D>(resourcePath);
-        Sprite[] sprites = Resources.LoadAll<Sprite>(resourcePath);
+        Texture2D[] allTextures = Resources.LoadAll<Texture2D>(resourcePath);
+        Sprite[] allSprites = Resources.LoadAll<Sprite>(resourcePath);
         
-        Debug.Log($"Found {textures.Length} textures and {sprites.Length} sprites");
+        // For skins, filter out textures that are in subfolders (additional map textures)
+        // We only want root-level textures, not the ones in folders named after the base textures
+        // Strategy: textures in subfolders will contain keywords like "disp", "rough", "nor" in their names
+        System.Collections.Generic.List<Texture2D> textures = new System.Collections.Generic.List<Texture2D>();
+        System.Collections.Generic.List<Sprite> sprites = new System.Collections.Generic.List<Sprite>();
         
-        bool hasAssets = (textures != null && textures.Length > 0) || (sprites != null && sprites.Length > 0);
+        if (!isDecal)
+        {
+            // For skins: filter out additional map textures (those with disp, rough, nor in their names)
+            // These are textures stored in subfolders for the additional material maps
+            foreach (var tex in allTextures)
+            {
+                string nameLower = tex.name.ToLower();
+                // Skip textures that are additional maps (contain keywords for height, roughness, normal)
+                if (nameLower.Contains("disp") || nameLower.Contains("rough") || nameLower.Contains("nor"))
+                {
+                    Debug.Log($"Skipping additional map texture: {tex.name}");
+                    continue;
+                }
+                textures.Add(tex);
+            }
+            
+            Debug.Log($"Found {allTextures.Length} total textures, filtered to {textures.Count} root-level skins");
+        }
+        else
+        {
+            // For decals, include all textures
+            textures.AddRange(allTextures);
+            sprites.AddRange(allSprites);
+        }
+        
+        Debug.Log($"Found {textures.Count} textures and {sprites.Count} sprites for display");
+        
+        bool hasAssets = (textures != null && textures.Count > 0) || (sprites != null && sprites.Count > 0);
         
         // Show/hide empty folder message
         if (emptyFolderText != null)
@@ -286,7 +317,7 @@ public class ComponentEntryUI : MonoBehaviour
         }
         
         // Create buttons for sprites if no textures
-        if ((textures == null || textures.Length == 0) && sprites != null)
+        if ((textures == null || textures.Count == 0) && sprites != null)
         {
             foreach (var sprite in sprites)
             {

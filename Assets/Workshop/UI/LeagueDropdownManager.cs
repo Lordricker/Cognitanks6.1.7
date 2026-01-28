@@ -120,7 +120,10 @@ public class LeagueDropdownManager : MonoBehaviour
         }
         
         // Validate entry fee (check player cash)
-        if (entryFee > 0)
+        // First round (League1, Round1) is free to prevent softlock from running out of money
+        bool isFirstRound = leagueName == "League1" && roundName == "Round1";
+        
+        if (entryFee > 0 && !isFirstRound)
         {
             var playerDataManager = PlayerDataManager.Instance;
             int currentCash = playerDataManager != null ? playerDataManager.GetPlayerCash() : 0;
@@ -133,6 +136,9 @@ public class LeagueDropdownManager : MonoBehaviour
             // Deduct entry fee
             playerDataManager.SpendPlayerCash(entryFee);
         }
+        
+        // Store whether this is the first round for reward calculation
+        PlayerPrefs.SetInt("IsFirstRound", isFirstRound ? 1 : 0);
         
         // Save component rewards to PlayerPrefs so ArenaManager can unlock them on completion
         if (componentRewards != null && componentRewards.Count > 0)
