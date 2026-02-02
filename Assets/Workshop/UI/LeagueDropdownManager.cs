@@ -40,6 +40,10 @@ public class LeagueDropdownManager : MonoBehaviour
 
     public List<LeagueDropdown> leagues; // Assign in Inspector
     
+    [Header("Scene Transition")]
+    [Tooltip("Reference to the PortalTransition component for fancy scene transitions")]
+    public PortalTransition portalTransition;
+
     [Header("Error Display")]
     public TMP_Text errorText; // Optional: Assign a TMP_Text to display error messages
     public float errorDisplayDuration = 3f; // How long to show error messages
@@ -111,7 +115,23 @@ public class LeagueDropdownManager : MonoBehaviour
             return;
         }
         
-        // Validate weight limit
+        // Validate that all active tanks have all required components
+        string missingComponentError = ValidateTankComponents();
+        if (!string.IsNullOrEmpty(missingComponentError))
+        {
+            ShowError(missingComponentError);
+            return;
+        }
+        
+        // Validate individual tank weight capacities
+        string weightCapacityError = ValidateTankWeightCapacities();
+        if (!string.IsNullOrEmpty(weightCapacityError))
+        {
+            ShowError(weightCapacityError);
+            return;
+        }
+        
+        // Validate total weight limit for the arena
         float totalWeight = CalculateTotalActiveTankWeight();
         if (weightLimit > 0 && totalWeight > weightLimit)
         {
@@ -163,7 +183,15 @@ public class LeagueDropdownManager : MonoBehaviour
         
         Debug.Log($"[LeagueDropdownManager] Loading {leagueName}/{roundName} - {sceneName}");
         
-        UnityEngine.SceneManagement.SceneManager.LoadScene(sceneName);
+        // Use portal transition if available, otherwise load directly
+        if (portalTransition != null)
+        {
+            portalTransition.StartTransition(sceneName);
+        }
+        else
+        {
+            UnityEngine.SceneManagement.SceneManager.LoadScene(sceneName);
+        }
     }
     
     /// <summary>
@@ -175,6 +203,83 @@ public class LeagueDropdownManager : MonoBehaviour
         
         var activeTanks = TankSlotJsonManager.Instance.GetActiveTankSlots();
         return activeTanks != null && activeTanks.Count > 0;
+    }
+    
+    /// <summary>
+    /// Validates that all active tanks have all 5 required components
+    /// Returns error message if missing, or empty string if valid
+    /// </summary>
+    private string ValidateTankComponents()
+    {
+        if (TankSlotJsonManager.Instance == null) return "Tank data not available!";
+        
+        var activeTanks = TankSlotJsonManager.Instance.GetActiveTankSlots();
+        
+        foreach (var tank in activeTanks)
+        {
+            int tankNumber = tank.slotIndex + 1; // Display as 1-based for user
+            
+            // Check Turret
+            if (string.IsNullOrEmpty(tank.turretInstanceId))
+            {
+                return $"Tank {tankNumber} missing Turret";
+            }
+            
+            // Check Armor
+            if (string.IsNullOrEmpty(tank.armorInstanceId))
+            {
+                return $"Tank {tankNumber} missing Armor";
+            }
+            
+            // Check Engine Frame
+            if (string.IsNullOrEmpty(tank.engineFrameInstanceId))
+            {
+                return $"Tank {tankNumber} missing Engine Frame";
+            }
+            
+            // Check Turret AI
+            if (string.IsNullOrEmpty(tank.turretAIInstanceId))
+            {
+                return $"Tank {tankNumber} missing Turret AI";
+            }
+            
+            // Check Nav AI
+            if (string.IsNullOrEmpty(tank.navAIInstanceId))
+            {
+                return $"Tank {tankNumber} missing Nav AI";
+            }
+        }
+        
+        return string.Empty; // All tanks valid
+    }
+    
+    /// <summary>
+    /// Validates that each active tank's total weight does not exceed its engine frame capacity
+    /// Returns error message if exceeded, or empty string if valid
+    /// </summary>
+    private string ValidateTankWeightCapacities()
+    {
+        if (TankSlotJsonManager.Instance == null) return "Tank data not available!";
+        
+        var activeTanks = TankSlotJsonManager.Instance.GetActiveTankSlots();
+        
+        foreach (var tank in activeTanks)
+        {
+            int tankNumber = tank.slotIndex + 1; // Display as 1-based for user
+            
+            // Skip if no engine frame (already caught by component validation)
+            if (string.IsNullOrEmpty(tank.engineFrameInstanceId) || tank.engineWeightCapacity <= 0)
+                continue;
+            
+            // Check if total slot weight exceeds engine frame capacity
+            // totalWeight includes all components: armor + turret + engine + AI
+            if (tank.totalWeight > tank.engineWeightCapacity)
+            {
+                return $"Tank {tankNumber} is overweight";
+            }
+        }
+        
+        return string.Empty; // All tanks within capacity
     }
     
     /// <summary>

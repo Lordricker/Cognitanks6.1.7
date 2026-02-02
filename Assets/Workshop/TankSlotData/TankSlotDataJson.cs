@@ -32,6 +32,10 @@ public class TankSlotDataJson
     public string turretAIInstanceId;
     public string navAIInstanceId;
     
+    // AI weights (calculated from node count: 1 weight per 10 nodes)
+    public float turretAIWeight = 0f;
+    public float navAIWeight = 0f;
+    
     // Component stats - stored directly to avoid ScriptableObject reference issues
     [Header("Turret Stats")]
     public TurretTypeJson turretType = TurretTypeJson.DirectFire;
@@ -66,6 +70,7 @@ public class TankSlotDataJson
     public float armorWeight = 20f;     // kg - armor plating weight
     public float turretWeight = 15f;    // kg - turret assembly weight
     public float engineWeight = 15f;    // kg - engine weight
+    // Note: turretAIWeight and navAIWeight are defined above with AI references
     
     [Header("Physics Settings")]
     public float dragCoefficient = 0.5f;        // Rolling resistance (0.2-1.2)

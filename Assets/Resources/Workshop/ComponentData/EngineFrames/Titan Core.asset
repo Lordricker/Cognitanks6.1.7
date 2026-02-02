@@ -13,13 +13,13 @@ MonoBehaviour:
   m_Name: Titan Core
   m_EditorClassIdentifier: 
   title: Titan Core
-  description: more power but more weight
+  description: High weight capacity
   cost: 250
-  weight: 120
+  weight: 60
   modelPrefab: {fileID: 7789181595919938413, guid: a0df50254b253294d958b2f7ecd333c1, type: 3}
   category: 3
   instanceId: 
   customColor: {r: 1, g: 1, b: 1, a: 1}
-  weightCapacity: 150
-  enginePower: 14000
-  turningPower: 30000
+  weightCapacity: 130
+  enginePower: 15000
+  turningPower: 21000

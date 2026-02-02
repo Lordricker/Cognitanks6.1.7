@@ -496,6 +496,10 @@ public class AiEditorFileUI : MonoBehaviour
         jsonAsset.nodes = nodeList;
         jsonAsset.connections = connectionList;
         
+        // Calculate and save weight based on node count (1 weight per 10 nodes)
+        int nodeCount = nodeList.Count;
+        jsonAsset.weight = Mathf.FloorToInt(nodeCount / 10f);
+        
         // Generate execution data
         GenerateExecutionData(jsonAsset, nodeList, connectionList);
     }

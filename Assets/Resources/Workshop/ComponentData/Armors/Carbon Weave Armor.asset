@@ -13,10 +13,10 @@ MonoBehaviour:
   m_Name: Carbon Weave Armor
   m_EditorClassIdentifier: 
   title: Carbon Weave Armor
-  description: Light mobile armor
+  description: Light mobile armor created from woven carbon fibers
   cost: 180
   weight: 10
-  modelPrefab: {fileID: 1316712241508069579, guid: 25200d0eb4865bd40888054547fedd0e, type: 3}
+  modelPrefab: {fileID: 1152886449815452189, guid: 2e5d834e0a752ba4f8df33102ca3489e, type: 3}
   category: 1
   instanceId: 
   customColor: {r: 1, g: 1, b: 1, a: 1}

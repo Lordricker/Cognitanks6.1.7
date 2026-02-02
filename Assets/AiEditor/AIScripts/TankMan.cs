@@ -461,9 +461,6 @@ public class TankMan : MonoBehaviour
     /// </summary>
     private void UnstuckTank()
     {
-        // DISABLED: Return immediately to disable unstuck functionality
-        return;
-        
         // Don't apply unstuck when in wait action - tank is intentionally sitting still
         if (isInWaitAction)
             return;
@@ -652,9 +649,10 @@ public class TankMan : MonoBehaviour
             return;
         }
         
-        // Calculate total weight from individual components
+        // Calculate total weight from individual components (includes AI weights)
         totalWeight = tankSlotData.armorWeight + 
-                      tankSlotData.turretWeight + tankSlotData.engineWeight;
+                      tankSlotData.turretWeight + tankSlotData.engineWeight +
+                      tankSlotData.turretAIWeight + tankSlotData.navAIWeight;
         
         // Update tank slot data's calculated total (for consistency)
         tankSlotData.totalWeight = totalWeight;
@@ -889,6 +887,22 @@ public class TankMan : MonoBehaviour
             // Apply the same color as the main turret
             ApplyColorToModel(hammerDownInstance, turretColor);
             
+            // Apply skin if available (from ComponentCustomizationManager)
+            if (!string.IsNullOrEmpty(tankSlotData?.turretInstanceId) && ComponentCustomizationManager.Instance != null)
+            {
+                string skinPath = ComponentCustomizationManager.Instance.GetSkin(tankSlotData.turretInstanceId);
+                if (!string.IsNullOrEmpty(skinPath))
+                {
+                    ApplySkinToModel(hammerDownInstance, skinPath);
+                }
+                
+                string decalPath = ComponentCustomizationManager.Instance.GetDecal(tankSlotData.turretInstanceId);
+                if (!string.IsNullOrEmpty(decalPath))
+                {
+                    ApplyDecalToModel(hammerDownInstance, decalPath);
+                }
+            }
+            
             Debug.Log($"[TankMan] Pre-instantiated hammer animation prefab: {prefab.name} with color: {turretColor}");
         }
     }
@@ -909,6 +923,22 @@ public class TankMan : MonoBehaviour
             
             // Apply the same color as the main turret
             ApplyColorToModel(turretDeathModelInstance, turretColor);
+            
+            // Apply skin if available (from ComponentCustomizationManager)
+            if (!string.IsNullOrEmpty(tankSlotData?.turretInstanceId) && ComponentCustomizationManager.Instance != null)
+            {
+                string skinPath = ComponentCustomizationManager.Instance.GetSkin(tankSlotData.turretInstanceId);
+                if (!string.IsNullOrEmpty(skinPath))
+                {
+                    ApplySkinToModel(turretDeathModelInstance, skinPath);
+                }
+                
+                string decalPath = ComponentCustomizationManager.Instance.GetDecal(tankSlotData.turretInstanceId);
+                if (!string.IsNullOrEmpty(decalPath))
+                {
+                    ApplyDecalToModel(turretDeathModelInstance, decalPath);
+                }
+            }
             
             Debug.Log($"[TankMan] Pre-instantiated turret death model prefab: {prefab.name} with color: {turretColor}");
         }
@@ -932,6 +962,141 @@ public class TankMan : MonoBehaviour
                 else if (mat.HasProperty("_Color"))
                     mat.SetColor("_Color", color);
             }
+        }
+    }
+    
+    /// <summary>
+    /// Applies a skin texture to a model by loading from Resources and setting as main texture
+    /// Also loads additional maps (normal, height, metallic/roughness) from a subfolder with the same name
+    /// </summary>
+    private void ApplySkinToModel(GameObject model, string skinPath)
+    {
+        if (string.IsNullOrEmpty(skinPath))
+            return;
+            
+        // Load texture from Resources
+        Texture2D skinTexture = Resources.Load<Texture2D>(skinPath);
+        if (skinTexture == null)
+        {
+            Debug.LogWarning($"[TankMan] Could not load skin texture from: {skinPath}");
+            return;
+        }
+        
+        // Try to load additional maps from a subfolder with the same name as the texture
+        // e.g., if skinPath is "KritaArt/Skins/MySkin", look in "KritaArt/Skins/MySkin/" for additional maps
+        Texture2D normalMap = null;
+        Texture2D heightMap = null;
+        Texture2D metallicMap = null;
+        
+        string additionalMapsPath = skinPath; // Folder has same name as the texture file
+        Texture2D[] additionalTextures = Resources.LoadAll<Texture2D>(additionalMapsPath);
+        
+        if (additionalTextures != null && additionalTextures.Length > 0)
+        {
+            foreach (var tex in additionalTextures)
+            {
+                string nameLower = tex.name.ToLower();
+                if (nameLower.Contains("nor"))
+                {
+                    normalMap = tex;
+                    Debug.Log($"[TankMan] Found normal map: {tex.name}");
+                }
+                else if (nameLower.Contains("disp"))
+                {
+                    heightMap = tex;
+                    Debug.Log($"[TankMan] Found height map: {tex.name}");
+                }
+                else if (nameLower.Contains("rough"))
+                {
+                    metallicMap = tex;
+                    Debug.Log($"[TankMan] Found metallic/roughness map: {tex.name}");
+                }
+            }
+        }
+        
+        // Apply to all renderers (except SpriteRenderer which is for decals)
+        var renderers = model.GetComponentsInChildren<Renderer>();
+        foreach (var renderer in renderers)
+        {
+            if (renderer is SpriteRenderer) continue; // Skip sprite renderers
+            
+            foreach (var mat in renderer.materials)
+            {
+                // Apply base map / main texture
+                if (mat.HasProperty("_MainTex") || mat.HasProperty("_BaseMap"))
+                {
+                    if (mat.HasProperty("_MainTex"))
+                        mat.SetTexture("_MainTex", skinTexture);
+                    if (mat.HasProperty("_BaseMap"))
+                        mat.SetTexture("_BaseMap", skinTexture);
+                }
+                
+                // Apply normal map
+                if (normalMap != null && mat.HasProperty("_BumpMap"))
+                {
+                    mat.SetTexture("_BumpMap", normalMap);
+                    mat.EnableKeyword("_NORMALMAP");
+                }
+                
+                // Apply height/displacement map (parallax)
+                if (heightMap != null && mat.HasProperty("_ParallaxMap"))
+                {
+                    mat.SetTexture("_ParallaxMap", heightMap);
+                    mat.EnableKeyword("_PARALLAXMAP");
+                }
+                
+                // Apply metallic/roughness map
+                // In URP, roughness is stored in the alpha of the metallic map, or use _SmoothnessTextureChannel
+                if (metallicMap != null && mat.HasProperty("_MetallicGlossMap"))
+                {
+                    mat.SetTexture("_MetallicGlossMap", metallicMap);
+                    mat.EnableKeyword("_METALLICSPECGLOSSMAP");
+                }
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Applies a decal texture to a turret model's SpriteRenderer child
+    /// </summary>
+    private void ApplyDecalToModel(GameObject model, string decalPath)
+    {
+        if (string.IsNullOrEmpty(decalPath))
+            return;
+            
+        // Load texture from Resources
+        Texture2D decalTexture = Resources.Load<Texture2D>(decalPath);
+        if (decalTexture == null)
+        {
+            Debug.LogWarning($"[TankMan] Could not load decal texture from: {decalPath}");
+            return;
+        }
+        
+        // Find the "Decal" child object by name
+        Transform decalTransform = model.transform.Find("Decal");
+        if (decalTransform == null)
+        {
+            Debug.LogWarning($"[TankMan] No child named 'Decal' found on turret model {model.name}");
+            return;
+        }
+        
+        // Get the SpriteRenderer component on the Decal object
+        SpriteRenderer spriteRenderer = decalTransform.GetComponent<SpriteRenderer>();
+        if (spriteRenderer != null)
+        {
+            // Create a sprite from the texture
+            Sprite decalSprite = Sprite.Create(
+                decalTexture,
+                new Rect(0, 0, decalTexture.width, decalTexture.height),
+                new Vector2(0.5f, 0.5f),
+                100f // pixels per unit
+            );
+            spriteRenderer.sprite = decalSprite;
+            Debug.Log($"[TankMan] Applied decal sprite to {decalTransform.name} on {model.name}");
+        }
+        else
+        {
+            Debug.LogWarning($"[TankMan] No SpriteRenderer component found on 'Decal' child of {model.name}");
         }
     }
     

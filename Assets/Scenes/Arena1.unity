@@ -9215,6 +9215,7 @@ MonoBehaviour:
   - Turret vision is limited, check its stats by clicking a component name
   - When camera follows a tank the debugs in the top left will tell you what branch
     its using
+  - Ai files add 1 weight per 10 nodes
 --- !u!1 &1231053591
 GameObject:
   m_ObjectHideFlags: 0

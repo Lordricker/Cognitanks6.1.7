@@ -13,13 +13,13 @@ MonoBehaviour:
   m_Name: Vortex Engine
   m_EditorClassIdentifier: 
   title: Vortex Engine
-  description: more power but more weight
+  description: Middle Weight Class
   cost: 250
-  weight: 10
+  weight: 35
   modelPrefab: {fileID: 7789181595919938413, guid: 41f29cb8ced0e42428bafa8492c2ddcf, type: 3}
   category: 3
   instanceId: 
   customColor: {r: 1, g: 1, b: 1, a: 1}
-  weightCapacity: 40
+  weightCapacity: 90
   enginePower: 14000
   turningPower: 20000

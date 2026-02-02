@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Artillery
   m_EditorClassIdentifier: 
   title: Artillery
-  description: Long Range AOE Shel. High Dmg on direct hit.
+  description: Long Range AOE Shell. High Dmg on direct hit.
   cost: 1200
   weight: 20
   modelPrefab: {fileID: 6247987888857746735, guid: 0ae77e5428ccf1c488a5b73ef1162a96, type: 3}
@@ -22,10 +22,11 @@ MonoBehaviour:
   customColor: {r: 1, g: 1, b: 1, a: 1}
   turretType: 1
   animationPrefab: {fileID: 0}
+  deathModelPrefab: {fileID: 0}
   damage: 50
   range: 500
   shotspersec: 0.3
   bulletSpeed: 55
   knockback: High
-  visionRange: 300
+  visionRange: 500
   visionCone: 140

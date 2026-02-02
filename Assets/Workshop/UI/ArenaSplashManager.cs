@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using System.Collections;
 using System.Collections.Generic;
+using UnityEngine.Video;
 
 /// <summary>
 /// Manages arena/story selection buttons and displays corresponding splash images with fade effects
@@ -13,19 +14,27 @@ public class ArenaSplashManager : MonoBehaviour
     {
         public Button button;
         public GameObject splashImage;
+        
+        [Header("Video Settings (Optional)")]
+        public VideoClip videoClip;
+        public VideoPlayer videoPlayer;
+        public GameObject videoPanel;
     }
 
     [Header("UI References")]
     [SerializeField] private GameObject splashPanel;
     
-    [Header("Fade Settings")]
+    [Header("Animation Settings")]
     [SerializeField] private float fadeDuration = 0.3f;
+    [SerializeField] private float expandDuration = 0.5f;
+    [SerializeField] private float videoDelay = 2f;
     
     [Header("Arena Buttons and Splash Images")]
     [SerializeField] private List<ArenaButton> arenaButtons = new List<ArenaButton>();
 
     private CanvasGroup splashCanvasGroup;
     private Coroutine fadeCoroutine;
+    private Dictionary<GameObject, float> originalVideoHeights = new Dictionary<GameObject, float>();
 
     void Start()
     {
@@ -70,6 +79,50 @@ public class ArenaSplashManager : MonoBehaviour
             else
             {
                 Debug.LogWarning($"[ArenaSplashManager] Splash image at index {i} is null!");
+            }
+            
+            // Setup video panel if present
+            if (arenaButtons[i].videoPanel != null)
+            {
+                RectTransform rt = arenaButtons[i].videoPanel.GetComponent<RectTransform>();
+                if (rt != null)
+                {
+                    originalVideoHeights[arenaButtons[i].videoPanel] = rt.sizeDelta.y;
+                    arenaButtons[i].videoPanel.SetActive(false);
+                }
+                
+                // Setup video player
+                if (arenaButtons[i].videoPlayer != null)
+                {
+                    RawImage rawImage = arenaButtons[i].videoPanel.GetComponentInChildren<RawImage>();
+                    if (rawImage != null && arenaButtons[i].videoClip != null)
+                    {
+                        // Create RenderTexture matching video dimensions
+                        int width = (int)arenaButtons[i].videoClip.width;
+                        int height = (int)arenaButtons[i].videoClip.height;
+                        arenaButtons[i].videoPlayer.targetTexture = new RenderTexture(width, height, 0);
+                        rawImage.texture = arenaButtons[i].videoPlayer.targetTexture;
+                        
+                        // Set RawImage to stretch to fill its RectTransform
+                        RectTransform rawImageRT = rawImage.GetComponent<RectTransform>();
+                        if (rawImageRT != null)
+                        {
+                            // Anchor to stretch to fill parent
+                            rawImageRT.anchorMin = Vector2.zero;
+                            rawImageRT.anchorMax = Vector2.one;
+                            rawImageRT.offsetMin = Vector2.zero;
+                            rawImageRT.offsetMax = Vector2.zero;
+                        }
+                        
+                        // Set UV rect to display full video
+                        rawImage.uvRect = new Rect(0, 0, 1, 1);
+                    }
+                    arenaButtons[i].videoPlayer.clip = arenaButtons[i].videoClip;
+                    
+                    // Add completion event listener
+                    ArenaButton capturedButton = arenaButtons[i];
+                    arenaButtons[i].videoPlayer.loopPointReached += (vp) => OnVideoFinished(capturedButton);
+                }
             }
         }
 
@@ -153,6 +206,12 @@ public class ArenaSplashManager : MonoBehaviour
         {
             Debug.LogWarning($"[ArenaSplashManager] Splash image at index {index} is null!");
         }
+
+        // If this button has a video, start video playback after delay
+        if (arenaButtons[index].videoClip != null && arenaButtons[index].videoPanel != null)
+        {
+            StartCoroutine(PlayStoryVideo(arenaButtons[index]));
+        }
     }
 
     /// <summary>
@@ -167,6 +226,19 @@ public class ArenaSplashManager : MonoBehaviour
         if (fadeCoroutine != null)
         {
             StopCoroutine(fadeCoroutine);
+        }
+
+        // Stop all videos and hide video panels
+        foreach (var arenaButton in arenaButtons)
+        {
+            if (arenaButton.videoPlayer != null)
+            {
+                arenaButton.videoPlayer.Stop();
+            }
+            if (arenaButton.videoPanel != null)
+            {
+                arenaButton.videoPanel.SetActive(false);
+            }
         }
 
         // Fade out and deactivate
@@ -198,5 +270,88 @@ public class ArenaSplashManager : MonoBehaviour
     {
         yield return StartCoroutine(FadeCanvasGroup(splashCanvasGroup, splashCanvasGroup.alpha, 0f, fadeDuration));
         splashCanvasGroup.gameObject.SetActive(false);
+    }
+
+    /// <summary>
+    /// Coroutine to play story video after delay
+    /// </summary>
+    private IEnumerator PlayStoryVideo(ArenaButton arenaButton)
+    {
+        // Wait for the specified delay
+        yield return new WaitForSeconds(videoDelay);
+
+        // Expand the video window vertically
+        if (arenaButton.videoPanel != null)
+        {
+            RectTransform videoRectTransform = arenaButton.videoPanel.GetComponent<RectTransform>();
+            if (videoRectTransform != null)
+            {
+                arenaButton.videoPanel.SetActive(true);
+                float targetHeight = originalVideoHeights[arenaButton.videoPanel];
+                StartCoroutine(ExpandVideoWindow(videoRectTransform, targetHeight));
+            }
+        }
+
+        // Play the video
+        if (arenaButton.videoPlayer != null)
+        {
+            arenaButton.videoPlayer.Play();
+        }
+    }
+
+    /// <summary>
+    /// Coroutine to expand video window vertically
+    /// </summary>
+    private IEnumerator ExpandVideoWindow(RectTransform rectTransform, float targetHeight)
+    {
+        float elapsed = 0f;
+        Vector2 startSize = new Vector2(rectTransform.sizeDelta.x, 0f);
+        Vector2 endSize = new Vector2(rectTransform.sizeDelta.x, targetHeight);
+
+        while (elapsed < expandDuration)
+        {
+            elapsed += Time.deltaTime;
+            rectTransform.sizeDelta = Vector2.Lerp(startSize, endSize, elapsed / expandDuration);
+            yield return null;
+        }
+
+        rectTransform.sizeDelta = endSize;
+    }
+
+    /// <summary>
+    /// Called when video finishes playing
+    /// </summary>
+    private void OnVideoFinished(ArenaButton arenaButton)
+    {
+        if (arenaButton.videoPanel != null)
+        {
+            StartCoroutine(CollapseVideoPanel(arenaButton));
+        }
+    }
+
+    /// <summary>
+    /// Coroutine to collapse video panel and deactivate
+    /// </summary>
+    private IEnumerator CollapseVideoPanel(ArenaButton arenaButton)
+    {
+        RectTransform rectTransform = arenaButton.videoPanel.GetComponent<RectTransform>();
+        if (rectTransform != null)
+        {
+            float elapsed = 0f;
+            float startHeight = originalVideoHeights[arenaButton.videoPanel];
+            Vector2 startSize = new Vector2(rectTransform.sizeDelta.x, startHeight);
+            Vector2 endSize = new Vector2(rectTransform.sizeDelta.x, 0f);
+
+            while (elapsed < expandDuration)
+            {
+                elapsed += Time.deltaTime;
+                rectTransform.sizeDelta = Vector2.Lerp(startSize, endSize, elapsed / expandDuration);
+                yield return null;
+            }
+
+            rectTransform.sizeDelta = endSize;
+        }
+        
+        arenaButton.videoPanel.SetActive(false);
     }
 }

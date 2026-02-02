@@ -246,6 +246,7 @@ public class WorkshopUIManager : MonoBehaviour
                 {
                     Debug.LogWarning($"[WorkshopUIManager] Clearing invalid turret AI reference in {slotData.slotName}: {slotData.turretAIInstanceId}");
                     slotData.turretAIInstanceId = "";
+                    slotData.turretAIWeight = 0f;
                     needsUpdate = true;
                 }
             }
@@ -266,14 +267,15 @@ public class WorkshopUIManager : MonoBehaviour
                 {
                     Debug.LogWarning($"[WorkshopUIManager] Clearing invalid nav AI reference in {slotData.slotName}: {slotData.navAIInstanceId}");
                     slotData.navAIInstanceId = "";
+                    slotData.navAIWeight = 0f;
                     needsUpdate = true;
                 }
             }
             
-            // Recalculate total weight if anything was cleared
+            // Recalculate total weight if anything was cleared (includes AI weights)
             if (needsUpdate)
             {
-                slotData.totalWeight = slotData.engineWeight + slotData.armorWeight + slotData.turretWeight;
+                slotData.totalWeight = slotData.engineWeight + slotData.armorWeight + slotData.turretWeight + slotData.turretAIWeight + slotData.navAIWeight;
                 tankSlotJsonManager.UpdateTankSlot(slotData.slotIndex, slotData);
             }
         }
@@ -1026,15 +1028,21 @@ public class WorkshopUIManager : MonoBehaviour
                     if (component is AiTreeAsset aiAsset)
                     {
                         if (aiAsset.branchType == AiEditor.AiBranchType.Turret)
+                        {
                             slotData.turretAIInstanceId = "";
+                            slotData.turretAIWeight = 0f;
+                        }
                         else if (aiAsset.branchType == AiEditor.AiBranchType.Nav)
+                        {
                             slotData.navAIInstanceId = "";
+                            slotData.navAIWeight = 0f;
+                        }
                     }
                     break;
             }
             
-            // Recalculate total weight after component removal
-            slotData.totalWeight = slotData.armorWeight + slotData.turretWeight + slotData.engineWeight;
+            // Recalculate total weight after component removal (includes AI weights)
+            slotData.totalWeight = slotData.armorWeight + slotData.turretWeight + slotData.engineWeight + slotData.turretAIWeight + slotData.navAIWeight;
         }
         else
         {
@@ -1082,15 +1090,23 @@ public class WorkshopUIManager : MonoBehaviour
                     if (component is AiTreeAsset aiAsset)
                     {
                         if (aiAsset.branchType == AiEditor.AiBranchType.Turret)
+                        {
                             slotData.turretAIInstanceId = component.instanceId;
+                            // Use the weight stored in the component (calculated from node count when saved)
+                            slotData.turretAIWeight = component.weight;
+                        }
                         else if (aiAsset.branchType == AiEditor.AiBranchType.Nav)
+                        {
                             slotData.navAIInstanceId = component.instanceId;
+                            // Use the weight stored in the component (calculated from node count when saved)
+                            slotData.navAIWeight = component.weight;
+                        }
                     }
                     break;
             }
             
-            // Recalculate total weight after component assignment
-            slotData.totalWeight = slotData.armorWeight + slotData.turretWeight + slotData.engineWeight;
+            // Recalculate total weight after component assignment (includes AI weights)
+            slotData.totalWeight = slotData.armorWeight + slotData.turretWeight + slotData.engineWeight + slotData.turretAIWeight + slotData.navAIWeight;
             
             slotData.displayName = slot.TankName;
         }
@@ -1192,11 +1208,24 @@ public class WorkshopUIManager : MonoBehaviour
         foreach (var comp in equipped.Values)
         {
             if (comp != null)
-                totalWeight += comp.weight;
+            {
+                // Skip AI components - their weight is tracked separately in turretAIWeight/navAIWeight
+                if (comp.category != ComponentCategory.AITree)
+                {
+                    totalWeight += comp.weight;
+                }
+            }
+        }
+        
+        // Add AI weights from slot data (stored separately to avoid double counting)
+        var slotData = TankSlotJsonManager.Instance.GetTankSlot(slot.slotIndex);
+        if (slotData != null)
+        {
+            totalWeight += slotData.turretAIWeight + slotData.navAIWeight;
         }
         
         // Save to JSON data
-        var slotData = TankSlotJsonManager.Instance.GetTankSlot(slot.slotIndex);
+        slotData = TankSlotJsonManager.Instance.GetTankSlot(slot.slotIndex);
         if (slotData != null)
         {
             slotData.totalWeight = totalWeight;

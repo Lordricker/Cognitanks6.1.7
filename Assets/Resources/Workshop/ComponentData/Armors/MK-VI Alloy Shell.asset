@@ -13,11 +13,12 @@ MonoBehaviour:
   m_Name: MK-VI Alloy Shell
   m_EditorClassIdentifier: 
   title: MK-VI Alloy Shell
-  description: Light mobile armor
-  cost: 100
-  weight: 20
-  modelPrefab: {fileID: 1316712241508069579, guid: 216fa76989e62404ea45b3f393257c64, type: 3}
+  description: Heavy plates made of a combination of hardened steel and depleted
+    uranium
+  cost: 400
+  weight: 60
+  modelPrefab: {fileID: 1214209721320138314, guid: 29ccf167f1aca184385f5af15104cd76, type: 3}
   category: 1
   instanceId: 
   customColor: {r: 1, g: 1, b: 1, a: 1}
-  HP: 20
+  HP: 100
