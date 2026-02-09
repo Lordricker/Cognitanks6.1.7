@@ -20,6 +20,9 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Arena2.unity
     guid: 3a16ce6ebbbace047a7e15d4be3e9dae
+  - enabled: 1
+    path: Assets/Scenes/Multiplayer.unity
+    guid: 4b71f5f43e9ac8545982245c885efa6d
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   m_UseUCBPForAssetBundles: 0

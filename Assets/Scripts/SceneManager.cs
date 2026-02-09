@@ -34,6 +34,17 @@ public class SceneManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Load the Multiplayer scene for online matches
+    /// </summary>
+    public void LoadMultiplayer()
+    {
+        if (showDebugMessages)
+            Debug.Log("Loading Multiplayer scene...");
+        
+        UnityEngine.SceneManagement.SceneManager.LoadScene("Multiplayer");
+    }
+
+    /// <summary>
     /// Load Arena1 scene for tank battles
     /// </summary>
     public void LoadArena1()

@@ -11,31 +11,70 @@ public class DiscordLoginUI : MonoBehaviour
     [SerializeField] private Color loggedInColor = new Color(0.047f, 0.702f, 0f, 1f); // #0CB300
     [SerializeField] private Color loggedOutColor = new Color(0.455f, 0.318f, 0.337f, 1f); // #745156
     
+    private bool subscribedToEvents = false;
+    
     private void Start()
     {
+        Debug.LogWarning("====== [DiscordLoginUI] START CALLED - SCRIPT IS ALIVE! ======");
+        
         // Setup button listeners
         if (loginButton != null)
+        {
             loginButton.onClick.AddListener(OnLoginButtonClicked);
+            Debug.LogWarning("[DiscordLoginUI] Login button listener added");
+        }
+        else
+        {
+            Debug.LogError("[DiscordLoginUI] loginButton is NOT assigned in Inspector!");
+        }
             
         if (logoutButton != null)
             logoutButton.onClick.AddListener(OnLogoutButtonClicked);
         
-        // Subscribe to Discord Manager events
+        TrySubscribeToDiscordManager();
+        UpdateUI();
+    }
+    
+    private void TrySubscribeToDiscordManager()
+    {
+        if (subscribedToEvents) return;
+        
         if (DiscordManager.Instance != null)
         {
             DiscordManager.Instance.OnLoginSuccess += HandleLoginSuccess;
             DiscordManager.Instance.OnLoginFailed += HandleLoginFailed;
             DiscordManager.Instance.OnLogout += HandleLogout;
+            subscribedToEvents = true;
+            Debug.Log("[DiscordLoginUI] Subscribed to DiscordManager events");
+        }
+        else
+        {
+            Debug.LogWarning("[DiscordLoginUI] DiscordManager.Instance not ready yet, will retry...");
+        }
+    }
+    
+    private void Update()
+    {
+        // Retry subscribing if DiscordManager wasn't ready at Start
+        if (!subscribedToEvents)
+        {
+            TrySubscribeToDiscordManager();
         }
         
-        UpdateUI();
+        // Update UI when logged in
+        if (DiscordManager.Instance != null && DiscordManager.Instance.IsLoggedIn())
+        {
+            UpdateUI();
+        }
     }
     
     private void OnLoginButtonClicked()
     {
+        Debug.LogError("====== [DiscordLoginUI] LOGIN BUTTON CLICKED! ======");
+        
         if (DiscordManager.Instance != null)
         {
-            Debug.Log("[DiscordLoginUI] Login button clicked");
+            Debug.LogWarning($"[DiscordLoginUI] DiscordManager found. IsLoggedIn: {DiscordManager.Instance.IsLoggedIn()}");
             DiscordManager.Instance.Login();
         }
         else
@@ -54,19 +93,19 @@ public class DiscordLoginUI : MonoBehaviour
     
     private void HandleLoginSuccess()
     {
-        Debug.Log("[DiscordLoginUI] Login successful");
+        Debug.Log("[DiscordLoginUI] >>> LOGIN SUCCESS EVENT RECEIVED <<<");
         UpdateUI();
     }
     
     private void HandleLoginFailed(string error)
     {
-        Debug.LogError($"[DiscordLoginUI] Login failed: {error}");
+        Debug.LogError($"[DiscordLoginUI] >>> LOGIN FAILED: {error} <<<");
         UpdateUI();
     }
     
     private void HandleLogout()
     {
-        Debug.Log("[DiscordLoginUI] Logged out");
+        Debug.Log("[DiscordLoginUI] >>> LOGOUT EVENT RECEIVED <<<");
         UpdateUI();
     }
     

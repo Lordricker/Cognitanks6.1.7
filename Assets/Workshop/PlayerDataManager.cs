@@ -20,6 +20,8 @@ public class PlayerData
     public List<OwnedComponentEntry> ownedComponents = new List<OwnedComponentEntry>(); // IDs and instanceIds of owned components
     public List<TankLoadoutSave> tankLoadouts = new List<TankLoadoutSave>(); // One per tank slot
     public int playerCash = 1500; // Player's current cash amount
+    public int playerElo = 1000; // Player's ELO rating (synced from Firebase)
+    public string lastKnownDiscordId = ""; // Cache Discord ID for offline access
 }
 
 [Serializable]
@@ -699,4 +701,47 @@ public class PlayerDataManager : MonoBehaviour
             return false;
         }
     }
+
+    #region ELO Management
+
+    /// <summary>
+    /// Get the locally cached player ELO
+    /// </summary>
+    public int GetPlayerElo()
+    {
+        return playerData.playerElo;
+    }
+
+    /// <summary>
+    /// Update the locally cached player ELO (called after Firebase sync)
+    /// </summary>
+    public void SetPlayerElo(int newElo)
+    {
+        playerData.playerElo = newElo;
+        SavePlayerData();
+        Debug.Log($"[PlayerDataManager] Player ELO updated to: {newElo}");
+    }
+
+    /// <summary>
+    /// Cache the Discord ID for reference
+    /// </summary>
+    public void SetDiscordId(string discordId)
+    {
+        if (playerData.lastKnownDiscordId != discordId)
+        {
+            playerData.lastKnownDiscordId = discordId;
+            SavePlayerData();
+            Debug.Log($"[PlayerDataManager] Discord ID cached: {discordId}");
+        }
+    }
+
+    /// <summary>
+    /// Get the cached Discord ID
+    /// </summary>
+    public string GetCachedDiscordId()
+    {
+        return playerData.lastKnownDiscordId;
+    }
+
+    #endregion
 }
