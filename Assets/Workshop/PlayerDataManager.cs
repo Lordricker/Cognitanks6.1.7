@@ -19,7 +19,7 @@ public class PlayerData
 {
     public List<OwnedComponentEntry> ownedComponents = new List<OwnedComponentEntry>(); // IDs and instanceIds of owned components
     public List<TankLoadoutSave> tankLoadouts = new List<TankLoadoutSave>(); // One per tank slot
-    public int playerCash = 1500; // Player's current cash amount
+    public int playerCash = 15000; // Player's current cash amount
     public int playerElo = 1000; // Player's ELO rating (synced from Firebase)
     public string lastKnownDiscordId = ""; // Cache Discord ID for offline access
 }

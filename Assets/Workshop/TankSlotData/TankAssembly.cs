@@ -125,8 +125,10 @@ public class TankAssembly : MonoBehaviour
                 engineFrame.transform.localRotation = Quaternion.identity;
                 ApplyColorToTreadMount(engineFrame, data.engineFrameColor.ToUnityColor());
                 
-                // Apply skin if available (from ComponentCustomizationManager)
-                string engineSkinPath = ComponentCustomizationManager.Instance?.GetSkin(data.engineFrameInstanceId);
+                // Apply skin: use JSON path first, fallback to ComponentCustomizationManager
+                string engineSkinPath = !string.IsNullOrEmpty(data.engineFrameSkinPath) 
+                    ? data.engineFrameSkinPath
+                    : ComponentCustomizationManager.Instance?.GetSkin(data.engineFrameInstanceId);
                 if (!string.IsNullOrEmpty(engineSkinPath))
                 {
                     ApplySkinToModel(engineFrame, engineSkinPath);
@@ -149,8 +151,10 @@ public class TankAssembly : MonoBehaviour
                 armor.transform.localPosition += new Vector3(0f, armorYOffset, 0f);
                 ApplyColorToModel(armor, data.armorColor.ToUnityColor());
                 
-                // Apply skin if available (from ComponentCustomizationManager)
-                string armorSkinPath = ComponentCustomizationManager.Instance?.GetSkin(data.armorInstanceId);
+                // Apply skin: use JSON path first, fallback to ComponentCustomizationManager
+                string armorSkinPath = !string.IsNullOrEmpty(data.armorSkinPath) 
+                    ? data.armorSkinPath
+                    : ComponentCustomizationManager.Instance?.GetSkin(data.armorInstanceId);
                 if (!string.IsNullOrEmpty(armorSkinPath))
                 {
                     ApplySkinToModel(armor, armorSkinPath);
@@ -174,15 +178,19 @@ public class TankAssembly : MonoBehaviour
                     turretInstance = Instantiate(turretPrefab, turretPivot.position, turretPivot.rotation, turretPivot);
                 ApplyColorToModel(turretInstance, data.turretColor.ToUnityColor());
                 
-                // Apply skin if available (from ComponentCustomizationManager)
-                string turretSkinPath = ComponentCustomizationManager.Instance?.GetSkin(data.turretInstanceId);
+                // Apply skin: use JSON path first, fallback to ComponentCustomizationManager
+                string turretSkinPath = !string.IsNullOrEmpty(data.turretSkinPath) 
+                    ? data.turretSkinPath
+                    : ComponentCustomizationManager.Instance?.GetSkin(data.turretInstanceId);
                 if (!string.IsNullOrEmpty(turretSkinPath))
                 {
                     ApplySkinToModel(turretInstance, turretSkinPath);
                 }
                 
-                // Apply decal if available (from ComponentCustomizationManager)
-                string turretDecalPath = ComponentCustomizationManager.Instance?.GetDecal(data.turretInstanceId);
+                // Apply decal: use JSON path first, fallback to ComponentCustomizationManager
+                string turretDecalPath = !string.IsNullOrEmpty(data.turretDecalPath) 
+                    ? data.turretDecalPath
+                    : ComponentCustomizationManager.Instance?.GetDecal(data.turretInstanceId);
                 if (!string.IsNullOrEmpty(turretDecalPath))
                 {
                     ApplyDecalToModel(turretInstance, turretDecalPath);

@@ -1302,6 +1302,38 @@ public class WorkshopUIManager : MonoBehaviour
             ComponentCustomizationManager.Instance.SetSkin(component.instanceId, skinPath);
         }
         
+        // Also save skin path to tank slot JSON for any tanks using this component
+        if (TankSlotJsonManager.Instance != null)
+        {
+            for (int i = 0; i < tankSlots.Count; i++)
+            {
+                var slotData = TankSlotJsonManager.Instance.GetTankSlot(i);
+                bool updated = false;
+                
+                if (slotData.engineFrameInstanceId == component.instanceId)
+                {
+                    slotData.engineFrameSkinPath = skinPath ?? "";
+                    updated = true;
+                }
+                else if (slotData.armorInstanceId == component.instanceId)
+                {
+                    slotData.armorSkinPath = skinPath ?? "";
+                    updated = true;
+                }
+                else if (slotData.turretInstanceId == component.instanceId)
+                {
+                    slotData.turretSkinPath = skinPath ?? "";
+                    updated = true;
+                }
+                
+                if (updated)
+                {
+                    TankSlotJsonManager.Instance.UpdateTankSlot(i, slotData);
+                    Debug.Log($"[WorkshopUIManager] Updated skin path for tank slot {i}");
+                }
+            }
+        }
+        
         // Refresh preview
         if (modelPreview != null)
         {
@@ -1336,6 +1368,22 @@ public class WorkshopUIManager : MonoBehaviour
         if (ComponentCustomizationManager.Instance != null)
         {
             ComponentCustomizationManager.Instance.SetDecal(component.instanceId, decalPath);
+        }
+        
+        // Also save decal path to tank slot JSON for any tanks using this turret
+        if (TankSlotJsonManager.Instance != null)
+        {
+            for (int i = 0; i < tankSlots.Count; i++)
+            {
+                var slotData = TankSlotJsonManager.Instance.GetTankSlot(i);
+                
+                if (slotData.turretInstanceId == component.instanceId)
+                {
+                    slotData.turretDecalPath = decalPath ?? "";
+                    TankSlotJsonManager.Instance.UpdateTankSlot(i, slotData);
+                    Debug.Log($"[WorkshopUIManager] Updated decal path for tank slot {i}");
+                }
+            }
         }
         
         // Refresh preview

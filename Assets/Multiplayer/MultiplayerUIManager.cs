@@ -200,6 +200,9 @@ public class MultiplayerUIManager : MonoBehaviour
         selectedMatchType = matchType;
         UpdateMatchTypeButtons();
         Debug.Log($"[MultiplayerUIManager] Selected match type: {matchType}");
+        
+        // Refresh match list to apply the new filter
+        RefreshMatchLists();
     }
 
     private void UpdateMatchTypeButtons()
@@ -268,15 +271,28 @@ public class MultiplayerUIManager : MonoBehaviour
         // 2. Check match type is selected
         int requiredTanks = (int)selectedMatchType;
         
-        // 3. Check active tank slots
+        // 3. Count active tank slots (isActive == true only)
+        var allSlots = TankSlotJsonManager.Instance?.GetAllTankSlots();
         var activeTankSlots = TankSlotJsonManager.Instance?.GetActiveTankSlots();
-        if (activeTankSlots == null || activeTankSlots.Count < requiredTanks)
+        int activeCount = activeTankSlots?.Count ?? 0;
+        
+        Debug.Log($"[MultiplayerUIManager] PostTankTeam: selectedMatchType={selectedMatchType}, requiredTanks={requiredTanks}, activeCount={activeCount}");
+        
+        if (activeCount < requiredTanks)
         {
-            ShowDebugMessage($"Need {requiredTanks} active tank slots! You have {activeTankSlots?.Count ?? 0}");
+            ShowDebugMessage($"Need {requiredTanks} active tanks! You have {activeCount}");
+            yield break;
+        }
+        
+        // 4. Validate all active tanks have all 5 components
+        string componentError = SceneManager.ValidateActiveTankComponents();
+        if (!string.IsNullOrEmpty(componentError))
+        {
+            ShowDebugMessage(componentError);
             yield break;
         }
 
-        // 4. Check if player already has an active post of this type
+        // 5. Check if player already has an active post of this type
         string odiscordUserId = DiscordManager.Instance.GetUserId();
         bool hasExistingPost = false;
         bool checkComplete = false;
@@ -295,7 +311,7 @@ public class MultiplayerUIManager : MonoBehaviour
             yield break;
         }
 
-        // 5. Build match post data
+        // 6. Build match post data (takes first N active tanks)
         string teamName = teamNameInput?.text ?? "Team";
         if (string.IsNullOrWhiteSpace(teamName))
             teamName = $"{DiscordManager.Instance.GetUsername()}'s Team";
@@ -311,7 +327,7 @@ public class MultiplayerUIManager : MonoBehaviour
             tankConfigs = BuildTankConfigs(activeTankSlots, requiredTanks)
         };
 
-        // 6. Post to Firebase
+        // 7. Post to Firebase
         FirebaseMatchService.Instance.PostMatch(postData,
             (matchId) => {
                 ShowDebugMessage("Match posted successfully!", false);
@@ -322,7 +338,7 @@ public class MultiplayerUIManager : MonoBehaviour
             });
     }
 
-    private List<TankConfigReference> BuildTankConfigs(List<TankSlotDataJson> activeSlots, int count)
+    public List<TankConfigReference> BuildTankConfigs(List<TankSlotDataJson> activeSlots, int count)
     {
         List<TankConfigReference> configs = new List<TankConfigReference>();
         
@@ -333,6 +349,8 @@ public class MultiplayerUIManager : MonoBehaviour
             // Read AI scripts from files
             string turretAI = ReadAIScriptFile(slot.turretAIInstanceId);
             string navAI = ReadAIScriptFile(slot.navAIInstanceId);
+            
+            Debug.Log($"[MultiplayerUIManager] BuildTankConfigs Tank {i}: turretAIId={slot.turretAIInstanceId}, navAIId={slot.navAIInstanceId}, turretAI_Length={turretAI?.Length ?? 0}, navAI_Length={navAI?.Length ?? 0}");
             
             configs.Add(new TankConfigReference
             {
@@ -380,18 +398,81 @@ public class MultiplayerUIManager : MonoBehaviour
         return configs;
     }
 
-    private string ReadAIScriptFile(string aiInstanceId)
+    public string ReadAIScriptFile(string aiInstanceId)
     {
         if (string.IsNullOrEmpty(aiInstanceId))
-            return "";
-        
-        string aiTreePath = Path.Combine(Application.persistentDataPath, "AiTrees", $"{aiInstanceId}.json");
-        if (File.Exists(aiTreePath))
         {
-            return File.ReadAllText(aiTreePath);
+            Debug.LogWarning("[MultiplayerUIManager] ReadAIScriptFile: aiInstanceId is empty");
+            return "";
         }
         
+        string aiTreesFolder = Path.Combine(Application.persistentDataPath, "AiTrees");
+        Debug.Log($"[MultiplayerUIManager] ReadAIScriptFile: Searching for instanceId={aiInstanceId} in {aiTreesFolder}");
+        
+        if (!Directory.Exists(aiTreesFolder))
+        {
+            Debug.LogWarning($"[MultiplayerUIManager] ReadAIScriptFile: AiTrees folder not found: {aiTreesFolder}");
+            return "";
+        }
+        
+        // Search all JSON files in AiTrees and all subdirectories
+        string[] jsonFiles = Directory.GetFiles(aiTreesFolder, "*.json", SearchOption.AllDirectories);
+        Debug.Log($"[MultiplayerUIManager] ReadAIScriptFile: Searching {jsonFiles.Length} total files in AiTrees");
+        
+        foreach (string filePath in jsonFiles)
+        {
+            try
+            {
+                // Quick check: if the filename contains the instanceId, it's very likely a match
+                string fileName = Path.GetFileNameWithoutExtension(filePath);
+                string jsonContent = File.ReadAllText(filePath);
+                
+                // Use the robust extraction method to get the actual instanceId from the JSON
+                string foundInstanceId = ExtractInstanceIdFromJson(jsonContent);
+                
+                if (foundInstanceId == aiInstanceId)
+                {
+                    Debug.Log($"[MultiplayerUIManager] ReadAIScriptFile: ✓ Found {aiInstanceId} in {Path.GetFileName(filePath)}, length={jsonContent.Length}");
+                    return jsonContent;
+                }
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning($"[MultiplayerUIManager] ReadAIScriptFile: Error reading {filePath}: {e.Message}");
+            }
+        }
+        
+        Debug.LogWarning($"[MultiplayerUIManager] ReadAIScriptFile: instanceId '{aiInstanceId}' not found in any AI file under {aiTreesFolder}");
         return "";
+    }
+
+    /// <summary>
+    /// Extract instanceId value from AI JSON (handles any whitespace around the colon)
+    /// </summary>
+    private string ExtractInstanceIdFromJson(string json)
+    {
+        try
+        {
+            int idx = json.IndexOf("\"instanceId\"");
+            if (idx < 0) return "";
+            
+            // Skip past "instanceId", then skip whitespace and colon
+            int colonIdx = json.IndexOf(':', idx + 12);
+            if (colonIdx < 0) return "";
+            
+            // Skip whitespace after colon, then find opening quote
+            int startQuote = json.IndexOf('"', colonIdx + 1);
+            if (startQuote < 0) return "";
+            
+            int endQuote = json.IndexOf('"', startQuote + 1);
+            if (endQuote < 0) return "";
+            
+            return json.Substring(startQuote + 1, endQuote - startQuote - 1);
+        }
+        catch
+        {
+            return "";
+        }
     }
 
     #endregion
@@ -425,12 +506,18 @@ public class MultiplayerUIManager : MonoBehaviour
             currentUserId = DiscordManager.Instance.GetUserId();
         }
         
+        // Filter to only show matches matching the currently selected match type
+        int displayedCount = 0;
         foreach (var match in matches)
         {
-            CreateMatchEntry(match, currentUserId);
+            if (match.matchType == selectedMatchType)
+            {
+                CreateMatchEntry(match, currentUserId);
+                displayedCount++;
+            }
         }
         
-        Debug.Log($"[MultiplayerUIManager] Displayed {matches.Count} available matches");
+        Debug.Log($"[MultiplayerUIManager] Displayed {displayedCount}/{matches.Count} matches (filter: {selectedMatchType})");
     }
 
     private void OnReplaysLoaded(List<ReplayData> replays)

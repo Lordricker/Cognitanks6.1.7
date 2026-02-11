@@ -2,6 +2,8 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using MultiplayerData;
+using System.Collections;
+using System.Collections.Generic;
 
 /// <summary>
 /// UI component for a multiplayer entry in the scroll views
@@ -44,10 +46,11 @@ public class MultiplayerEntryUI : MonoBehaviour
             playerEloText.text = $"ELO: {match.playerElo}";
 
         // Setup button visibility based on ownership
+        // For testing: show both Join and Remove buttons for owners
         if (isOwner)
         {
-            // Owner sees Remove button only
-            SetButtonVisibility(joinMatch: false, remove: true, viewReplay: false);
+            // Owner sees both Join (for testing) and Remove buttons
+            SetButtonVisibility(joinMatch: true, remove: true, viewReplay: false);
         }
         else
         {
@@ -110,22 +113,109 @@ public class MultiplayerEntryUI : MonoBehaviour
         if (currentMatch == null)
             return;
         
-        Debug.Log($"[MultiplayerEntryUI] Joining match: {currentMatch.matchId}");
-        
-        // TODO: Implement join match flow
-        // 1. Download match config
-        // 2. Build challenger's tank configs
-        // 3. Start the match scene with both teams
-        // 4. After match, submit result to Firebase
-        
-        if (MultiplayerUIManager.Instance != null)
+        StartCoroutine(JoinMatchCoroutine());
+    }
+    
+    private IEnumerator JoinMatchCoroutine()
+    {
+        Debug.Log($"[MultiplayerEntryUI] Joining match: {currentMatch.matchId} posted by {currentMatch.discordUsername}");
+
+        // 1. Validate TankSlotJsonManager
+        if (TankSlotJsonManager.Instance == null)
         {
-            MultiplayerUIManager.Instance.ShowDebugMessage("Join match - Not yet implemented", true);
+            ShowMessage("Error: TankSlotJsonManager not ready");
+            yield break;
+        }
+
+        // 2. Count active tank slots (isActive == true only, same as posting)
+        var activeTankSlots = TankSlotJsonManager.Instance.GetActiveTankSlots();
+        int activeCount = activeTankSlots?.Count ?? 0;
+        int requiredTanks = (int)currentMatch.matchType; // 4 or 10
+        
+        Debug.Log($"[MultiplayerEntryUI] Active tanks: {activeCount}, Required: {requiredTanks}");
+        
+        if (activeCount < requiredTanks)
+        {
+            ShowMessage($"Need {requiredTanks} active tanks! You have {activeCount}");
+            yield break;
         }
         
-        // For now, just log the action
-        // In full implementation:
-        // MultiplayerMatchRunner.Instance.StartMatch(currentMatch);
+        // 3. Validate all active tanks have all 5 components
+        string componentError = SceneManager.ValidateActiveTankComponents();
+        if (!string.IsNullOrEmpty(componentError))
+        {
+            ShowMessage(componentError);
+            yield break;
+        }
+
+        // 4. Build challenger tank configs (with AI file contents)
+        List<TankConfigReference> challengerConfigs;
+        if (MultiplayerUIManager.Instance != null)
+        {
+            challengerConfigs = MultiplayerUIManager.Instance.BuildTankConfigs(activeTankSlots, requiredTanks);
+        }
+        else
+        {
+            ShowMessage("Error: MultiplayerUIManager not found");
+            yield break;
+        }
+        
+        // 5. Verify AI was loaded for all challenger tanks
+        for (int i = 0; i < challengerConfigs.Count; i++)
+        {
+            var cfg = challengerConfigs[i];
+            if (string.IsNullOrEmpty(cfg.turretAIScript) || string.IsNullOrEmpty(cfg.navAIScript))
+            {
+                Debug.LogWarning($"[MultiplayerEntryUI] Challenger tank {i} ({cfg.displayName}) missing AI: turret={cfg.turretAIScript?.Length ?? 0}, nav={cfg.navAIScript?.Length ?? 0}");
+            }
+        }
+        
+        // 6. Verify poster match has AI data
+        int posterAIMissing = 0;
+        foreach (var cfg in currentMatch.tankConfigs)
+        {
+            if (string.IsNullOrEmpty(cfg.turretAIScript) || string.IsNullOrEmpty(cfg.navAIScript))
+                posterAIMissing++;
+        }
+        if (posterAIMissing > 0)
+        {
+            Debug.LogWarning($"[MultiplayerEntryUI] {posterAIMissing} poster tanks are missing AI data from server!");
+        }
+
+        // 7. Temp AI files are written during arena spawning by ConfigToSlotData()
+        //    No need to pre-write them here — they survive because SetTankSlotData loads
+        //    AI during Assemble() before Clear() cleans up temp files.
+
+        // 8. Generate a deterministic match seed
+        int matchSeed = currentMatch.matchId.GetHashCode();
+
+        // 9. Populate MultiplayerMatchRunner
+        MultiplayerMatchRunner.IsMultiplayerMatch = true;
+        MultiplayerMatchRunner.PosterMatch = currentMatch;
+        MultiplayerMatchRunner.ChallengerTankConfigs = challengerConfigs;
+        MultiplayerMatchRunner.ChallengerDiscordId = DiscordManager.Instance?.GetUserId() ?? "unknown";
+        MultiplayerMatchRunner.ChallengerUsername = DiscordManager.Instance?.GetUsername() ?? "Unknown";
+        MultiplayerMatchRunner.ChallengerTeamName = "Challenger";
+        MultiplayerMatchRunner.ChallengerElo = PlayerDataManager.Instance != null 
+            ? PlayerDataManager.Instance.GetPlayerElo() 
+            : 1000;
+        MultiplayerMatchRunner.MatchSeed = matchSeed;
+
+        Debug.Log($"[MultiplayerEntryUI] Match runner populated. Seed={matchSeed}, " +
+                  $"PosterTanks={currentMatch.tankConfigs.Count}, ChallengerTanks={challengerConfigs.Count}");
+
+        // 10. Set GameMode to Multiplayer and load Arena1
+        PlayerPrefs.SetInt("GameMode", (int)GameMode.Multiplayer);
+        PlayerPrefs.Save();
+
+        UnityEngine.SceneManagement.SceneManager.LoadScene("Arena1");
+    }
+
+    private void ShowMessage(string message)
+    {
+        Debug.Log($"[MultiplayerEntryUI] {message}");
+        if (MultiplayerUIManager.Instance != null)
+            MultiplayerUIManager.Instance.ShowDebugMessage(message, true);
     }
 
     private void OnRemoveClicked()

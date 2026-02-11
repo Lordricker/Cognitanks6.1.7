@@ -236,6 +236,19 @@ public class TankMan : MonoBehaviour
     private float wanderStartTime; // Track when we started moving to current wander target
     private float wanderTimeout = 10f; // Timeout in seconds before picking new wander point
     
+    // Deterministic wander: seeded RNG for multiplayer replay consistency
+    private System.Random wanderRandom;
+    
+    /// <summary>
+    /// Set a deterministic seed for wander randomness (for multiplayer replay).
+    /// Call this after spawning but before any AI runs.
+    /// </summary>
+    public void SetWanderSeed(int seed)
+    {
+        wanderRandom = new System.Random(seed);
+        Debug.Log($"[TankMan] {gameObject.name} wander seed set to {seed}");
+    }
+    
     // Spawn/Home tracking
     private Vector3 spawnPosition; // Store spawn position for Home action
     
@@ -268,10 +281,14 @@ public class TankMan : MonoBehaviour
        
         
         // Load AI from tankSlotData for display/reference
+        // Only re-load if not already loaded (SetTankSlotData may have loaded them during Assemble,
+        // and temp multiplayer AI files may have been cleaned up by now)
         if (tankSlotData != null)
         {
-            runtimeNavAI = LoadAIFromInstanceId(tankSlotData.navAIInstanceId);
-            runtimeTurretAI = LoadAIFromInstanceId(tankSlotData.turretAIInstanceId);
+            if (runtimeNavAI == null)
+                runtimeNavAI = LoadAIFromInstanceId(tankSlotData.navAIInstanceId);
+            if (runtimeTurretAI == null)
+                runtimeTurretAI = LoadAIFromInstanceId(tankSlotData.turretAIInstanceId);
             
             // Update display fields
             assignedNavAIInstanceId = tankSlotData.navAIInstanceId;
@@ -3869,10 +3886,16 @@ public class TankMan : MonoBehaviour
     }
 
     /// <summary>
-    /// Sets a new wander target within the allowed range
+    /// Sets a new wander target within the allowed range.
+    /// Uses seeded System.Random (wanderRandom) for deterministic multiplayer replays.
+    /// Falls back to Unity Random if no seed has been set.
     /// </summary>
     private void SetNewWanderTarget()
     {
+        // Lazy-initialize wanderRandom with a non-deterministic seed if none was set
+        if (wanderRandom == null)
+            wanderRandom = new System.Random(gameObject.GetInstanceID() ^ System.Environment.TickCount);
+        
         // Update wander origin to current tank position for free roaming
         wanderOrigin = transform.position;
         
@@ -3887,8 +3910,8 @@ public class TankMan : MonoBehaviour
         // Keep generating targets until we find one within map boundaries
         do
         {
-            // Generate random point within wander range from new origin
-            Vector2 randomCircle = Random.insideUnitCircle * wanderRange;
+            // Generate random point within wander range from new origin (seeded)
+            Vector2 randomCircle = SeededInsideUnitCircle() * wanderRange;
             potentialTarget = wanderOrigin + new Vector3(randomCircle.x, 0, randomCircle.y);
             
             // Clamp target to map boundaries
@@ -3905,8 +3928,8 @@ public class TankMan : MonoBehaviour
                 float centerX = Mathf.Clamp(transform.position.x, minBoundary + 50f, maxBoundary - 50f);
                 float centerZ = Mathf.Clamp(transform.position.z, minBoundary + 50f, maxBoundary - 50f);
                 
-                // Generate target in smaller range around the adjusted center
-                Vector2 smallerCircle = Random.insideUnitCircle * Mathf.Min(wanderRange * 0.5f, 100f);
+                // Generate target in smaller range around the adjusted center (seeded)
+                Vector2 smallerCircle = SeededInsideUnitCircle() * Mathf.Min(wanderRange * 0.5f, 100f);
                 potentialTarget = new Vector3(centerX + smallerCircle.x, wanderOrigin.y, centerZ + smallerCircle.y);
                 
                 // Final boundary clamp
@@ -3930,10 +3953,11 @@ public class TankMan : MonoBehaviour
         // If target is behind us (dot product < 0), consider generating a forward target instead
         if (forwardAlignment < -0.3f) // Allow some tolerance
         {
-            // Generate a new target more in the forward direction, but keep it within boundaries
-            Vector3 forwardDirection = tankForward + Random.insideUnitCircle.x * 0.5f * Vector3.forward + Random.insideUnitCircle.y * 0.5f * Vector3.back;
+            // Generate a new target more in the forward direction, but keep it within boundaries (seeded)
+            Vector2 seededCircle = SeededInsideUnitCircle();
+            Vector3 forwardDirection = tankForward + seededCircle.x * 0.5f * Vector3.forward + seededCircle.y * 0.5f * Vector3.back;
             forwardDirection.Normalize();
-            Vector3 forwardTarget = transform.position + forwardDirection * Random.Range(wanderRange * 0.3f, wanderRange);
+            Vector3 forwardTarget = transform.position + forwardDirection * SeededRange(wanderRange * 0.3f, wanderRange);
             
             // Clamp forward target to boundaries
             forwardTarget.x = Mathf.Clamp(forwardTarget.x, minBoundary, maxBoundary);
@@ -3949,6 +3973,29 @@ public class TankMan : MonoBehaviour
         
         currentWanderTarget = potentialTarget;
         isWandering = true;
+    }
+    
+    /// <summary>
+    /// Seeded equivalent of Random.insideUnitCircle using wanderRandom
+    /// </summary>
+    private Vector2 SeededInsideUnitCircle()
+    {
+        // Rejection sampling to get uniform distribution inside unit circle
+        float x, y;
+        do
+        {
+            x = (float)(wanderRandom.NextDouble() * 2.0 - 1.0);
+            y = (float)(wanderRandom.NextDouble() * 2.0 - 1.0);
+        } while (x * x + y * y > 1f);
+        return new Vector2(x, y);
+    }
+    
+    /// <summary>
+    /// Seeded equivalent of Random.Range(float, float) using wanderRandom
+    /// </summary>
+    private float SeededRange(float min, float max)
+    {
+        return min + (float)(wanderRandom.NextDouble() * (max - min));
     }
     
     /// <summary>

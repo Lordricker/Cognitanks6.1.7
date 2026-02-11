@@ -4,6 +4,7 @@ using TMPro;
 using System.Linq;
 using System.IO;
 using System.Collections.Generic;
+using MultiplayerData;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
@@ -255,11 +256,106 @@ public class ArenaManager : MonoBehaviour
     
     void SpawnMultiplayerTanks()
     {
-        // Load player tanks from JSON
-        var playerTankSlots = TankSlotJsonManager.Instance.GetAllTankSlots();
-        
-        // Just spawn all active tanks - they'll get teamId from TankSlotDataJson
-        SpawnPlayerTanks(playerTankSlots);
+        if (!MultiplayerMatchRunner.IsMultiplayerMatch || MultiplayerMatchRunner.PosterMatch == null)
+        {
+            Debug.LogWarning("[ArenaManager] No multiplayer match data found – falling back to singleplayer spawn.");
+            SpawnSingleplayerTanks();
+            return;
+        }
+
+        var matchData = MultiplayerMatchRunner.PosterMatch;
+        int matchSeed = MultiplayerMatchRunner.MatchSeed;
+
+        Debug.Log($"[ArenaManager] SpawnMultiplayerTanks: poster={matchData.discordUsername}, " +
+                  $"posterTanks={matchData.tankConfigs.Count}, " +
+                  $"challengerTanks={MultiplayerMatchRunner.ChallengerTankConfigs?.Count ?? 0}, " +
+                  $"seed={matchSeed}");
+
+        // --- Challenger (joiner) tanks at spawn points 0-9 (team 0) ---
+        var challengerConfigs = MultiplayerMatchRunner.ChallengerTankConfigs;
+        if (challengerConfigs != null)
+        {
+            for (int i = 0; i < challengerConfigs.Count && i < 10; i++)
+            {
+                var config = challengerConfigs[i];
+                TankSlotDataJson slot = MultiplayerMatchRunner.ConfigToSlotData(config, teamId: 0, spawnIndex: i);
+                slot.spawnPointName = $"SpawnPoint{i}";
+
+                if (spawnPoints[i] == null)
+                {
+                    Debug.LogWarning($"[ArenaManager] Spawn point {i} is null, skipping challenger tank");
+                    continue;
+                }
+
+                GameObject tank = Instantiate(tankPrefab, spawnPoints[i].position, spawnPoints[i].rotation);
+                string tankName = !string.IsNullOrEmpty(config.displayName) ? config.displayName : $"ChallengerTank_{i}";
+                tank.name = $"{tankName}_Team0";
+
+                TankAssembly assembly = tank.GetComponent<TankAssembly>();
+                if (assembly != null)
+                    assembly.Assemble(slot);
+
+                // Set wander seed for deterministic replay
+                TankMan tankMan = tank.GetComponent<TankMan>();
+                if (tankMan != null)
+                {
+                    tankMan.SetWanderSeed(matchSeed + i);
+                    if (statsManager != null)
+                        statsManager.RegisterTank(tankMan, i);
+                }
+
+                Debug.Log($"[ArenaManager] Challenger tank {tank.name} spawned at SpawnPoint{i}");
+            }
+        }
+
+        // --- Poster tanks at spawn points 10-19 (team 1) ---
+        for (int i = 0; i < matchData.tankConfigs.Count && i < 10; i++)
+        {
+            var config = matchData.tankConfigs[i];
+            int spawnIndex = 10 + i;
+            TankSlotDataJson slot = MultiplayerMatchRunner.ConfigToSlotData(config, teamId: 1, spawnIndex: spawnIndex);
+                slot.spawnPointName = $"SpawnPoint{spawnIndex}";
+
+                // Try spawn points array index first, then named lookup
+                Transform spawnPoint = (spawnIndex < spawnPoints.Length && spawnPoints[spawnIndex] != null)
+                    ? spawnPoints[spawnIndex]
+                    : FindSpawnPointByName(slot.spawnPointName);
+
+                if (spawnPoint == null)
+                {
+                    // Fallback: try enemy spawn points array
+                    if (i < enemySpawnPoints.Length && enemySpawnPoints[i] != null)
+                        spawnPoint = enemySpawnPoints[i];
+                }
+
+                if (spawnPoint == null)
+                {
+                    Debug.LogWarning($"[ArenaManager] No spawn point found for poster tank {i} (SpawnPoint{spawnIndex}), skipping");
+                    continue;
+                }
+
+                GameObject tank = Instantiate(tankPrefab, spawnPoint.position, spawnPoint.rotation);
+                string tankName = !string.IsNullOrEmpty(config.displayName) ? config.displayName : $"PosterTank_{i}";
+                tank.name = $"{tankName}_Team1";
+
+                TankAssembly assembly = tank.GetComponent<TankAssembly>();
+                if (assembly != null)
+                    assembly.Assemble(slot);
+
+                // Set wander seed for deterministic replay (offset by 100 to avoid challenger collision)
+                TankMan tankMan = tank.GetComponent<TankMan>();
+                if (tankMan != null)
+                {
+                    tankMan.SetWanderSeed(matchSeed + 100 + i);
+                    if (statsManager != null)
+                        statsManager.RegisterTank(tankMan, spawnIndex);
+                }
+
+                Debug.Log($"[ArenaManager] Poster tank {tank.name} spawned at SpawnPoint{spawnIndex}");
+            }
+
+        // Clear the match data so it doesn't persist across scene loads
+        MultiplayerMatchRunner.Clear();
     }
     
     void SpawnPlayerTanks(List<TankSlotDataJson> slots)
