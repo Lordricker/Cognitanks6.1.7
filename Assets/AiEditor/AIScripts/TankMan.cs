@@ -92,6 +92,10 @@ public class TankMan : MonoBehaviour
     private bool isTankMoving = false;
     private float drivingSoundFadeDuration = 0.3f;
     
+    [Header("Dirt Emitters")]
+    private ParticleSystem leftDirtEmitter;
+    private ParticleSystem rightDirtEmitter;
+    
     [Header("Tank Stats - Read Only")]
     [SerializeField] private float totalWeight;
     [SerializeField] private int totalHP;
@@ -420,10 +424,12 @@ public class TankMan : MonoBehaviour
         if (isCurrentlyMoving && !isTankMoving)
         {
             StartTankDrivingSound();
+            StartDirtEmitters();
         }
         else if (!isCurrentlyMoving && isTankMoving)
         {
             StopTankDrivingSound();
+            StopDirtEmitters();
         }
         isTankMoving = isCurrentlyMoving;
         
@@ -876,6 +882,71 @@ public class TankMan : MonoBehaviour
         if (firePoint1Transform != null)
         {
             firePoint1 = firePoint1Transform;
+        }
+    }
+    
+    /// <summary>
+    /// Set the dirt emitter particle systems (called by TankAssembly)
+    /// </summary>
+    public void SetDirtEmitters(ParticleSystem leftEmitter, ParticleSystem rightEmitter)
+    {
+        leftDirtEmitter = leftEmitter;
+        rightDirtEmitter = rightEmitter;
+        
+        // Ensure emitters start in the stopped state
+        if (leftDirtEmitter != null)
+        {
+            var main = leftDirtEmitter.main;
+            main.playOnAwake = false;
+            leftDirtEmitter.Stop();
+            var emission = leftDirtEmitter.emission;
+            emission.enabled = false;
+        }
+        if (rightDirtEmitter != null)
+        {
+            var main = rightDirtEmitter.main;
+            main.playOnAwake = false;
+            rightDirtEmitter.Stop();
+            var emission = rightDirtEmitter.emission;
+            emission.enabled = false;
+        }
+    }
+    
+    /// <summary>
+    /// Start dirt particle emission when tank begins moving
+    /// </summary>
+    private void StartDirtEmitters()
+    {
+        if (leftDirtEmitter != null)
+        {
+            var emission = leftDirtEmitter.emission;
+            emission.enabled = true;
+            if (!leftDirtEmitter.isPlaying)
+                leftDirtEmitter.Play();
+        }
+        if (rightDirtEmitter != null)
+        {
+            var emission = rightDirtEmitter.emission;
+            emission.enabled = true;
+            if (!rightDirtEmitter.isPlaying)
+                rightDirtEmitter.Play();
+        }
+    }
+    
+    /// <summary>
+    /// Stop dirt particle emission when tank stops moving
+    /// </summary>
+    private void StopDirtEmitters()
+    {
+        if (leftDirtEmitter != null)
+        {
+            var emission = leftDirtEmitter.emission;
+            emission.enabled = false;
+        }
+        if (rightDirtEmitter != null)
+        {
+            var emission = rightDirtEmitter.emission;
+            emission.enabled = false;
         }
     }
     

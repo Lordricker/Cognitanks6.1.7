@@ -271,6 +271,59 @@ public class TankAssembly : MonoBehaviour
                 turretAnchorObj.transform.localRotation = Quaternion.identity;
             }
         }
+        
+        // Add dirt emitter anchors and instantiate dirt emitters
+        GameObject dirtEmitterPrefab = Resources.Load<GameObject>("Vefects/DirtEmitter");
+        if (dirtEmitterPrefab != null)
+        {
+            // Left tread dirt emitter
+            Transform leftAnchor = transform.Find("LeftDirtEmitterAnchor");
+            if (leftAnchor == null)
+            {
+                GameObject leftAnchorObj = new GameObject("LeftDirtEmitterAnchor");
+                leftAnchorObj.transform.SetParent(transform);
+                leftAnchorObj.transform.localPosition = new Vector3(-5f, -2f, -6f);
+                leftAnchorObj.transform.localRotation = Quaternion.identity;
+                leftAnchor = leftAnchorObj.transform;
+            }
+            
+            // Right tread dirt emitter
+            Transform rightAnchor = transform.Find("RightDirtEmitterAnchor");
+            if (rightAnchor == null)
+            {
+                GameObject rightAnchorObj = new GameObject("RightDirtEmitterAnchor");
+                rightAnchorObj.transform.SetParent(transform);
+                rightAnchorObj.transform.localPosition = new Vector3(5f, -2f, -6f);
+                rightAnchorObj.transform.localRotation = Quaternion.identity;
+                rightAnchor = rightAnchorObj.transform;
+            }
+            
+            // Instantiate dirt emitters at anchors
+            GameObject leftEmitterObj = Instantiate(dirtEmitterPrefab, leftAnchor.position, leftAnchor.rotation, leftAnchor);
+            GameObject rightEmitterObj = Instantiate(dirtEmitterPrefab, rightAnchor.position, rightAnchor.rotation, rightAnchor);
+            
+            // Rotate emitters -120 degrees on X axis to adjust particle direction
+            leftEmitterObj.transform.localRotation = Quaternion.Euler(-120f, 0f, 0f);
+            rightEmitterObj.transform.localRotation = Quaternion.Euler(-120f, 0f, 0f);
+            
+            // Get particle systems and pass to TankMan
+            ParticleSystem leftPS = leftEmitterObj.GetComponent<ParticleSystem>();
+            ParticleSystem rightPS = rightEmitterObj.GetComponent<ParticleSystem>();
+            
+            if (leftPS != null && rightPS != null)
+            {
+                tankMan.SetDirtEmitters(leftPS, rightPS);
+                Debug.Log($"TankAssembly: Successfully added dirt emitters to {gameObject.name}");
+            }
+            else
+            {
+                Debug.LogWarning($"TankAssembly: Dirt emitter prefab missing ParticleSystem component");
+            }
+        }
+        else
+        {
+            Debug.LogWarning($"TankAssembly: Could not load dirt emitter prefab from Resources/Vefects/DirtEmitter");
+        }
 
         // Rigidbody configuration is now handled by TankMan.Start() and CalculateStats()
         // This ensures physics parameters from TankSlotDataJson are properly applied

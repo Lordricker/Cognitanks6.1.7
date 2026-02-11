@@ -30,6 +30,8 @@ public class BulletScript : MonoBehaviour
     [SerializeField] private bool isInitialized = false;
     private float knockback;
     private TankMan firingTank; // Reference to the tank that fired this bullet (for damage tracking)
+    private Vector3 previousPosition; // For interpolating emitter position to prevent spurting
+    private bool hasExploded = false; // Prevent multiple explosions
     
     /// <summary>
     /// Get the knockback value for manual force application
@@ -49,6 +51,7 @@ public class BulletScript : MonoBehaviour
         isHammer = hammerMode;
         knockback = bulletKnockback;
         startPosition = transform.position;
+        previousPosition = transform.position;
         isInitialized = true;
         firingTank = shooter;
         
@@ -121,6 +124,16 @@ public class BulletScript : MonoBehaviour
         if (bulletRb != null && bulletRb.linearVelocity.magnitude > 0.1f)
         {
             transform.rotation = Quaternion.LookRotation(bulletRb.linearVelocity.normalized);
+        }
+        
+        // Interpolate the emitter's position for smooth particle emission
+        ParticleSystem trailPS = GetComponentInChildren<ParticleSystem>();
+        if (trailPS != null)
+        {
+            Vector3 currentPosition = transform.position;
+            Vector3 interpolatedPosition = Vector3.Lerp(previousPosition, currentPosition, 0.5f);
+            trailPS.transform.position = interpolatedPosition;
+            previousPosition = currentPosition;
         }
         
         // Check if bullet has traveled its maximum range
@@ -241,7 +254,32 @@ public class BulletScript : MonoBehaviour
     /// </summary>
     void Explode()
     {
+        if (hasExploded) return; // Prevent multiple explosions
+        hasExploded = true;
+        
         Debug.Log($"[BulletScript] Bullet exploded at {transform.position}");
+        
+        // Deactivate the visual bullet mesh child
+        MeshRenderer visualMesh = GetComponentInChildren<MeshRenderer>();
+        if (visualMesh != null)
+        {
+            visualMesh.gameObject.SetActive(false);
+        }
+        
+        // Stop the trail emitter
+        ParticleSystem trailPS = GetComponentInChildren<ParticleSystem>();
+        if (trailPS != null)
+        {
+            var emission = trailPS.emission;
+            emission.enabled = false;
+        }
+        
+        // Disable the rigidbody to stop movement
+        Rigidbody bulletRb = GetComponent<Rigidbody>();
+        if (bulletRb != null)
+        {
+            bulletRb.isKinematic = true;
+        }
         
         // Apply AOE damage for artillery and hammer bullets
         if (isArtillery || isHammer)
@@ -336,8 +374,8 @@ public class BulletScript : MonoBehaviour
             }
         }
         
-        // Destroy the bullet
-        Destroy(gameObject);
+        // Destroy the bullet after 1 second to allow trail to dissipate
+        StartCoroutine(DestroyAfterDelay(1f));
     }
     
     /// <summary>
@@ -349,6 +387,15 @@ public class BulletScript : MonoBehaviour
         {
             MatchStatsManager.Instance.RecordDamageDealt(firingTank, damageAmount);
         }
+    }
+    
+    /// <summary>
+    /// Coroutine to destroy the bullet after a delay, allowing trail to dissipate
+    /// </summary>
+    private System.Collections.IEnumerator DestroyAfterDelay(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        Destroy(gameObject);
     }
     
     /// <summary>
