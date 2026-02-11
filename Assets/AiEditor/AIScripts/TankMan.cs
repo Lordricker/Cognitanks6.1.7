@@ -386,7 +386,7 @@ public class TankMan : MonoBehaviour
         if (Mathf.Abs(currentMoveInput) > 0.01f)
         {
             float force = enginePower * currentMoveInput;
-            rb.AddForce(transform.forward * force);
+            rb.AddForce(Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized * force);
         }
         
         // Rotation using torque with gradual ramp-up (TurningPower rotates the tank body)

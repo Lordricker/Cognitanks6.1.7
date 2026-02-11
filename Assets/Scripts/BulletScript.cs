@@ -266,11 +266,11 @@ public class BulletScript : MonoBehaviour
             visualMesh.gameObject.SetActive(false);
         }
         
-        // Stop the trail emitter
-        ParticleSystem trailPS = GetComponentInChildren<ParticleSystem>();
-        if (trailPS != null)
+        // Stop all particle emitters
+        ParticleSystem[] allParticleSystems = GetComponentsInChildren<ParticleSystem>();
+        foreach (ParticleSystem ps in allParticleSystems)
         {
-            var emission = trailPS.emission;
+            var emission = ps.emission;
             emission.enabled = false;
         }
         
