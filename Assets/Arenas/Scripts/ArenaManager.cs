@@ -62,6 +62,17 @@ public class ArenaManager : MonoBehaviour
     private bool gameEnded = false;
     private SimpleTeamManager teamManager;
     
+    // Multiplayer match data saved before Clear() for replay submission
+    private bool isMultiplayerMatch = false;
+    private bool isReplayView = false;
+    private MatchEntry savedPosterMatch;
+    private List<TankConfigReference> savedChallengerConfigs;
+    private string savedChallengerDiscordId;
+    private string savedChallengerUsername;
+    private string savedChallengerTeamName;
+    private int savedChallengerElo;
+    private int savedMatchSeed;
+    
     void Start()
     {
         // Ensure TankSlotJsonManager is properly initialized before we use it
@@ -354,6 +365,17 @@ public class ArenaManager : MonoBehaviour
                 Debug.Log($"[ArenaManager] Poster tank {tank.name} spawned at SpawnPoint{spawnIndex}");
             }
 
+        // Save multiplayer data for replay submission BEFORE clearing
+        isMultiplayerMatch = true;
+        isReplayView = MultiplayerMatchRunner.IsReplayView;
+        savedPosterMatch = MultiplayerMatchRunner.PosterMatch;
+        savedChallengerConfigs = MultiplayerMatchRunner.ChallengerTankConfigs;
+        savedChallengerDiscordId = MultiplayerMatchRunner.ChallengerDiscordId;
+        savedChallengerUsername = MultiplayerMatchRunner.ChallengerUsername;
+        savedChallengerTeamName = MultiplayerMatchRunner.ChallengerTeamName;
+        savedChallengerElo = MultiplayerMatchRunner.ChallengerElo;
+        savedMatchSeed = MultiplayerMatchRunner.MatchSeed;
+        
         // Clear the match data so it doesn't persist across scene loads
         MultiplayerMatchRunner.Clear();
     }
@@ -753,6 +775,12 @@ public class ArenaManager : MonoBehaviour
             statsManager.DisplayStats();
         }
         
+        // Submit replay to Firebase for multiplayer matches (skip if viewing a replay)
+        if (isMultiplayerMatch && savedPosterMatch != null && !isReplayView)
+        {
+            SubmitMultiplayerReplay(aliveTanksByTeam);
+        }
+        
         // Show tip panel after a short delay
         if (tipPanel != null)
         {
@@ -762,6 +790,97 @@ public class ArenaManager : MonoBehaviour
         {
             Debug.LogWarning("[ArenaManager] Tip panel not found! Please create a 'TipPanel' GameObject under the UI Canvas.");
         }
+    }
+    
+    /// <summary>
+    /// Submit the completed multiplayer match as a replay to Firebase.
+    /// Calculates ELO changes and deletes the original posted match.
+    /// </summary>
+    void SubmitMultiplayerReplay(Dictionary<int, List<TankMan>> aliveTanksByTeam)
+    {
+        if (FirebaseMatchService.Instance == null)
+        {
+            Debug.LogWarning("[ArenaManager] FirebaseMatchService not available — cannot submit replay");
+            return;
+        }
+        
+        // Determine winner: challenger is team 0, poster is team 1
+        // If only one team remains, that team won
+        string winnerId = "";
+        bool challengerWon = false;
+        
+        if (aliveTanksByTeam.Count == 1)
+        {
+            int winningTeamId = aliveTanksByTeam.Keys.First();
+            challengerWon = (winningTeamId == 0);
+            winnerId = challengerWon ? savedChallengerDiscordId : savedPosterMatch.odiscordUserId;
+        }
+        // else: draw — winnerId stays empty
+        
+        // Calculate ELO changes
+        int posterElo = savedPosterMatch.playerElo;
+        int challengerElo = savedChallengerElo;
+        int posterEloChange = 0;
+        int challengerEloChange = 0;
+        
+        if (!string.IsNullOrEmpty(winnerId))
+        {
+            if (challengerWon)
+            {
+                var (winChange, loseChange) = MatchDataHelper.CalculateEloChange(challengerElo, posterElo);
+                challengerEloChange = winChange;
+                posterEloChange = loseChange;
+            }
+            else
+            {
+                var (winChange, loseChange) = MatchDataHelper.CalculateEloChange(posterElo, challengerElo);
+                posterEloChange = winChange;
+                challengerEloChange = loseChange;
+            }
+        }
+        
+        Debug.Log($"[ArenaManager] Match result: winner={winnerId}, posterElo={posterElo}({posterEloChange:+#;-#;0}), challengerElo={challengerElo}({challengerEloChange:+#;-#;0})");
+        
+        // Build the replay data
+        ReplayData replay = new ReplayData
+        {
+            matchId = savedPosterMatch.matchId,
+            
+            posterDiscordId = savedPosterMatch.odiscordUserId,
+            posterUsername = savedPosterMatch.discordUsername,
+            posterTeamName = savedPosterMatch.teamName,
+            posterEloBeforeMatch = posterElo,
+            posterTankConfigs = savedPosterMatch.tankConfigs,
+            
+            challengerDiscordId = savedChallengerDiscordId,
+            challengerUsername = savedChallengerUsername,
+            challengerTeamName = savedChallengerTeamName,
+            challengerEloBeforeMatch = challengerElo,
+            challengerTankConfigs = savedChallengerConfigs,
+            
+            randomSeed = savedMatchSeed,
+            matchType = savedPosterMatch.matchType,
+            winnerId = winnerId,
+            posterEloChange = posterEloChange,
+            challengerEloChange = challengerEloChange
+        };
+        
+        // Submit to Firebase (this also deletes the original posted match and updates ELOs)
+        FirebaseMatchService.Instance.SubmitMatchResult(replay,
+            (replayId) => {
+                Debug.Log($"[ArenaManager] Replay submitted successfully: {replayId}");
+                
+                // Update local ELO if we're the challenger
+                if (PlayerDataManager.Instance != null)
+                {
+                    int myNewElo = challengerElo + challengerEloChange;
+                    PlayerDataManager.Instance.SetPlayerElo(myNewElo);
+                    Debug.Log($"[ArenaManager] Local ELO updated: {challengerElo} -> {myNewElo}");
+                }
+            },
+            (error) => {
+                Debug.LogError($"[ArenaManager] Failed to submit replay: {error}");
+            });
     }
     
     /// <summary>

@@ -63,6 +63,15 @@ namespace MultiplayerData
         public float turretVisionRange;
         public float turretVisionCone;
         public float turretWeight;
+        
+        // Customization (colors and skins)
+        public ColorJson engineFrameColor = new ColorJson(1f, 1f, 1f, 1f);
+        public ColorJson armorColor = new ColorJson(1f, 1f, 1f, 1f);
+        public ColorJson turretColor = new ColorJson(1f, 1f, 1f, 1f);
+        public string engineFrameSkinPath = "";
+        public string armorSkinPath = "";
+        public string turretSkinPath = "";
+        public string turretDecalPath = "";
     }
 
     /// <summary>
@@ -122,10 +131,14 @@ namespace MultiplayerData
         
         // Match result
         public int randomSeed;            // For deterministic replay
+        public MatchType matchType;       // 4v4 or 10v10
         public string winnerId;           // Discord ID of winner
         public int posterEloChange;       // +/- ELO for poster
         public int challengerEloChange;   // +/- ELO for challenger
         public long completedTimestamp;
+        
+        // Soft-delete: comma-separated Discord IDs of players who have hidden this replay
+        public string hiddenByPlayerIds = "";
     }
 
     /// <summary>

@@ -76,22 +76,41 @@ public class MultiplayerEntryUI : MonoBehaviour
         this.currentMatch = null;
         this.isOwner = true; // Replays are always for the viewing player
 
-        // Show challenger info (the opponent)
+        // Determine who the opponent is — show their info
+        string myId = DiscordManager.Instance?.GetUserId() ?? "";
+        bool iAmPoster = (replay.posterDiscordId == myId);
+        
+        string opponentName = iAmPoster ? replay.challengerUsername : replay.posterUsername;
+        string opponentTeam = iAmPoster ? replay.challengerTeamName : replay.posterTeamName;
+        int opponentElo = iAmPoster ? replay.challengerEloBeforeMatch : replay.posterEloBeforeMatch;
+        
+        // Show result (win/loss/draw)
+        string resultTag = "";
+        if (string.IsNullOrEmpty(replay.winnerId))
+            resultTag = " [DRAW]";
+        else if (replay.winnerId == myId)
+            resultTag = " [WIN]";
+        else
+            resultTag = " [LOSS]";
+        
         if (teamNameText != null)
-            teamNameText.text = replay.challengerTeamName;
+            teamNameText.text = opponentTeam + resultTag;
         
         if (playerNameText != null)
-            playerNameText.text = replay.challengerUsername;
+            playerNameText.text = $"vs {opponentName}";
         
         if (playerEloText != null)
-            playerEloText.text = $"ELO: {replay.challengerEloBeforeMatch}";
+            playerEloText.text = $"ELO: {opponentElo}";
 
-        // Replays only show View Replay button
-        SetButtonVisibility(joinMatch: false, remove: false, viewReplay: true);
+        // Show View Replay and Remove buttons
+        SetButtonVisibility(joinMatch: false, remove: true, viewReplay: true);
 
-        // Setup button listener
+        // Setup button listeners
         if (viewReplayButton != null)
             viewReplayButton.onClick.AddListener(OnViewReplayClicked);
+        
+        if (removeButton != null)
+            removeButton.onClick.AddListener(OnRemoveReplayClicked);
     }
 
     private void SetButtonVisibility(bool joinMatch, bool remove, bool viewReplay)
@@ -247,19 +266,68 @@ public class MultiplayerEntryUI : MonoBehaviour
         
         Debug.Log($"[MultiplayerEntryUI] Viewing replay: {currentReplay.replayId}");
         
-        // TODO: Implement replay viewing
-        // 1. Load both team configurations
-        // 2. Set the random seed
-        // 3. Start match scene in replay mode
-        
-        if (MultiplayerUIManager.Instance != null)
+        // Load both team configurations into MultiplayerMatchRunner
+        // Re-create the MatchEntry from the poster data in the replay
+        MatchEntry posterMatch = new MatchEntry
         {
-            MultiplayerUIManager.Instance.ShowDebugMessage("View replay - Not yet implemented", true);
+            matchId = currentReplay.matchId,
+            odiscordUserId = currentReplay.posterDiscordId,
+            discordUsername = currentReplay.posterUsername,
+            teamName = currentReplay.posterTeamName,
+            playerElo = currentReplay.posterEloBeforeMatch,
+            tankConfigs = currentReplay.posterTankConfigs
+        };
+        
+        // Populate MultiplayerMatchRunner with replay data (view-only, no submission)
+        MultiplayerMatchRunner.IsMultiplayerMatch = true;
+        MultiplayerMatchRunner.IsReplayView = true;
+        MultiplayerMatchRunner.PosterMatch = posterMatch;
+        MultiplayerMatchRunner.ChallengerTankConfigs = currentReplay.challengerTankConfigs;
+        MultiplayerMatchRunner.ChallengerDiscordId = currentReplay.challengerDiscordId;
+        MultiplayerMatchRunner.ChallengerUsername = currentReplay.challengerUsername;
+        MultiplayerMatchRunner.ChallengerTeamName = currentReplay.challengerTeamName;
+        MultiplayerMatchRunner.ChallengerElo = currentReplay.challengerEloBeforeMatch;
+        MultiplayerMatchRunner.MatchSeed = currentReplay.randomSeed;
+        
+        Debug.Log($"[MultiplayerEntryUI] Replay loaded. Seed={currentReplay.randomSeed}, " +
+                  $"Poster={currentReplay.posterUsername}({currentReplay.posterTankConfigs.Count}), " +
+                  $"Challenger={currentReplay.challengerUsername}({currentReplay.challengerTankConfigs.Count})");
+        
+        // Load arena in multiplayer mode
+        PlayerPrefs.SetInt("GameMode", (int)GameMode.Multiplayer);
+        PlayerPrefs.Save();
+        
+        UnityEngine.SceneManagement.SceneManager.LoadScene("Arena1");
+    }
+    
+    private void OnRemoveReplayClicked()
+    {
+        if (currentReplay == null)
+            return;
+        
+        // Get current player's Discord ID — try live session first, then cached
+        string myDiscordId = DiscordManager.Instance != null ? DiscordManager.Instance.GetUserId() : "";
+        if (string.IsNullOrEmpty(myDiscordId))
+            myDiscordId = PlayerDataManager.Instance != null ? PlayerDataManager.Instance.GetCachedDiscordId() : "";
+        if (string.IsNullOrEmpty(myDiscordId))
+        {
+            Debug.LogWarning("[MultiplayerEntryUI] Cannot hide replay — no Discord ID");
+            return;
         }
         
-        // For now, just log the action
-        // In full implementation:
-        // MultiplayerMatchRunner.Instance.StartReplay(currentReplay);
+        Debug.Log($"[MultiplayerEntryUI] Hiding replay {currentReplay.replayId} for player {myDiscordId}");
+        
+        if (FirebaseMatchService.Instance != null)
+        {
+            FirebaseMatchService.Instance.HideReplay(currentReplay.replayId, myDiscordId,
+                () => {
+                    Destroy(gameObject);
+                },
+                (error) => {
+                    if (MultiplayerUIManager.Instance != null)
+                        MultiplayerUIManager.Instance.ShowDebugMessage($"Failed to remove replay: {error}");
+                });
+        }
     }
 
     #endregion

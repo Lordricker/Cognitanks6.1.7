@@ -224,8 +224,7 @@ public class FirebaseMatchService : MonoBehaviour
             {
                 FirebasePostResponse postResponse = JsonUtility.FromJson<FirebasePostResponse>(request.downloadHandler.text);
                 
-                // Also delete the original match since it's completed
-                yield return DeleteMatchCoroutine(replayData.matchId, null, null);
+                // NOTE: Do NOT delete the original posted match — it stays for other challengers
                 
                 // Update both players' ELO
                 yield return UpdatePlayerEloCoroutine(replayData.posterDiscordId, 
@@ -270,6 +269,9 @@ public class FirebaseMatchService : MonoBehaviour
                 // Filter for this player (as poster or challenger)
                 replays = replays.FindAll(r => r.posterDiscordId == odiscordUserId || r.challengerDiscordId == odiscordUserId);
                 
+                // Filter out replays this player has hidden
+                replays = replays.FindAll(r => string.IsNullOrEmpty(r.hiddenByPlayerIds) || !r.hiddenByPlayerIds.Contains(odiscordUserId));
+                
                 Debug.Log($"[FirebaseMatchService] Loaded {replays.Count} replays for player");
                 onSuccess?.Invoke(replays);
                 OnReplaysLoaded?.Invoke(replays);
@@ -278,6 +280,130 @@ public class FirebaseMatchService : MonoBehaviour
             {
                 Debug.LogError($"[FirebaseMatchService] Failed to get replays: {request.error}");
                 onError?.Invoke(request.error);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Hide a replay for a specific player. If both participants have hidden it, delete from server.
+    /// </summary>
+    public void HideReplay(string replayId, string playerDiscordId, Action onSuccess = null, Action<string> onError = null)
+    {
+        StartCoroutine(HideReplayCoroutine(replayId, playerDiscordId, onSuccess, onError));
+    }
+
+    private IEnumerator HideReplayCoroutine(string replayId, string playerDiscordId, Action onSuccess, Action<string> onError)
+    {
+        // First, GET the current replay to check hiddenByPlayerIds
+        string getUrl = $"{firebaseDatabaseUrl}/replays/{replayId}.json";
+        ReplayData replay = null;
+        
+        using (UnityWebRequest getRequest = UnityWebRequest.Get(getUrl))
+        {
+            yield return getRequest.SendWebRequest();
+            
+            if (getRequest.result != UnityWebRequest.Result.Success)
+            {
+                onError?.Invoke(getRequest.error);
+                yield break;
+            }
+            
+            string response = getRequest.downloadHandler.text;
+            if (string.IsNullOrEmpty(response) || response == "null")
+            {
+                // Already deleted
+                onSuccess?.Invoke();
+                yield break;
+            }
+            
+            replay = JsonUtility.FromJson<ReplayData>(response);
+            replay.replayId = replayId;
+        }
+        
+        // Add this player to hiddenByPlayerIds
+        string hidden = replay.hiddenByPlayerIds ?? "";
+        if (!hidden.Contains(playerDiscordId))
+        {
+            hidden = string.IsNullOrEmpty(hidden) ? playerDiscordId : hidden + "," + playerDiscordId;
+        }
+        
+        // Check if both participants have now hidden it
+        bool posterHidden = hidden.Contains(replay.posterDiscordId);
+        bool challengerHidden = hidden.Contains(replay.challengerDiscordId);
+        
+        if (posterHidden && challengerHidden)
+        {
+            // Both players have hidden — delete from server entirely
+            string deleteUrl = $"{firebaseDatabaseUrl}/replays/{replayId}.json";
+            using (UnityWebRequest deleteRequest = UnityWebRequest.Delete(deleteUrl))
+            {
+                yield return deleteRequest.SendWebRequest();
+                
+                if (deleteRequest.result == UnityWebRequest.Result.Success)
+                {
+                    Debug.Log($"[FirebaseMatchService] Replay {replayId} fully deleted (both players hidden)");
+                    onSuccess?.Invoke();
+                    OnSuccess?.Invoke("Replay removed!");
+                }
+                else
+                {
+                    onError?.Invoke(deleteRequest.error);
+                }
+            }
+        }
+        else
+        {
+            // Only one player has hidden — update hiddenByPlayerIds on server
+            replay.hiddenByPlayerIds = hidden;
+            string json = MatchDataHelper.ToJson(replay);
+            string putUrl = $"{firebaseDatabaseUrl}/replays/{replayId}.json";
+            
+            using (UnityWebRequest putRequest = UnityWebRequest.Put(putUrl, json))
+            {
+                putRequest.SetRequestHeader("Content-Type", "application/json");
+                yield return putRequest.SendWebRequest();
+                
+                if (putRequest.result == UnityWebRequest.Result.Success)
+                {
+                    Debug.Log($"[FirebaseMatchService] Replay {replayId} hidden for player {playerDiscordId}");
+                    onSuccess?.Invoke();
+                    OnSuccess?.Invoke("Replay removed from your list!");
+                }
+                else
+                {
+                    onError?.Invoke(putRequest.error);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Delete a replay from Firebase (hard delete, used internally)
+    /// </summary>
+    public void DeleteReplay(string replayId, Action onSuccess = null, Action<string> onError = null)
+    {
+        StartCoroutine(DeleteReplayCoroutine(replayId, onSuccess, onError));
+    }
+
+    private IEnumerator DeleteReplayCoroutine(string replayId, Action onSuccess, Action<string> onError)
+    {
+        string url = $"{firebaseDatabaseUrl}/replays/{replayId}.json";
+
+        using (UnityWebRequest request = UnityWebRequest.Delete(url))
+        {
+            yield return request.SendWebRequest();
+
+            if (request.result == UnityWebRequest.Result.Success)
+            {
+                Debug.Log($"[FirebaseMatchService] Replay deleted: {replayId}");
+                onSuccess?.Invoke();
+                OnSuccess?.Invoke("Replay removed successfully!");
+            }
+            else
+            {
+                Debug.LogError($"[FirebaseMatchService] Failed to delete replay: {request.error}");
+                onError?.Invoke(request.error);
+                OnError?.Invoke($"Failed to remove replay: {request.error}");
             }
         }
     }

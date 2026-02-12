@@ -126,6 +126,12 @@ public class MultiplayerUIManager : MonoBehaviour
         
         if (!string.IsNullOrEmpty(odiscordUserId))
         {
+            // Cache Discord ID in PlayerDataManager for offline access
+            if (PlayerDataManager.Instance != null)
+            {
+                PlayerDataManager.Instance.SetDiscordId(odiscordUserId);
+            }
+            
             if (playerNameText != null)
                 playerNameText.text = username;
             
@@ -389,7 +395,16 @@ public class MultiplayerUIManager : MonoBehaviour
                 turretBulletSpeed = slot.turretBulletSpeed,
                 turretVisionRange = slot.turretVisionRange,
                 turretVisionCone = slot.turretVisionCone,
-                turretWeight = slot.turretWeight
+                turretWeight = slot.turretWeight,
+                
+                // Customization (colors and skins)
+                engineFrameColor = slot.engineFrameColor,
+                armorColor = slot.armorColor,
+                turretColor = slot.turretColor,
+                engineFrameSkinPath = slot.engineFrameSkinPath,
+                armorSkinPath = slot.armorSkinPath,
+                turretSkinPath = slot.turretSkinPath,
+                turretDecalPath = slot.turretDecalPath
             });
             
             Debug.Log($"[MultiplayerUIManager] Tank {i}: {slot.displayName} | Engine: {slot.engineFrameInstanceId} | Armor: {slot.armorInstanceId} | Turret: {slot.turretInstanceId}");
@@ -524,12 +539,18 @@ public class MultiplayerUIManager : MonoBehaviour
     {
         ClearReplays();
         
+        int displayedCount = 0;
         foreach (var replay in replays)
         {
-            CreateReplayEntry(replay);
+            // Only show replays matching the selected match type
+            if (replay.matchType == selectedMatchType)
+            {
+                CreateReplayEntry(replay);
+                displayedCount++;
+            }
         }
         
-        Debug.Log($"[MultiplayerUIManager] Displayed {replays.Count} replays");
+        Debug.Log($"[MultiplayerUIManager] Displayed {displayedCount}/{replays.Count} replays (filter: {selectedMatchType})");
     }
 
     private void CreateMatchEntry(MatchEntry match, string currentUserId)

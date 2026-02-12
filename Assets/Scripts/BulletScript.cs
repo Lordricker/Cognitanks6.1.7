@@ -167,6 +167,9 @@ public class BulletScript : MonoBehaviour
     
     void OnCollisionEnter(Collision collision)
     {
+        // Prevent multiple damage instances after explosion
+        if (hasExploded) return;
+        
         Debug.Log($"[BulletScript] Bullet collided with: {collision.gameObject.name}");
         
         // Check if we hit a tank
@@ -279,6 +282,13 @@ public class BulletScript : MonoBehaviour
         if (bulletRb != null)
         {
             bulletRb.isKinematic = true;
+        }
+        
+        // Disable all colliders to prevent further collision events
+        Collider[] colliders = GetComponentsInChildren<Collider>();
+        foreach (Collider col in colliders)
+        {
+            col.enabled = false;
         }
         
         // Apply AOE damage for artillery and hammer bullets

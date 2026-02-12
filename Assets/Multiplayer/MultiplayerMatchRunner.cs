@@ -13,6 +13,9 @@ public static class MultiplayerMatchRunner
     /// <summary>Whether a multiplayer match is pending (set before scene load, cleared after spawn)</summary>
     public static bool IsMultiplayerMatch { get; set; } = false;
     
+    /// <summary>Whether this is a replay view (no results should be submitted)</summary>
+    public static bool IsReplayView { get; set; } = false;
+    
     /// <summary>The posted match being challenged</summary>
     public static MatchEntry PosterMatch { get; set; }
     
@@ -93,6 +96,15 @@ public static class MultiplayerMatchRunner
             turretVisionRange = config.turretVisionRange,
             turretVisionCone = config.turretVisionCone,
             turretWeight = config.turretWeight,
+            
+            // Customization (colors and skins)
+            engineFrameColor = config.engineFrameColor,
+            armorColor = config.armorColor,
+            turretColor = config.turretColor,
+            engineFrameSkinPath = config.engineFrameSkinPath,
+            armorSkinPath = config.armorSkinPath,
+            turretSkinPath = config.turretSkinPath,
+            turretDecalPath = config.turretDecalPath,
             
             // Spawn point
             spawnPointName = $"SpawnPoint{spawnIndex}"
@@ -219,6 +231,7 @@ public static class MultiplayerMatchRunner
     public static void Clear()
     {
         IsMultiplayerMatch = false;
+        IsReplayView = false;
         PosterMatch = null;
         ChallengerTankConfigs = null;
         ChallengerDiscordId = null;
