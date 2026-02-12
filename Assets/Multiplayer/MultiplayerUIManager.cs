@@ -40,12 +40,19 @@ public class MultiplayerUIManager : MonoBehaviour
     [Header("Debug UI")]
     [SerializeField] private TMP_Text debugText;
 
+    [Header("Tips UI")]
+    [SerializeField] private Button tipsButton;
+    [SerializeField] private GameObject tipsPanel;
+    [SerializeField] private float tipsFadeDuration = 0.3f;
+
     // State
     private MultiplayerData.MatchType selectedMatchType = MultiplayerData.MatchType.FourVsFour;
     private PlayerProfile currentPlayerProfile;
     private Coroutine debugTextCoroutine;
     private List<GameObject> postedMatchEntries = new List<GameObject>();
     private List<GameObject> replayEntries = new List<GameObject>();
+    private CanvasGroup tipsPanelCanvasGroup;
+    private Coroutine tipsFadeCoroutine;
 
     private void Awake()
     {
@@ -92,6 +99,39 @@ public class MultiplayerUIManager : MonoBehaviour
             FirebaseMatchService.Instance.OnError += OnFirebaseError;
             FirebaseMatchService.Instance.OnSuccess += OnFirebaseSuccess;
         }
+
+        // Setup tips panel click handler and fade components
+        if (tipsPanel != null)
+        {
+            // Ensure panel starts hidden
+            tipsPanel.SetActive(false);
+            
+            // Add CanvasGroup for fading
+            tipsPanelCanvasGroup = tipsPanel.GetComponent<CanvasGroup>();
+            if (tipsPanelCanvasGroup == null)
+            {
+                tipsPanelCanvasGroup = tipsPanel.AddComponent<CanvasGroup>();
+            }
+            
+            // Ensure panel has an Image component with raycast target for click detection
+            var image = tipsPanel.GetComponent<Image>();
+            if (image == null)
+            {
+                image = tipsPanel.AddComponent<Image>();
+                image.color = new Color(0, 0, 0, 0.01f); // Nearly transparent for click detection
+            }
+            image.raycastTarget = true;
+            
+            // Add Button component for easier click handling
+            var button = tipsPanel.GetComponent<Button>();
+            if (button == null)
+            {
+                button = tipsPanel.AddComponent<Button>();
+            }
+            button.transition = Selectable.Transition.None; // No visual feedback
+            button.onClick.RemoveAllListeners();
+            button.onClick.AddListener(OnTipsPanelClicked);
+        }
     }
 
     private void SetupButtonListeners()
@@ -113,6 +153,10 @@ public class MultiplayerUIManager : MonoBehaviour
         // Post button
         if (postTankTeamButton != null)
             postTankTeamButton.onClick.AddListener(OnPostTankTeamClicked);
+
+        // Tips button
+        if (tipsButton != null)
+            tipsButton.onClick.AddListener(OnTipsButtonClicked);
     }
 
     #region Login State Handling
@@ -666,6 +710,72 @@ public class MultiplayerUIManager : MonoBehaviour
         
         debugText.gameObject.SetActive(false);
         debugText.text = "";
+    }
+
+    #endregion
+
+    #region Tips UI
+
+    private void OnTipsButtonClicked()
+    {
+        if (tipsPanel != null)
+        {
+            if (tipsPanel.activeSelf)
+            {
+                HideTipsPanel();
+            }
+            else
+            {
+                ShowTipsPanel();
+            }
+        }
+    }
+
+    private void OnTipsPanelClicked()
+    {
+        HideTipsPanel();
+    }
+
+    private void ShowTipsPanel()
+    {
+        if (tipsPanel == null || tipsPanelCanvasGroup == null) return;
+        
+        if (tipsFadeCoroutine != null)
+            StopCoroutine(tipsFadeCoroutine);
+        
+        tipsPanel.SetActive(true);
+        tipsFadeCoroutine = StartCoroutine(FadeTipsPanel(1f));
+    }
+
+    private void HideTipsPanel()
+    {
+        if (tipsPanel == null || tipsPanelCanvasGroup == null) return;
+        
+        if (tipsFadeCoroutine != null)
+            StopCoroutine(tipsFadeCoroutine);
+        
+        tipsFadeCoroutine = StartCoroutine(FadeTipsPanel(0f));
+    }
+
+    private IEnumerator FadeTipsPanel(float targetAlpha)
+    {
+        float startAlpha = tipsPanelCanvasGroup.alpha;
+        float elapsed = 0f;
+        
+        while (elapsed < tipsFadeDuration)
+        {
+            elapsed += Time.deltaTime;
+            tipsPanelCanvasGroup.alpha = Mathf.Lerp(startAlpha, targetAlpha, elapsed / tipsFadeDuration);
+            yield return null;
+        }
+        
+        tipsPanelCanvasGroup.alpha = targetAlpha;
+        
+        // Deactivate panel after fading out
+        if (targetAlpha == 0f)
+        {
+            tipsPanel.SetActive(false);
+        }
     }
 
     #endregion

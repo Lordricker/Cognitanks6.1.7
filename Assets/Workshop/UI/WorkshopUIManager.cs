@@ -94,8 +94,21 @@ public class WorkshopUIManager : MonoBehaviour
             tankSlotJsonManager = managerGO.AddComponent<TankSlotJsonManager>();
         }
         
-        // Load tip visibility state from PlayerPrefs
-        tipsVisible = PlayerPrefs.GetInt(TIPS_VISIBLE_KEY, 0) == 1;
+        // Check if this is the first time the player is launching the game
+        if (PlayerDataManager.Instance != null && !PlayerDataManager.Instance.playerData.hasSeenTipsOnFirstLaunch)
+        {
+            // First time launch - show tips automatically
+            tipsVisible = true;
+            PlayerDataManager.Instance.playerData.hasSeenTipsOnFirstLaunch = true;
+            PlayerDataManager.Instance.SavePlayerData();
+            PlayerPrefs.SetInt(TIPS_VISIBLE_KEY, 1);
+            PlayerPrefs.Save();
+        }
+        else
+        {
+            // Not first time - load tip visibility state from PlayerPrefs
+            tipsVisible = PlayerPrefs.GetInt(TIPS_VISIBLE_KEY, 0) == 1;
+        }
         UpdateTipBubbleVisibility();
         
         // Ensure only one of Shop/Inventory is active

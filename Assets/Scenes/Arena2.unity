@@ -5219,7 +5219,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 0}
+      - m_Target: {fileID: 1294781753}
         m_TargetAssemblyTypeName: ArenaUIManager, Assembly-CSharp
         m_MethodName: ReturnToWorkshop
         m_Mode: 1
