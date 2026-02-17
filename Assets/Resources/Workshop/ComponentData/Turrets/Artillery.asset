@@ -22,7 +22,7 @@ MonoBehaviour:
   customColor: {r: 1, g: 1, b: 1, a: 1}
   turretType: 1
   animationPrefab: {fileID: 0}
-  deathModelPrefab: {fileID: 0}
+  deathModelPrefab: {fileID: 4913850538033061327, guid: b2485d89610472147be7528afca9c0db, type: 3}
   damage: 50
   range: 500
   shotspersec: 0.3

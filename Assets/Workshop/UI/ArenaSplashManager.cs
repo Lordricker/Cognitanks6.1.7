@@ -24,6 +24,10 @@ public class ArenaSplashManager : MonoBehaviour
     [Header("UI References")]
     [SerializeField] private GameObject splashPanel;
     
+    [Header("Video Settings")]
+    [Range(0f, 1f)]
+    [SerializeField] private float videoVolume = 0.5f; // Volume for all splash videos (0-1)
+    
     [Header("Animation Settings")]
     [SerializeField] private float fadeDuration = 0.3f;
     [SerializeField] private float expandDuration = 0.5f;
@@ -126,17 +130,9 @@ public class ArenaSplashManager : MonoBehaviour
             }
         }
 
-        // Hide splash panel at start
-        if (splashCanvasGroup != null)
-        {
-            splashCanvasGroup.alpha = 0f;
-            splashCanvasGroup.gameObject.SetActive(false);
-            Debug.Log($"[ArenaSplashManager] Initialized splash panel to hidden");
-        }
-        else
-        {
-            Debug.LogError("[ArenaSplashManager] Splash Canvas Group is not assigned!");
-        }
+        // Setup video volume
+        SetAllVideoVolumes(videoVolume);
+        Debug.Log($"[ArenaSplashManager] Video volume set to: {videoVolume}");
     }
 
     /// <summary>
@@ -353,5 +349,29 @@ public class ArenaSplashManager : MonoBehaviour
         }
         
         arenaButton.videoPanel.SetActive(false);
+    }
+
+    /// <summary>
+    /// Sets the volume for all video players
+    /// </summary>
+    private void SetAllVideoVolumes(float volume)
+    {
+        foreach (var arenaButton in arenaButtons)
+        {
+            if (arenaButton.videoPlayer != null)
+            {
+                arenaButton.videoPlayer.SetDirectAudioVolume(0, volume);
+            }
+        }
+        Debug.Log($"[ArenaSplashManager] Set volume to {volume} for all video players");
+    }
+
+    /// <summary>
+    /// Public method to update video volume at runtime
+    /// </summary>
+    public void UpdateVideoVolume(float newVolume)
+    {
+        videoVolume = Mathf.Clamp01(newVolume);
+        SetAllVideoVolumes(videoVolume);
     }
 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
@@ -165,58 +166,21 @@ public class PlayerDataManager : MonoBehaviour
 
     public void ErasePlayerData()
     {
+        Debug.Log("[PlayerDataManager] Starting ErasePlayerData...");
+        
+        // Delete playerdata.json file
         if (File.Exists(saveFilePath))
+        {
             File.Delete(saveFilePath);
+            Debug.Log($"[PlayerDataManager] Deleted playerdata.json");
+        }
+        
+        // Create fresh empty playerData
         playerData = new PlayerData();
+        playerData.playerCash = 3000; // Reset to default
         
         // Clear all progression-related PlayerPrefs
         ClearProgressionData();
-        
-        // Clear tank loadouts to prevent restoration of stale references
-        playerData.tankLoadouts.Clear();
-        
-        // Also clear any runtime inventory if needed
-        var workshopUI = FindFirstObjectByType<WorkshopUIManager>();
-        if (workshopUI != null)
-        {
-            workshopUI.playerInventory.Clear();
-            workshopUI.ClearUnlockedComponentsFromShop();
-            workshopUI.PopulateComponentList();
-        }
-        
-        // Clear all instance IDs from tank slot JSONs and delete the JSON files
-        var tankSlotJsonManager = FindFirstObjectByType<TankSlotJsonManager>();
-        if (tankSlotJsonManager != null)
-        {
-            var allSlots = new List<TankSlotDataJson>(tankSlotJsonManager.GetAllTankSlots()); // Create a copy to avoid enumeration issues
-            foreach (var slot in allSlots)
-            {
-                slot.turretAIInstanceId = "";
-                slot.navAIInstanceId = "";
-                slot.engineFrameInstanceId = "";
-                slot.armorInstanceId = "";
-                slot.turretInstanceId = "";
-                // Optionally reset weights and stats to defaults
-                slot.engineWeight = 0;
-                slot.armorWeight = 0;
-                slot.turretWeight = 0;
-                slot.totalWeight = 0;
-                // Reset other stats if needed
-                slot.enginePower = 0;
-                slot.engineWeightCapacity = 0;
-                slot.engineTorque = 0;
-                slot.armorHP = 0;
-                slot.turretDamage = 0;
-                slot.turretRange = 0;
-                slot.turretShotsPerSec = 0;
-                slot.turretBulletSpeed = 0;
-                slot.turretKnockback = "";
-                slot.turretVisionRange = 0;
-                slot.turretVisionCone = 0;
-                // Save the cleared slot
-                tankSlotJsonManager.UpdateTankSlot(slot.slotIndex, slot);
-            }
-        }
         
         // Delete all tank slot JSON files from persistent data
         string tankSlotFolder = Path.Combine(Application.persistentDataPath, "TankSlotData");
@@ -233,25 +197,32 @@ public class PlayerDataManager : MonoBehaviour
             }
         }
         
-        // Delete all AI tree JSON files from persistent data
-        string aiTreesFolder = Path.Combine(Application.persistentDataPath, "AiTrees");
-        if (Directory.Exists(aiTreesFolder))
+        // Note: We do NOT delete the AiTrees folder or ShopAI folders
+        // This preserves all AI files while just unassigning them from tank slots
+        
+        // Force TankSlotJsonManager to reinitialize with fresh default slots
+        // This must happen BEFORE scene reload so the new scene has clean data
+        var tankSlotJsonManager = FindFirstObjectByType<TankSlotJsonManager>();
+        if (tankSlotJsonManager != null)
         {
-            try
+            Debug.Log("[PlayerDataManager] Reinitializing TankSlotJsonManager with empty slots...");
+            tankSlotJsonManager.ReinitializeTankSlots();
+            
+            // Verify the slots are actually cleared
+            var slots = tankSlotJsonManager.GetAllTankSlots();
+            foreach (var slot in slots)
             {
-                Directory.Delete(aiTreesFolder, true); // Delete folder and all contents
-                Debug.Log($"[PlayerDataManager] Deleted AI trees folder: {aiTreesFolder}");
-            }
-            catch (System.Exception ex)
-            {
-                Debug.LogError($"[PlayerDataManager] Failed to delete AI trees folder: {ex.Message}");
+                Debug.Log($"[PlayerDataManager] Slot {slot.slotIndex} after reinit: engine={slot.engineFrameInstanceId}, armor={slot.armorInstanceId}, turret={slot.turretInstanceId}");
             }
         }
         
-        // Reset shop AI folders to only have default files
-        ResetShopAIFoldersToDefaults();
+        Debug.Log("[PlayerDataManager] Player data erased successfully. Reloading scene...");
         
-        Debug.Log("Player data erased.");
+        // Reload the current scene to ensure everything is properly reset
+        // All UI elements will be recreated fresh, and they'll load from the
+        // cleared PlayerData and reinitialized TankSlotJsonManager
+        string currentScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+        UnityEngine.SceneManagement.SceneManager.LoadScene(currentScene);
     }
     
     /// <summary>

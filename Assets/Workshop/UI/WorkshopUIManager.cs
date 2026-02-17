@@ -296,9 +296,12 @@ public class WorkshopUIManager : MonoBehaviour
     
     private void LoadPlayerInventoryFromSave()
     {
+        Debug.Log("[WorkshopUIManager] Loading player inventory from PlayerDataManager...");
+        
         playerInventory.Clear();
         
         // Load regular components from PlayerData save file
+        int loadedCount = 0;
         foreach (var entry in PlayerDataManager.Instance.playerData.ownedComponents)
         {
             ComponentData prefab = FindComponentPrefabById(entry.id);
@@ -309,16 +312,22 @@ public class WorkshopUIManager : MonoBehaviour
                     ComponentData newComp = Instantiate(prefab);
                     newComp.instanceId = instanceId;
                     playerInventory.Add(newComp);
+                    loadedCount++;
                 }
             }
         }
         
+        Debug.Log($"[WorkshopUIManager] Loaded {loadedCount} components from PlayerData");
+        
         // Load AI components from JSON files on disk
         LoadAIInventoryFromDisk();
+        
+        Debug.Log($"[WorkshopUIManager] Total inventory after loading: {playerInventory.Count} components");
         
         // Add default components for new players if inventory is empty
         if (playerInventory.Count == 0)
         {
+            Debug.Log("[WorkshopUIManager] Inventory is empty, adding default components...");
             AddDefaultComponentsToInventory();
         }
     }
@@ -1173,16 +1182,22 @@ public class WorkshopUIManager : MonoBehaviour
 
     private void LoadTankSlotsFromScriptableObjects()
     {
+        Debug.Log("[WorkshopUIManager] Loading tank slots from TankSlotJsonManager...");
+        
         foreach (var slot in tankSlots)
         {
             var slotData = TankSlotJsonManager.Instance.GetTankSlot(slot.slotIndex);
             if (slotData != null)
             {
+                Debug.Log($"[WorkshopUIManager] Slot {slot.slotIndex} data: engine='{slotData.engineFrameInstanceId}', armor='{slotData.armorInstanceId}', turret='{slotData.turretInstanceId}', turretAI='{slotData.turretAIInstanceId}', navAI='{slotData.navAIInstanceId}'");
+                
                 slot.SetSelected(false); // Deselect by default
                 slot.SetActive(slotData.isActive);
                 slot.UpdateAssignedComponentsFromSlotData();
             }
         }
+        
+        Debug.Log("[WorkshopUIManager] Finished loading tank slots");
     }
 
     // Make this method public so it can be accessed from TankSlotButtonUI

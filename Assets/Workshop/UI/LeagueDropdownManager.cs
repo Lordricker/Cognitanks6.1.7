@@ -335,15 +335,26 @@ public class LeagueDropdownManager : MonoBehaviour
         {
             foreach (var arenaConfig in league.arenaButtons)
             {
-                if (arenaConfig.progressUnlock != null)
+                // Check if this arena has been completed
+                bool isCompleted = PlayerPrefs.GetInt($"ArenaCompleted_{arenaConfig.ArenaKey}", 0) == 1;
+                
+                if (isCompleted)
                 {
-                    // Check if this arena has been completed
-                    bool isCompleted = PlayerPrefs.GetInt($"ArenaCompleted_{arenaConfig.ArenaKey}", 0) == 1;
-                    
-                    if (isCompleted)
+                    // Deactivate the progress blocker
+                    if (arenaConfig.progressUnlock != null)
                     {
-                        // Deactivate the progress blocker
                         arenaConfig.progressUnlock.SetActive(false);
+                    }
+                    
+                    // Change button color to green to indicate completion
+                    if (arenaConfig.button != null)
+                    {
+                        ColorBlock colors = arenaConfig.button.colors;
+                        colors.normalColor = Color.green;
+                        colors.highlightedColor = new Color(0f, 0.8f, 0f); // Darker green for hover
+                        colors.pressedColor = new Color(0f, 0.6f, 0f); // Even darker green for press
+                        colors.selectedColor = Color.green;
+                        arenaConfig.button.colors = colors;
                     }
                 }
             }

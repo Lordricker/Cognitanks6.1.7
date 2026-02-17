@@ -22,11 +22,11 @@ MonoBehaviour:
   customColor: {r: 1, g: 1, b: 1, a: 1}
   turretType: 0
   animationPrefab: {fileID: 0}
-  deathModelPrefab: {fileID: 0}
+  deathModelPrefab: {fileID: 4366391098555595496, guid: 10a2e801364ea6b44adb022eee844c60, type: 3}
   damage: 10
   range: 80
-  shotspersec: 0.5
-  bulletSpeed: 50
+  shotspersec: 0.8
+  bulletSpeed: 100
   knockback: medium
   visionRange: 220
   visionCone: 70

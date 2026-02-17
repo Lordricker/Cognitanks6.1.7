@@ -210,13 +210,21 @@ public class TankAssembly : MonoBehaviour
                 }
                 tankMan.SetTurretComponents(turretInstance.transform, firePoint);
                 
+                // Get skin and decal paths (use JSON path first, fallback to ComponentCustomizationManager)
+                string skinPathForModels = !string.IsNullOrEmpty(data.turretSkinPath) 
+                    ? data.turretSkinPath
+                    : ComponentCustomizationManager.Instance?.GetSkin(data.turretInstanceId);
+                string decalPathForModels = !string.IsNullOrEmpty(data.turretDecalPath) 
+                    ? data.turretDecalPath
+                    : ComponentCustomizationManager.Instance?.GetDecal(data.turretInstanceId);
+                
                 // Load and assign hammer animation prefab if specified
                 if (!string.IsNullOrEmpty(data.turretAnimationPrefabPath))
                 {
                     GameObject animationPrefab = Resources.Load<GameObject>(data.turretAnimationPrefabPath);
                     if (animationPrefab != null)
                     {
-                        tankMan.SetHammerAnimationPrefab(animationPrefab, data.turretColor.ToUnityColor());
+                        tankMan.SetHammerAnimationPrefab(animationPrefab, data.turretColor.ToUnityColor(), skinPathForModels, decalPathForModels);
                         Debug.Log($"TankAssembly: Loaded and assigned hammer animation prefab: {animationPrefab.name}");
                     }
                     else
@@ -231,7 +239,7 @@ public class TankAssembly : MonoBehaviour
                     GameObject deathModelPrefab = Resources.Load<GameObject>(data.turretDeathModelPrefabPath);
                     if (deathModelPrefab != null)
                     {
-                        tankMan.SetTurretDeathModelPrefab(deathModelPrefab, data.turretColor.ToUnityColor());
+                        tankMan.SetTurretDeathModelPrefab(deathModelPrefab, data.turretColor.ToUnityColor(), skinPathForModels, decalPathForModels);
                         Debug.Log($"TankAssembly: Loaded and assigned turret death model prefab: {deathModelPrefab.name}");
                     }
                     else

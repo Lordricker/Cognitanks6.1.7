@@ -362,7 +362,7 @@ public class TankMan : MonoBehaviour
         ApplyMovement();
         
         // Check if tank is stuck and apply unstuck logic continuously
-        UnstuckTank();
+        // UnstuckTank(); // DISABLED - Stuck detection disabled
     }
     
     /// <summary>
@@ -962,7 +962,7 @@ public class TankMan : MonoBehaviour
     /// Set the hammer animation prefab (called by TankAssembly during assembly)
     /// Pre-instantiates the hammer down model for performance
     /// </summary>
-    public void SetHammerAnimationPrefab(GameObject prefab, Color turretColor)
+    public void SetHammerAnimationPrefab(GameObject prefab, Color turretColor, string skinPath = null, string decalPath = null)
     {
         hammerDownPrefab = prefab;
         if (prefab != null && turretTransform != null)
@@ -975,20 +975,18 @@ public class TankMan : MonoBehaviour
             // Apply the same color as the main turret
             ApplyColorToModel(hammerDownInstance, turretColor);
             
-            // Apply skin if available (from ComponentCustomizationManager)
-            if (!string.IsNullOrEmpty(tankSlotData?.turretInstanceId) && ComponentCustomizationManager.Instance != null)
+            // Apply skin if provided
+            if (!string.IsNullOrEmpty(skinPath))
             {
-                string skinPath = ComponentCustomizationManager.Instance.GetSkin(tankSlotData.turretInstanceId);
-                if (!string.IsNullOrEmpty(skinPath))
-                {
-                    ApplySkinToModel(hammerDownInstance, skinPath);
-                }
-                
-                string decalPath = ComponentCustomizationManager.Instance.GetDecal(tankSlotData.turretInstanceId);
-                if (!string.IsNullOrEmpty(decalPath))
-                {
-                    ApplyDecalToModel(hammerDownInstance, decalPath);
-                }
+                ApplySkinToModel(hammerDownInstance, skinPath);
+                Debug.Log($"[TankMan] Applied skin to hammer animation: {skinPath}");
+            }
+            
+            // Apply decal if provided
+            if (!string.IsNullOrEmpty(decalPath))
+            {
+                ApplyDecalToModel(hammerDownInstance, decalPath);
+                Debug.Log($"[TankMan] Applied decal to hammer animation: {decalPath}");
             }
             
             Debug.Log($"[TankMan] Pre-instantiated hammer animation prefab: {prefab.name} with color: {turretColor}");
@@ -999,7 +997,7 @@ public class TankMan : MonoBehaviour
     /// Set the turret death model prefab (called by TankAssembly during assembly)
     /// Pre-instantiates the death model for performance
     /// </summary>
-    public void SetTurretDeathModelPrefab(GameObject prefab, Color turretColor)
+    public void SetTurretDeathModelPrefab(GameObject prefab, Color turretColor, string skinPath = null, string decalPath = null)
     {
         turretDeathModelPrefab = prefab;
         if (prefab != null && turretTransform != null)
@@ -1012,20 +1010,18 @@ public class TankMan : MonoBehaviour
             // Apply the same color as the main turret
             ApplyColorToModel(turretDeathModelInstance, turretColor);
             
-            // Apply skin if available (from ComponentCustomizationManager)
-            if (!string.IsNullOrEmpty(tankSlotData?.turretInstanceId) && ComponentCustomizationManager.Instance != null)
+            // Apply skin if provided
+            if (!string.IsNullOrEmpty(skinPath))
             {
-                string skinPath = ComponentCustomizationManager.Instance.GetSkin(tankSlotData.turretInstanceId);
-                if (!string.IsNullOrEmpty(skinPath))
-                {
-                    ApplySkinToModel(turretDeathModelInstance, skinPath);
-                }
-                
-                string decalPath = ComponentCustomizationManager.Instance.GetDecal(tankSlotData.turretInstanceId);
-                if (!string.IsNullOrEmpty(decalPath))
-                {
-                    ApplyDecalToModel(turretDeathModelInstance, decalPath);
-                }
+                ApplySkinToModel(turretDeathModelInstance, skinPath);
+                Debug.Log($"[TankMan] Applied skin to death model: {skinPath}");
+            }
+            
+            // Apply decal if provided
+            if (!string.IsNullOrEmpty(decalPath))
+            {
+                ApplyDecalToModel(turretDeathModelInstance, decalPath);
+                Debug.Log($"[TankMan] Applied decal to death model: {decalPath}");
             }
             
             Debug.Log($"[TankMan] Pre-instantiated turret death model prefab: {prefab.name} with color: {turretColor}");

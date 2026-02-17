@@ -76,6 +76,20 @@ public class TankSlotJsonManager : MonoBehaviour
     }
     
     /// <summary>
+    /// Forces reinitialization of tank slots (used after erasing data)
+    /// </summary>
+    public void ReinitializeTankSlots()
+    {
+        Debug.Log("[TankSlotJsonManager] >>> FORCING REINITIALIZATION <<<");
+        Debug.Log($"[TankSlotJsonManager] Current slot count before clear: {tankSlots.Count}");
+        tankSlots.Clear();
+        isInitialized = false;
+        Debug.Log("[TankSlotJsonManager] Cleared slots and set isInitialized=false, calling InitializeTankSlots...");
+        InitializeTankSlots();
+        Debug.Log($"[TankSlotJsonManager] >>> REINITIALIZATION COMPLETE, new slot count: {tankSlots.Count} <<<");
+    }
+    
+    /// <summary>
     /// Get tank slot data by index (0-9)
     /// </summary>
     public TankSlotDataJson GetTankSlot(int slotIndex)
@@ -255,24 +269,26 @@ public class TankSlotJsonManager : MonoBehaviour
     /// </summary>
     private void CreateDefaultTankSlots()
     {
+        Debug.Log("[TankSlotJsonManager] Creating default tank slots with EMPTY component assignments...");
+        
         for (int i = 0; i < 10; i++)
         {
             var defaultSlot = new TankSlotDataJson
             {
                 slotIndex = i,
                 slotName = $"TankSlot {i}",
-                displayName = $"Tank {i}",
-                isActive = (i == 0), // Make first tank slot active by default for testing
+                displayName = $"Tank {i + 1}",
+                isActive = (i == 0), // Make first tank slot active by default
                 teamId = 0,
                 isPlayerControlled = true,
                 
-                // Initialize empty component assignments
+                // Initialize empty component assignments - NO test data
                 engineFramePrefabGuid = "",
-                engineFrameInstanceId = (i == 0) ? "test_engine_frame" : "", // Give first tank a test engine for testing
+                engineFrameInstanceId = "",
                 armorPrefabGuid = "",
-                armorInstanceId = (i == 0) ? "test_armor" : "", // Give first tank test armor for testing
+                armorInstanceId = "",
                 turretPrefabGuid = "",
-                turretInstanceId = (i == 0) ? "test_turret" : "", // Give first tank test turret for testing
+                turretInstanceId = "",
                 turretAIInstanceId = "",
                 navAIInstanceId = "",
                 
@@ -281,24 +297,26 @@ public class TankSlotJsonManager : MonoBehaviour
                 armorColor = new ColorJson(1f, 1f, 1f, 1f),
                 turretColor = new ColorJson(1f, 1f, 1f, 1f),
                 
-                // Initialize default stats - give test values to first tank
-                totalWeight = (i == 0) ? 100f : 0f,
-                engineWeightCapacity = (i == 0) ? 200 : 0,
-                enginePower = (i == 0) ? 150 : 0,
-                armorHP = (i == 0) ? 100 : 0,
-                turretDamage = (i == 0) ? 25 : 0,
-                turretRange = (i == 0) ? 50f : 0f,
-                turretShotsPerSec = (i == 0) ? 1f : 0f,
-                turretKnockback = (i == 0) ? "Medium" : "",
-                turretVisionRange = (i == 0) ? 60f : 60f,
-                turretVisionCone = (i == 0) ? 45f : 45f
+                // Initialize default stats - all zeros
+                totalWeight = 0f,
+                engineWeightCapacity = 0,
+                enginePower = 0,
+                armorHP = 0,
+                turretDamage = 0,
+                turretRange = 0f,
+                turretShotsPerSec = 0f,
+                turretKnockback = "",
+                turretVisionRange = 300f,
+                turretVisionCone = 50f
             };
             
             tankSlots.Add(defaultSlot);
             SaveTankSlotToJson(defaultSlot);
+            
+            Debug.Log($"[TankSlotJsonManager] Created empty slot {i}: engine='', armor='', turret='', turretAI='', navAI=''");
         }
         
-        Debug.Log("[TankSlotJsonManager] Created 10 default tank slots (0-9) with Tank 0 active for testing");
+        Debug.Log("[TankSlotJsonManager] Finished creating 10 empty default tank slots (0-9)");
     }
     
     /// <summary>
@@ -343,8 +361,8 @@ public class TankSlotJsonManager : MonoBehaviour
                     turretRange = 0f,
                     turretShotsPerSec = 0f,
                     turretKnockback = "",
-                    turretVisionRange = 60f,
-                    turretVisionCone = 45f
+                    turretVisionRange = 300f,
+                    turretVisionCone = 50f
                 };
                 
                 tankSlots.Add(defaultSlot);
