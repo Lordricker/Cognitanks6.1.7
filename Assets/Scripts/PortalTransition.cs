@@ -19,6 +19,10 @@ public class PortalTransition : MonoBehaviour
     [Header("=== REQUIRED ===")]
     public Image fadeToBlackImage;
     
+    [Header("=== ENABLE/DISABLE ===")]
+    [Tooltip("Toggle to enable or disable the portal transition. When disabled, scene loads immediately.")]
+    public bool enableTransition = true;
+    
     [Header("=== SETTINGS ===")]
     public float transitionDuration = 5f;
     public float delayBeforeSceneLoad = 0.5f;
@@ -72,6 +76,14 @@ public class PortalTransition : MonoBehaviour
     public void StartTransition(string sceneName)
     {
         if (isTransitioning) return;
+        
+        // If transition is disabled, load scene immediately
+        if (!enableTransition)
+        {
+            Debug.Log("[PortalTransition] Transition disabled, loading scene immediately: " + sceneName);
+            UnityEngine.SceneManagement.SceneManager.LoadScene(sceneName);
+            return;
+        }
         
         isTransitioning = true;
         sceneToLoad = sceneName;

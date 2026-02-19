@@ -11,6 +11,7 @@ public class LeagueDropdownManager : MonoBehaviour
         public Button leagueButton; // The top-level league button
         public GameObject arenaListPanel; // The panel containing arena buttons for this league
         public List<ArenaButtonConfig> arenaButtons; // Assign arena buttons and their configs in Inspector
+        public Sprite leagueArenaImage; // Image to display when this league is selected (pic of the arena)
     }
 
     [System.Serializable]
@@ -39,6 +40,10 @@ public class LeagueDropdownManager : MonoBehaviour
     }
 
     public List<LeagueDropdown> leagues; // Assign in Inspector
+    
+    [Header("Arena Image Display")]
+    [Tooltip("Image component that will display the arena picture when a league is clicked")]
+    public UnityEngine.UI.Image arenaImageDisplay;
     
     [Header("Scene Transition")]
     [Tooltip("Reference to the PortalTransition component for fancy scene transitions")]
@@ -103,6 +108,9 @@ public class LeagueDropdownManager : MonoBehaviour
             if (leagues[i].arenaListPanel != null)
                 leagues[i].arenaListPanel.SetActive(i == clickedIndex && !leagues[i].arenaListPanel.activeSelf);
         }
+        
+        // Show the arena image for the clicked league
+        ShowLeagueArenaImage(clickedIndex);
     }
 
     // Called programmatically by button listeners set up in Start()
@@ -358,6 +366,41 @@ public class LeagueDropdownManager : MonoBehaviour
                     }
                 }
             }
+        }
+    }
+    
+    /// <summary>
+    /// Shows the arena image for the specified league
+    /// </summary>
+    /// <param name="leagueIndex">Index of the league whose image should be displayed</param>
+    public void ShowLeagueArenaImage(int leagueIndex)
+    {
+        if (arenaImageDisplay == null)
+        {
+            Debug.LogWarning("[LeagueDropdownManager] Arena image display not assigned!");
+            return;
+        }
+        
+        if (leagueIndex < 0 || leagueIndex >= leagues.Count)
+        {
+            Debug.LogWarning($"[LeagueDropdownManager] Invalid league index: {leagueIndex}");
+            return;
+        }
+        
+        var league = leagues[leagueIndex];
+        
+        // If the league has an image, show it
+        if (league.leagueArenaImage != null)
+        {
+            arenaImageDisplay.sprite = league.leagueArenaImage;
+            arenaImageDisplay.gameObject.SetActive(true);
+            Debug.Log($"[LeagueDropdownManager] Showing arena image for league {leagueIndex}");
+        }
+        else
+        {
+            // No image assigned for this league - hide the image display
+            arenaImageDisplay.gameObject.SetActive(false);
+            Debug.LogWarning($"[LeagueDropdownManager] No arena image assigned for league {leagueIndex}");
         }
     }
 }

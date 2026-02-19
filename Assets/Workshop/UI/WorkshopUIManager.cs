@@ -58,11 +58,26 @@ public class WorkshopUIManager : MonoBehaviour
     [Header("Quit Button")]
     public Button quitButton; // Assign the quit button in inspector
     
+    [Header("Campaign Panel")]
+    public Button campaignButton; // Assign the campaign button in inspector
+    public GameObject campaignPanel; // Assign the campaign panel in inspector
+    [Tooltip("Speed at which the campaign panel slides in/out (pixels per second)")]
+    public float campaignPanelSlideSpeed = 2000f; // Adjustable slide speed
+    
+    private RectTransform campaignPanelRect;
+    private Vector2 campaignPanelOnScreenPosition;
+    private Vector2 campaignPanelOffScreenPosition;
+    private bool isCampaignPanelVisible = false;
+    private Coroutine campaignSlideCoroutine;
+    
     [Header("Erase Data Button")]
     public Button eraseDataButton; // Assign the erase data button in inspector
     
     [Header("Debug UI")]
     public TMP_Text debugText; // Assign in inspector
+    
+    [Header("Team Weight")]
+    public TMP_Text totalActiveTanksWeightText; // Assign in inspector to display total weight of all active tanks
 
     private Coroutine debugTextCoroutine;
     private ComponentData selectedComponent;
@@ -140,6 +155,32 @@ public class WorkshopUIManager : MonoBehaviour
             quitButton.onClick.AddListener(() => PlayerDataManager.Instance.QuitGame());
         }
 
+        // Setup campaign panel slide animation
+        if (campaignPanel != null)
+        {
+            campaignPanelRect = campaignPanel.GetComponent<RectTransform>();
+            if (campaignPanelRect != null)
+            {
+                // Store the on-screen position (current position in inspector)
+                campaignPanelOnScreenPosition = campaignPanelRect.anchoredPosition;
+                
+                // Calculate off-screen position (slide to the right)
+                // Move it far enough right that it's completely off screen
+                float panelWidth = campaignPanelRect.rect.width;
+                campaignPanelOffScreenPosition = campaignPanelOnScreenPosition + new Vector2((panelWidth + 100f) * 2, 0);
+                
+                // Start with panel off-screen to the right
+                campaignPanelRect.anchoredPosition = campaignPanelOffScreenPosition;
+                isCampaignPanelVisible = false;
+            }
+        }
+        
+        // Setup campaign button to toggle panel
+        if (campaignButton != null)
+        {
+            campaignButton.onClick.AddListener(ToggleCampaignPanel);
+        }
+
         // Setup erase data button listener
         if (eraseDataButton != null)
         {
@@ -185,6 +226,9 @@ public class WorkshopUIManager : MonoBehaviour
         
         // Load tank slots from ScriptableObjects AFTER restoring activation states
         LoadTankSlotsFromScriptableObjects();
+        
+        // Update total active tanks weight display
+        UpdateTotalActiveTanksWeight();
     }
     
     /// <summary>
@@ -705,7 +749,7 @@ public class WorkshopUIManager : MonoBehaviour
         
         // Sum weights of all equipped components and update ItemStats text, clear description
         float totalWeight = CalculateAndSaveTotalWeight(selectedTankSlot);
-        itemStatsText.text = $"Total Weight: {totalWeight}";
+        itemStatsText.text = $"Tank Weight: {totalWeight:F1}kg";
         descriptionText.text = "";
     }
     
@@ -1136,6 +1180,9 @@ public class WorkshopUIManager : MonoBehaviour
         // Save the updated slot data to JSON
         tankSlotJsonManager.UpdateTankSlot(slotIndex, slotData);
         
+        // Update total active tanks weight display
+        UpdateTotalActiveTanksWeight();
+        
         Debug.Log($"[WorkshopUIManager] Updated tank slot {slotIndex} JSON with component {component.title}");
     }
 
@@ -1223,7 +1270,7 @@ public class WorkshopUIManager : MonoBehaviour
 
             // Sum weights of all equipped components and update ItemStats text, clear description
             float totalWeight = CalculateAndSaveTotalWeight(selectedTankSlot);
-            itemStatsText.text = $"Total Weight: {totalWeight}";
+            itemStatsText.text = $"Tank Weight: {totalWeight:F1}kg";
             descriptionText.text = "";
         }
     }
@@ -2058,5 +2105,96 @@ public class WorkshopUIManager : MonoBehaviour
                 tipBubble.SetActive(tipsVisible);
             }
         }
+    }
+    
+    /// <summary>
+    /// Toggles the campaign panel (slides in or out)
+    /// </summary>
+    public void ToggleCampaignPanel()
+    {
+        if (isCampaignPanelVisible)
+        {
+            HideCampaignPanel();
+        }
+        else
+        {
+            ShowCampaignPanel();
+        }
+    }
+    
+    /// <summary>
+    /// Shows the campaign panel by sliding it in from the right
+    /// </summary>
+    public void ShowCampaignPanel()
+    {
+        if (campaignPanelRect == null) return;
+        
+        if (campaignSlideCoroutine != null)
+        {
+            StopCoroutine(campaignSlideCoroutine);
+        }
+        
+        isCampaignPanelVisible = true;
+        campaignSlideCoroutine = StartCoroutine(SlideCampaignPanel(campaignPanelOnScreenPosition));
+    }
+    
+    /// <summary>
+    /// Hides the campaign panel by sliding it out to the right
+    /// </summary>
+    public void HideCampaignPanel()
+    {
+        if (campaignPanelRect == null) return;
+        
+        if (campaignSlideCoroutine != null)
+        {
+            StopCoroutine(campaignSlideCoroutine);
+        }
+        
+        isCampaignPanelVisible = false;
+        campaignSlideCoroutine = StartCoroutine(SlideCampaignPanel(campaignPanelOffScreenPosition));
+    }
+    
+    /// <summary>
+    /// Coroutine to smoothly slide the campaign panel to a target position
+    /// </summary>
+    private IEnumerator SlideCampaignPanel(Vector2 targetPosition)
+    {
+        if (campaignPanelRect == null) yield break;
+        
+        while (Vector2.Distance(campaignPanelRect.anchoredPosition, targetPosition) > 1f)
+        {
+            campaignPanelRect.anchoredPosition = Vector2.MoveTowards(
+                campaignPanelRect.anchoredPosition,
+                targetPosition,
+                campaignPanelSlideSpeed * Time.unscaledDeltaTime
+            );
+            yield return null;
+        }
+        
+        // Snap to final position
+        campaignPanelRect.anchoredPosition = targetPosition;
+        campaignSlideCoroutine = null;
+    }
+    
+    /// <summary>
+    /// Calculates and displays the total weight of all active tank slots
+    /// </summary>
+    public void UpdateTotalActiveTanksWeight()
+    {
+        if (tankSlotJsonManager == null || totalActiveTanksWeightText == null)
+            return;
+        
+        var activeTanks = tankSlotJsonManager.GetActiveTankSlots();
+        float totalWeight = 0f;
+        
+        if (activeTanks != null)
+        {
+            foreach (var tank in activeTanks)
+            {
+                totalWeight += tank.totalWeight;
+            }
+        }
+        
+        totalActiveTanksWeightText.text = $"Team Weight: {totalWeight:F1}kg";
     }
 }

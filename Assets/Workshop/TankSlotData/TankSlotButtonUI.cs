@@ -112,8 +112,10 @@ public class TankSlotButtonUI : MonoBehaviour
             if (data is AiTreeAsset aiTreeAsset) {
                 if (aiTreeAsset.branchType == AiBranchType.Turret) {
                     slotData.turretAIInstanceId = data.instanceId;
+                    slotData.turretAIWeight = data.weight;
                 } else if (aiTreeAsset.branchType == AiBranchType.Nav) {
                     slotData.navAIInstanceId = data.instanceId;
+                    slotData.navAIWeight = data.weight;
                 } else {
                     Debug.LogError($"Tried to assign AiTreeAsset with unsupported branch type: {aiTreeAsset.branchType}");
                 }
@@ -125,6 +127,7 @@ public class TankSlotButtonUI : MonoBehaviour
             Debug.Log($"AssignComponent: legacy category=TurretAI, data type={data.GetType().FullName}, instanceId={data.instanceId}");
             if (data is AiTreeAsset turretAI) {
                 slotData.turretAIInstanceId = data.instanceId;
+                slotData.turretAIWeight = data.weight;
             } else {
                 Debug.LogError($"Tried to assign a non-AiTreeAsset to turretAI slot! Actual type: {data.GetType().FullName}, instanceId: {data.instanceId}");
             }
@@ -133,14 +136,15 @@ public class TankSlotButtonUI : MonoBehaviour
             Debug.Log($"AssignComponent: legacy category=NavAI, data type={data.GetType().FullName}, instanceId={data.instanceId}");
             if (data is AiTreeAsset navAI) {
                 slotData.navAIInstanceId = data.instanceId;
+                slotData.navAIWeight = data.weight;
             } else {
                 Debug.LogError($"Tried to assign a non-AiTreeAsset to navAI slot! Actual type: {data.GetType().FullName}, instanceId: {data.instanceId}");
             }
         }
         // Add more categories as needed
         
-        // Recalculate total weight
-        slotData.totalWeight = slotData.armorWeight + slotData.turretWeight + slotData.engineWeight;
+        // Recalculate total weight (include AI weights to match UpdateTankLoadoutSave calculation)
+        slotData.totalWeight = slotData.armorWeight + slotData.turretWeight + slotData.engineWeight + slotData.turretAIWeight + slotData.navAIWeight;
         
         // Save the updated slot data to JSON
         tankSlotJsonManager.UpdateTankSlot(slotIndex, slotData);
@@ -158,6 +162,13 @@ public class TankSlotButtonUI : MonoBehaviour
         if (tankSlotJsonManager != null)
         {
             tankSlotJsonManager.SetTankSlotActive(slotIndex, active);
+        }
+        
+        // Update the total active tanks weight display in WorkshopUIManager
+        var workshopUI = FindFirstObjectByType<WorkshopUIManager>();
+        if (workshopUI != null)
+        {
+            workshopUI.UpdateTotalActiveTanksWeight();
         }
     }
 
@@ -184,6 +195,9 @@ public class TankSlotButtonUI : MonoBehaviour
             // Clear engine stats
             slotData.engineWeightCapacity = 0;
             slotData.enginePower = 0;
+            slotData.engineTorque = 0;
+            slotData.engineWeight = 0;
+            slotData.engineFrameHP = 0;
         }
         else if (data.category == ComponentCategory.Armor && slotData.armorInstanceId == data.instanceId)
         {
@@ -191,6 +205,7 @@ public class TankSlotButtonUI : MonoBehaviour
             slotData.armorInstanceId = "";
             // Clear armor stats
             slotData.armorHP = 0;
+            slotData.armorWeight = 0;
         }
         else if (data.category == ComponentCategory.Turret && slotData.turretInstanceId == data.instanceId)
         {
@@ -203,26 +218,34 @@ public class TankSlotButtonUI : MonoBehaviour
             slotData.turretKnockback = "";
             slotData.turretVisionRange = 60f; // Reset to default
             slotData.turretVisionCone = 45f; // Reset to default
+            slotData.turretWeight = 0;
         }
         else if (data.category == ComponentCategory.AITree) {
             // Handle AITree unassignment based on branch type
             if (data is AiTreeAsset aiTreeAsset) {
                 if (aiTreeAsset.branchType == AiBranchType.Turret && slotData.turretAIInstanceId == data.instanceId) {
                     slotData.turretAIInstanceId = "";
+                    slotData.turretAIWeight = 0f;
                 } else if (aiTreeAsset.branchType == AiBranchType.Nav && slotData.navAIInstanceId == data.instanceId) {
                     slotData.navAIInstanceId = "";
+                    slotData.navAIWeight = 0f;
                 }
             }
         }
         else if (data.category == ComponentCategory.TurretAI && slotData.turretAIInstanceId == data.instanceId)
         {
             slotData.turretAIInstanceId = "";
+            slotData.turretAIWeight = 0f;
         }
         else if (data.category == ComponentCategory.NavAI && slotData.navAIInstanceId == data.instanceId)
         {
             slotData.navAIInstanceId = "";
+            slotData.navAIWeight = 0f;
         }
         // Add more categories as needed
+        
+        // Recalculate total weight after unassignment (include AI weights to match AssignComponent calculation)
+        slotData.totalWeight = slotData.armorWeight + slotData.turretWeight + slotData.engineWeight + slotData.turretAIWeight + slotData.navAIWeight;
         
         // Save the updated slot data to JSON
         tankSlotJsonManager.UpdateTankSlot(slotIndex, slotData);
