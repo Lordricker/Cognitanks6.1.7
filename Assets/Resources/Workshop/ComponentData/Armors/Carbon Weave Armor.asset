@@ -16,7 +16,7 @@ MonoBehaviour:
   description: Light mobile armor created from woven carbon fibers
   cost: 180
   weight: 10
-  modelPrefab: {fileID: 1152886449815452189, guid: 2e5d834e0a752ba4f8df33102ca3489e, type: 3}
+  modelPrefab: {fileID: 8369357554622851116, guid: 414e69e4a8125b148b30ab53fab21435, type: 3}
   category: 1
   instanceId: 
   customColor: {r: 1, g: 1, b: 1, a: 1}

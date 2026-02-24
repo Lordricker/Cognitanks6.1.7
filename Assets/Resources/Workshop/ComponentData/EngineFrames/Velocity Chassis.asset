@@ -16,7 +16,7 @@ MonoBehaviour:
   description: Balanced Weight and Power
   cost: 220
   weight: 35
-  modelPrefab: {fileID: 7789181595919938413, guid: dea2914b1d3284749876ec95ecc58bb5, type: 3}
+  modelPrefab: {fileID: 1376746805322245531, guid: 31da2b4382968b24f8b2ec2122c83fe8, type: 3}
   category: 3
   instanceId: 
   customColor: {r: 1, g: 1, b: 1, a: 1}

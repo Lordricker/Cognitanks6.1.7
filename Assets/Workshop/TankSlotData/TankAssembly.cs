@@ -8,7 +8,7 @@ public class TankAssembly : MonoBehaviour
 
     [Header("Tank Visual Offsets")]
     [Tooltip("Vertical offset for armor relative to engine frame (in local Y units)")]
-    [SerializeField] private float armorYOffset = -1.25f;
+    //[SerializeField] private float armorYOffset = 0f;
 
     [Header("Tank Faction")]
     [SerializeField] private bool isEnemyTank = true; // Set this in inspector or through code
@@ -48,7 +48,7 @@ public class TankAssembly : MonoBehaviour
         {
             boxCollider = gameObject.AddComponent<BoxCollider>();
         }
-        boxCollider.center = new Vector3(0f, -1.86f, 0f);
+        boxCollider.center = new Vector3(0f, -3f, 0f);
         boxCollider.size = new Vector3(7f, 1.5f, 14f);
         boxCollider.isTrigger = true; // Ensure collider is set as trigger for ground detection
         
@@ -147,8 +147,9 @@ public class TankAssembly : MonoBehaviour
             if (armorPrefab != null)
             {
                 GameObject armor = Instantiate(armorPrefab, basePivot.position, basePivot.rotation, basePivot);
-                // Apply vertical offset after parenting
-                armor.transform.localPosition += new Vector3(0f, armorYOffset, 0f);
+                // Force local position to zero (ignores any baked FBX offset)
+                armor.transform.localPosition = Vector3.zero;
+                armor.transform.localRotation = Quaternion.identity;
                 ApplyColorToModel(armor, data.armorColor.ToUnityColor());
                 
                 // Apply skin: use JSON path first, fallback to ComponentCustomizationManager
@@ -290,7 +291,7 @@ public class TankAssembly : MonoBehaviour
             {
                 GameObject leftAnchorObj = new GameObject("LeftDirtEmitterAnchor");
                 leftAnchorObj.transform.SetParent(transform);
-                leftAnchorObj.transform.localPosition = new Vector3(-5f, -2f, -6f);
+                leftAnchorObj.transform.localPosition = new Vector3(-5f, -3f, -8f);
                 leftAnchorObj.transform.localRotation = Quaternion.identity;
                 leftAnchor = leftAnchorObj.transform;
             }
@@ -801,12 +802,12 @@ public class TankAssembly : MonoBehaviour
         wheelContainer.transform.localRotation = Quaternion.identity;
         
         // Sphere positioning - raised slightly to prevent sinking into terrain
-        float wheelYPosition = -.1f; // Raised from -1.36f
+        float wheelYPosition = -1.25f; // Raised from -1.36f
         float wheelRadius = 2f; // Increased from 0.4f to provide more contact area
         
         // Positioning based on tank dimensions (matching ground detection box size)
-        float frontBack = 5f;  // Front/back distance (half of 14 length minus margin)
-        float leftRight = 3f; // Left/right distance (half of 7 width minus margin)
+        float frontBack = 8f;  // Front/back distance (half of 14 length minus margin)
+        float leftRight = 3.8f; // Left/right distance (half of 7 width minus margin)
         
         // Create 4 sphere colliders at corners
         CreateWheelSphere("WheelFL", wheelContainer.transform, new Vector3(-leftRight, wheelYPosition, frontBack), wheelRadius);
