@@ -112,7 +112,8 @@ public enum TurretTypeJson
 {
     DirectFire,    // Straight-line bullets (rifles, cannons, etc.)
     Artillery,     // Ballistic arc bullets with gravity
-    Hammer         // Melee range with AOE damage
+    Hammer,        // Melee range with AOE damage
+    Healer         // Direct fire that heals allies instead of damaging enemies
 }
 
 /// <summary>

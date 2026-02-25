@@ -85,6 +85,18 @@ public class TankAssembly : MonoBehaviour
             Debug.LogWarning($"TankAssembly: Could not load bullet prefab from Resources/Prefabs/BulletObject for {gameObject.name}");
         }
         
+        // Load and assign the heal bullet prefab (used by Healer turret type)
+        GameObject healBulletPrefab = Resources.Load<GameObject>("Prefabs/HealObject");
+        if (healBulletPrefab != null)
+        {
+            tankMan.SetHealBulletPrefab(healBulletPrefab);
+            Debug.Log($"TankAssembly: Successfully loaded and assigned heal bullet prefab to {gameObject.name}");
+        }
+        else
+        {
+            Debug.LogWarning($"TankAssembly: Could not load heal bullet prefab from Resources/Prefabs/HealObject for {gameObject.name}");
+        }
+        
         // Load and assign the death explosion prefab
         GameObject deathExplosionPrefab = Resources.Load<GameObject>("Vefects/Free Fire VFX URP/Particles/VFX_Fire_01_Big");
         if (deathExplosionPrefab != null)

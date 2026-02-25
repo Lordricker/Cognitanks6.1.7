@@ -10,23 +10,23 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 905e2e8ea32ce3148ab3e71d3bf8d1f5, type: 3}
-  m_Name: Rifle
+  m_Name: Caduceus
   m_EditorClassIdentifier: 
-  title: Rifle
-  description: Fires Bullets... in a straight line.
-  cost: 400
-  weight: 5
-  modelPrefab: {fileID: 3988795819180297859, guid: 06e358ab34071074f80cb8a43e03c4c1, type: 3}
+  title: Caduceus
+  description: Patience is a virtue. So is excessive damage. (stops before firing)
+  cost: 900
+  weight: 20
+  modelPrefab: {fileID: 8231736399904978694, guid: 70401da4f665fc842877554c09a36e5a, type: 3}
   category: 0
   instanceId: 
   customColor: {r: 1, g: 1, b: 1, a: 1}
   turretType: 3
   animationPrefab: {fileID: 0}
-  deathModelPrefab: {fileID: 4423945634728005072, guid: 1e39358623c22f042833939afbee19e0, type: 3}
-  damage: 15
-  range: 100
-  shotspersec: 1
-  bulletSpeed: 150
-  knockback: Low
+  deathModelPrefab: {fileID: 0}
+  damage: 20
+  range: 700
+  shotspersec: 0.5
+  bulletSpeed: 400
+  knockback: Medium
   visionRange: 300
-  visionCone: 50
+  visionCone: 100

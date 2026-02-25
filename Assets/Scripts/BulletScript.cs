@@ -24,6 +24,10 @@ public class BulletScript : MonoBehaviour
     [SerializeField] private int firingTeamId;
     [SerializeField] private bool isArtillery = false;
     [SerializeField] private bool isHammer = false;
+    [SerializeField] private bool isHealer = false;
+    
+    [Header("Healer Settings")]
+    [SerializeField] private float healerRotationSpeed = 90f; // Degrees per second for Y-axis spin
     
     [Header("Runtime Data")]
     [SerializeField] private Vector3 startPosition;
@@ -42,13 +46,14 @@ public class BulletScript : MonoBehaviour
     /// Initialize bullet with combat stats from the firing tank
     /// Explosion prefab is assigned directly in the bullet prefab inspector (used for muzzle flash and impact)
     /// </summary>
-    public void Initialize(int bulletDamage, float bulletRange, int teamId, bool artilleryMode = false, float bulletKnockback = 1f, float customAoeRadius = -1f, TankMan shooter = null, bool hammerMode = false)
+    public void Initialize(int bulletDamage, float bulletRange, int teamId, bool artilleryMode = false, float bulletKnockback = 1f, float customAoeRadius = -1f, TankMan shooter = null, bool hammerMode = false, bool healerMode = false)
     {
         damage = bulletDamage;
         maxRange = bulletRange;
         firingTeamId = teamId;
         isArtillery = artilleryMode;
         isHammer = hammerMode;
+        isHealer = healerMode;
         knockback = bulletKnockback;
         startPosition = transform.position;
         previousPosition = transform.position;
@@ -120,8 +125,14 @@ public class BulletScript : MonoBehaviour
         if (!isInitialized) return;
         
         // Rotate bullet to face its velocity direction (especially important for artillery arcs)
+        // Healer bullets spin slowly around Y-axis instead of aligning to velocity
         Rigidbody bulletRb = GetComponent<Rigidbody>();
-        if (bulletRb != null && bulletRb.linearVelocity.magnitude > 0.1f)
+        if (isHealer)
+        {
+            // Slow Y-axis rotation for the plus-sign visual
+            transform.Rotate(Vector3.up, healerRotationSpeed * Time.deltaTime, Space.Self);
+        }
+        else if (bulletRb != null && bulletRb.linearVelocity.magnitude > 0.1f)
         {
             transform.rotation = Quaternion.LookRotation(bulletRb.linearVelocity.normalized);
         }
@@ -193,40 +204,28 @@ public class BulletScript : MonoBehaviour
         {
             Debug.Log($"[BulletScript] Hit tank team {hitTankTeam.teamId}, bullet fired by team {firingTeamId}");
             
-            // Only damage enemies (different team)
-            if (hitTankTeam.teamId != firingTeamId)
+            if (isHealer)
             {
-                // Apply damage to the tank
-                TankMan hitTank = hitTankTeam.GetComponent<TankMan>();
-                if (hitTank == null)
+                // Healer bullet: heal allies, ignore enemies
+                if (hitTankTeam.teamId == firingTeamId)
                 {
-                    hitTank = hitTankTeam.GetComponentInParent<TankMan>();
-                }
-                
-                if (hitTank != null)
-                {
-                    // For artillery and hammer, skip direct damage - only use AOE damage from Explode()
-                    if (!isArtillery && !isHammer)
+                    TankMan hitTank = hitTankTeam.GetComponent<TankMan>();
+                    if (hitTank == null)
+                        hitTank = hitTankTeam.GetComponentInParent<TankMan>();
+                    
+                    if (hitTank != null && hitTank != firingTank)
                     {
-                        // Get bullet velocity for knockback direction
-                        Rigidbody bulletRb = GetComponent<Rigidbody>();
-                        Vector3 knockbackDirection = Vector3.zero;
-                        if (bulletRb != null)
-                        {
-                            knockbackDirection = bulletRb.linearVelocity;
-                        }
+                        // Heal the ally (damage field is used as heal amount)
+                        hitTank.Heal(damage);
                         
-                        // Apply damage with knockback (handles friction reduction and force application)
-                        hitTank.TakeDamage(damage, knockbackDirection, knockback);
+                        // Record healing as negative damage dealt
+                        RecordDamageDealt(-damage);
                         
-                        // Record damage dealt for match stats
-                        RecordDamageDealt(damage);
-                        
-                        Debug.Log($"[BulletScript] Hit enemy tank {hitTank.name} for {damage} direct damage (knockback: {knockback})");
+                        Debug.Log($"[BulletScript] Healed ally tank {hitTank.name} for {damage} HP");
                     }
-                    else
+                    else if (hitTank == firingTank)
                     {
-                        Debug.Log($"[BulletScript] Artillery/Hammer hit enemy tank {hitTank.name} - using AOE damage only");
+                        Debug.Log($"[BulletScript] Healer bullet hit self - no heal");
                     }
                     
                     // Play bullet hit sound at collision point
@@ -235,12 +234,60 @@ public class BulletScript : MonoBehaviour
                 }
                 else
                 {
-                    Debug.Log($"[BulletScript] Could not find TankMan component on {hitTankTeam.name}");
+                    Debug.Log($"[BulletScript] Healer bullet hit enemy tank {hitTankTeam.name} - no healing");
                 }
             }
             else
             {
-                Debug.Log($"[BulletScript] Hit friendly tank {hitTankTeam.name} - no damage");
+                // Normal bullet: damage enemies, ignore allies
+                if (hitTankTeam.teamId != firingTeamId)
+                {
+                    // Apply damage to the tank
+                    TankMan hitTank = hitTankTeam.GetComponent<TankMan>();
+                    if (hitTank == null)
+                    {
+                        hitTank = hitTankTeam.GetComponentInParent<TankMan>();
+                    }
+                    
+                    if (hitTank != null)
+                    {
+                        // For artillery and hammer, skip direct damage - only use AOE damage from Explode()
+                        if (!isArtillery && !isHammer)
+                        {
+                            // Get bullet velocity for knockback direction
+                            Rigidbody bulletRb = GetComponent<Rigidbody>();
+                            Vector3 knockbackDirection = Vector3.zero;
+                            if (bulletRb != null)
+                            {
+                                knockbackDirection = bulletRb.linearVelocity;
+                            }
+                            
+                            // Apply damage with knockback (handles friction reduction and force application)
+                            hitTank.TakeDamage(damage, knockbackDirection, knockback);
+                            
+                            // Record damage dealt for match stats
+                            RecordDamageDealt(damage);
+                            
+                            Debug.Log($"[BulletScript] Hit enemy tank {hitTank.name} for {damage} direct damage (knockback: {knockback})");
+                        }
+                        else
+                        {
+                            Debug.Log($"[BulletScript] Artillery/Hammer hit enemy tank {hitTank.name} - using AOE damage only");
+                        }
+                        
+                        // Play bullet hit sound at collision point
+                        if (SoundManager.Instance != null)
+                            SoundManager.Instance.PlayBulletHitAtPosition(collision.contacts[0].point);
+                    }
+                    else
+                    {
+                        Debug.Log($"[BulletScript] Could not find TankMan component on {hitTankTeam.name}");
+                    }
+                }
+                else
+                {
+                    Debug.Log($"[BulletScript] Hit friendly tank {hitTankTeam.name} - no damage");
+                }
             }
         }
         else
@@ -291,8 +338,8 @@ public class BulletScript : MonoBehaviour
             col.enabled = false;
         }
         
-        // Apply AOE damage for artillery and hammer bullets
-        if (isArtillery || isHammer)
+        // Apply AOE damage for artillery and hammer bullets (not for healer - direct hit only)
+        if ((isArtillery || isHammer) && !isHealer)
         {
             // Apply AOE damage and knockback to all tanks in radius
             Collider[] hitColliders = Physics.OverlapSphere(transform.position, aoeRadius);

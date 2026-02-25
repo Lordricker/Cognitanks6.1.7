@@ -82,6 +82,7 @@ public class TankMan : MonoBehaviour
     
     [Header("Projectile Settings")]
     [SerializeField] private GameObject bulletPrefab; // Universal bullet prefab for all tanks
+    [SerializeField] private GameObject healBulletPrefab; // Heal bullet prefab for healer turrets
     private float bulletSpeed = 50f; // Speed from turret data (loaded from TankSlotData)
     
     [Header("Death Effects")]
@@ -956,6 +957,14 @@ public class TankMan : MonoBehaviour
     public void SetBulletPrefab(GameObject prefab)
     {
         bulletPrefab = prefab;
+    }
+    
+    /// <summary>
+    /// Set the heal bullet prefab reference (called by TankAssembly)
+    /// </summary>
+    public void SetHealBulletPrefab(GameObject prefab)
+    {
+        healBulletPrefab = prefab;
     }
     
     /// <summary>
@@ -2875,6 +2884,9 @@ public class TankMan : MonoBehaviour
         // Simple firing - instantiate bullet if prefab exists
         if (bulletPrefab != null)
         {
+            // Choose the correct prefab based on turret type
+            GameObject prefabToUse = (turretType == TurretType.Healer && healBulletPrefab != null) ? healBulletPrefab : bulletPrefab;
+            
             Vector3 direction;
             float launchAngle = 0f;
             
@@ -2888,12 +2900,12 @@ public class TankMan : MonoBehaviour
             }
             else
             {
-                // Direct fire: Shoot straight along turret's forward axis
+                // Direct fire / Healer: Shoot straight along turret's forward axis
                 // The turret is already aimed at the lead point by LeadTargetAction
                 direction = turretTransform.forward;
             }
             
-            GameObject bullet = Instantiate(bulletPrefab, firePoint.position, Quaternion.LookRotation(direction));
+            GameObject bullet = Instantiate(prefabToUse, firePoint.position, Quaternion.LookRotation(direction));
             
             // Make artillery bullets twice as fat (wider and taller)
             if (turretType == TurretType.Artillery)
@@ -2931,11 +2943,15 @@ public class TankMan : MonoBehaviour
                 // Hammer uses AOE like artillery but with custom radius of 20
                 if (turretType == TurretType.Hammer)
                 {
-                    bulletScript.Initialize(damage, range, myTeamInfo.teamId, false, ParseKnockback(), 20f, this, true);
+                    bulletScript.Initialize(damage, range, myTeamInfo.teamId, false, ParseKnockback(), 20f, this, true, false);
+                }
+                else if (turretType == TurretType.Healer)
+                {
+                    bulletScript.Initialize(damage, range, myTeamInfo.teamId, false, ParseKnockback(), -1f, this, false, true);
                 }
                 else
                 {
-                    bulletScript.Initialize(damage, range, myTeamInfo.teamId, turretType == TurretType.Artillery, ParseKnockback(), -1f, this, false);
+                    bulletScript.Initialize(damage, range, myTeamInfo.teamId, turretType == TurretType.Artillery, ParseKnockback(), -1f, this, false, false);
                 }
             }
             else
@@ -2955,7 +2971,7 @@ public class TankMan : MonoBehaviour
             // Fire second barrel if firePoint1 exists (for double-barrel shotguns)
             if (firePoint1 != null)
             {
-                GameObject bullet2 = Instantiate(bulletPrefab, firePoint1.position, Quaternion.LookRotation(direction));
+                GameObject bullet2 = Instantiate(prefabToUse, firePoint1.position, Quaternion.LookRotation(direction));
                 
                 // Make artillery bullets twice as fat (wider and taller)
                 if (turretType == TurretType.Artillery)
@@ -2993,11 +3009,15 @@ public class TankMan : MonoBehaviour
                     // Hammer uses AOE like artillery but with custom radius of 20
                     if (turretType == TurretType.Hammer)
                     {
-                        bulletScript2.Initialize(damage, range, myTeamInfo.teamId, false, ParseKnockback(), 20f, this, true);
+                        bulletScript2.Initialize(damage, range, myTeamInfo.teamId, false, ParseKnockback(), 20f, this, true, false);
+                    }
+                    else if (turretType == TurretType.Healer)
+                    {
+                        bulletScript2.Initialize(damage, range, myTeamInfo.teamId, false, ParseKnockback(), -1f, this, false, true);
                     }
                     else
                     {
-                        bulletScript2.Initialize(damage, range, myTeamInfo.teamId, turretType == TurretType.Artillery, ParseKnockback(), -1f, this, false);
+                        bulletScript2.Initialize(damage, range, myTeamInfo.teamId, turretType == TurretType.Artillery, ParseKnockback(), -1f, this, false, false);
                     }
                 }
             }
@@ -3229,6 +3249,16 @@ public class TankMan : MonoBehaviour
         {
             Die();
         }
+    }
+    
+    /// <summary>
+    /// Heal this tank by the specified amount, capped at max HP.
+    /// Does not apply knockback.
+    /// </summary>
+    public void Heal(float healAmount)
+    {
+        currentHealth = Mathf.Min(currentHealth + healAmount, totalHP);
+        Debug.Log($"[{gameObject.name}] Healed for {healAmount}. HP: {currentHealth}/{totalHP}");
     }
     
     /// <summary>
