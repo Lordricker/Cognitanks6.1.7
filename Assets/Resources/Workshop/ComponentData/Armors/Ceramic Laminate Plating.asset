@@ -16,7 +16,7 @@ MonoBehaviour:
   description: Light mobile armor cut from extremely hard ceramics
   cost: 100
   weight: 20
-  modelPrefab: {fileID: 1316712241508069579, guid: 07936782aa1495c4e8ea7a8af005ca83, type: 3}
+  modelPrefab: {fileID: 6110218812062251786, guid: 548de8251367fbc4cb5f2cfd1a298062, type: 3}
   category: 1
   instanceId: 
   customColor: {r: 1, g: 1, b: 1, a: 1}

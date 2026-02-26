@@ -16,7 +16,7 @@ MonoBehaviour:
   description: Faster movement but low weight capacity
   cost: 250
   weight: 25
-  modelPrefab: {fileID: 7789181595919938413, guid: 027f2212bcb27a143a2803c493a0086c, type: 3}
+  modelPrefab: {fileID: 4542622725282822207, guid: 1ee6fc649d07ee8479ab8d3944e5ca60, type: 3}
   category: 3
   instanceId: 
   customColor: {r: 1, g: 1, b: 1, a: 1}

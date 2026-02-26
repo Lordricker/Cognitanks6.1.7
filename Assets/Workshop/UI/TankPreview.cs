@@ -82,25 +82,24 @@ public class TankPreview : MonoBehaviour
         }
     }
 
-    // Helper: Only color the TreadMount child for EngineFrame components
+    // Helper: Only color the TreadMount child for EngineFrame components, falls back to whole model
     private void ApplyColorToTreadMount(GameObject engineFrame, Color color)
     {
         var treadMount = engineFrame.transform.Find("TreadMount");
-        if (treadMount != null)
+        var renderers = treadMount != null
+            ? treadMount.GetComponentsInChildren<Renderer>()
+            : engineFrame.GetComponentsInChildren<Renderer>();
+        foreach (var renderer in renderers)
         {
-            var renderers = treadMount.GetComponentsInChildren<Renderer>();
-            foreach (var renderer in renderers)
+            // Skip SpriteRenderers (used for decals) - they should not be affected by color
+            if (renderer is SpriteRenderer) continue;
+            
+            foreach (var mat in renderer.materials)
             {
-                // Skip SpriteRenderers (used for decals) - they should not be affected by color
-                if (renderer is SpriteRenderer) continue;
-                
-                foreach (var mat in renderer.materials)
-                {
-                    if (mat.HasProperty("_BaseColor"))
-                        mat.SetColor("_BaseColor", color);
-                    else if (mat.HasProperty("_Color"))
-                        mat.SetColor("_Color", color);
-                }
+                if (mat.HasProperty("_BaseColor"))
+                    mat.SetColor("_BaseColor", color);
+                else if (mat.HasProperty("_Color"))
+                    mat.SetColor("_Color", color);
             }
         }
     }

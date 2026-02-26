@@ -7,7 +7,7 @@
   "armorPrefabGuid": "",
   "engineFramePrefabGuid": "",
   "turretAIInstanceId": "Round1Turret_8984983e-2ee0-4516-9341-180382418730",
-  "navAIInstanceId": "",
+  "navAIInstanceId": "L1R2RifleN_25932148-027c-4b6e-8320-8200261452d2",
   "turretType": 0,
   "turretDeathModelPrefabPath": "Models/Prefabs/Turrets/RifleDamaged",
   "turretDamage": 10,

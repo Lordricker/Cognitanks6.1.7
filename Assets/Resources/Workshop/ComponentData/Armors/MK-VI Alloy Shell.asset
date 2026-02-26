@@ -17,7 +17,7 @@ MonoBehaviour:
     uranium
   cost: 400
   weight: 60
-  modelPrefab: {fileID: 1214209721320138314, guid: 29ccf167f1aca184385f5af15104cd76, type: 3}
+  modelPrefab: {fileID: 311614551349936055, guid: f7cecfcc22025e24aafa0890fa15fd34, type: 3}
   category: 1
   instanceId: 
   customColor: {r: 1, g: 1, b: 1, a: 1}
