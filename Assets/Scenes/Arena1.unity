@@ -10538,6 +10538,9 @@ MonoBehaviour:
   cycleTankCamButton: {fileID: 329772828}
   orbitSensitivity: 3
   globalAnchor: {fileID: 138062101}
+  zoomSpeed: 150
+  minFOV: 10
+  maxFOV: 60
 --- !u!1 &1365356402
 GameObject:
   m_ObjectHideFlags: 0
