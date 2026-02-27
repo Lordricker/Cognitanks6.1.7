@@ -25,12 +25,23 @@ public class CameraController : MonoBehaviour
 
     public Transform globalAnchor; // Assign in inspector for global view
 
+    [Header("Global Camera Zoom (FOV)")]
+    public float zoomSpeed = 15f;
+    public float minFOV = 10f;
+    public float maxFOV = 60f;
+    private float targetFOV = 60f;
+    private Camera cam;
+
     private Vector3 smoothVelocity = Vector3.zero;
     private float smoothTime = 0.15f; // Smoothing time for camera follow
     private Quaternion targetRotation;
 
     void Start()
     {
+        cam = GetComponent<Camera>();
+        if (cam == null) cam = Camera.main;
+        targetFOV = maxFOV;
+
         RefreshAnchors();
         if (cameraAnchors.Count > 0)
             SetTargetAnchor(cameraAnchors[0]);
@@ -63,6 +74,27 @@ public class CameraController : MonoBehaviour
     void LateUpdate()
     {
         if (cameraAnchors.Count == 0) return;
+
+        // Handle scroll wheel zoom via FOV (only for global camera)
+        bool isGlobalCamera = targetAnchor != null && targetAnchor == globalAnchor;
+        if (isGlobalCamera && !EventSystem.current.IsPointerOverGameObject())
+        {
+            float scrollDelta = Mouse.current.scroll.ReadValue().y;
+            if (Mathf.Abs(scrollDelta) > 0.01f)
+            {
+                // Scroll up = zoom in (lower FOV), scroll down = zoom out (higher FOV)
+                targetFOV -= scrollDelta * zoomSpeed * Time.unscaledDeltaTime;
+                targetFOV = Mathf.Clamp(targetFOV, minFOV, maxFOV);
+            }
+        }
+
+        // Reset FOV when switching away from global camera
+        if (!isGlobalCamera)
+            targetFOV = maxFOV;
+
+        // Smoothly lerp the camera FOV
+        if (cam != null)
+            cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, targetFOV, Time.unscaledDeltaTime * 10f);
 
         // Smooth follow position and rotation
         if (targetAnchor != null)

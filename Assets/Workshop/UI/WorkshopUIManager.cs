@@ -729,6 +729,8 @@ public class WorkshopUIManager : MonoBehaviour
             // Clear stats and description when no slot is selected
             itemStatsText.text = "";
             descriptionText.text = "";
+            if (statsPanel != null)
+                statsPanel.ShowStats(null);
             return;
         }
 
@@ -747,10 +749,12 @@ public class WorkshopUIManager : MonoBehaviour
             modelPreview.ShowTank(GetEquippedComponentsForSlot(selectedTankSlot), slotData);
         }
         
-        // Sum weights of all equipped components and update ItemStats text, clear description
+        // Show full tank stats in stats panel
         float totalWeight = CalculateAndSaveTotalWeight(selectedTankSlot);
         itemStatsText.text = $"Tank Weight: {totalWeight:F1}kg";
         descriptionText.text = "";
+        if (statsPanel != null)
+            statsPanel.ShowTankStats(GetEquippedComponentsForSlot(selectedTankSlot), totalWeight, selectedTankSlot.TankName);
     }
     
     // Helper to get equipped components for a tank slot
@@ -1268,10 +1272,12 @@ public class WorkshopUIManager : MonoBehaviour
                 modelPreview.ShowTank(GetEquippedComponentsForSlot(selectedTankSlot), slotData);
             }
 
-            // Sum weights of all equipped components and update ItemStats text, clear description
+            // Show full tank stats in stats panel
             float totalWeight = CalculateAndSaveTotalWeight(selectedTankSlot);
             itemStatsText.text = $"Tank Weight: {totalWeight:F1}kg";
             descriptionText.text = "";
+            if (statsPanel != null)
+                statsPanel.ShowTankStats(GetEquippedComponentsForSlot(selectedTankSlot), totalWeight, selectedTankSlot.TankName);
         }
     }
 
