@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   title: Artillery
   description: Long Range AOE Shell. High Dmg on direct hit.
-  cost: 1200
+  cost: 800
   weight: 20
   modelPrefab: {fileID: 1560303840180915853, guid: 7f977733971d32340bc7c93c79fac831, type: 3}
   category: 0

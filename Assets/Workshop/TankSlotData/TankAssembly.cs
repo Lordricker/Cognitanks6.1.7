@@ -49,7 +49,7 @@ public class TankAssembly : MonoBehaviour
             boxCollider = gameObject.AddComponent<BoxCollider>();
         }
         boxCollider.center = new Vector3(0f, -3f, 0f);
-        boxCollider.size = new Vector3(7f, 1.5f, 14f);
+        boxCollider.size = new Vector3(9f, 1.5f, 20f);
         boxCollider.isTrigger = true; // Ensure collider is set as trigger for ground detection
         
         // Setup 4-sphere physics contact system for normalized friction

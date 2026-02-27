@@ -190,7 +190,7 @@ public class LeagueDropdownManager : MonoBehaviour
         float totalWeight = CalculateTotalActiveTankWeight();
         if (weightLimit > 0 && totalWeight > weightLimit)
         {
-            ShowError($"Weight Limit Exceeded! Total: {totalWeight:F1}kg / Limit: {weightLimit:F1}kg");
+            ShowError($"Weight Limit Exceeded! Total: {totalWeight:F1}t / Limit: {weightLimit:F1}t");
             return;
         }
         

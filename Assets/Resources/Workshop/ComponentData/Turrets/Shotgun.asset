@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   title: Shotgun
   description: Fires two bullets, increasing knockback
-  cost: 400
+  cost: 300
   weight: 8
   modelPrefab: {fileID: 7130448153178295769, guid: b122bfa9744e8e242880185c52a5e67b, type: 3}
   category: 0

@@ -33,7 +33,7 @@
     "dragCoefficient": 0.5,
     "angularDragCoefficient": 2.0,
     "totalWeight": 55.0,
-    "engineFrameInstanceId": "Velocity Chassis_bf466702-5d2a-4c8d-b2a4-687cd79a8271",
+    "engineFrameInstanceId": "Accelerator Frame_bf466702-5d2a-4c8d-b2a4-687cd79a8271",
     "armorInstanceId": "Carbon Weave Armor_59c01920-2616-4ad3-a037-da905b18a3ca",
     "turretInstanceId": "Sniper_83c18582-eae8-4279-884a-856f3bcb421a",
     "engineFrameColor": {

@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   title: Hammer
   description: BAM! BAM! BAM! BAM!
-  cost: 500
+  cost: 225
   weight: 10
   modelPrefab: {fileID: 3216970213566971821, guid: 986e64a6e252ac74eb7c6bc49d739974, type: 3}
   category: 0

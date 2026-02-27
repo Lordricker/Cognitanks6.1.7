@@ -57,6 +57,7 @@ public class WorkshopUIManager : MonoBehaviour
     
     [Header("Quit Button")]
     public Button quitButton; // Assign the quit button in inspector
+    public Button mainMenuButton; // Slides the main menu panel back down
     
     [Header("Campaign Panel")]
     public Button campaignButton; // Assign the campaign button in inspector
@@ -69,7 +70,34 @@ public class WorkshopUIManager : MonoBehaviour
     private Vector2 campaignPanelOffScreenPosition;
     private bool isCampaignPanelVisible = false;
     private Coroutine campaignSlideCoroutine;
-    
+
+    [Header("Main Menu Panel")]
+    public GameObject mainMenuPanel; // The main menu panel that slides up when Workshop is opened
+    [Tooltip("Speed at which the main menu panel slides up/down (pixels per second)")]
+    public float mainMenuPanelSlideSpeed = 2000f;
+    public Button mainMenuWorkshopButton; // Slides the main menu panel up
+    public Button mainMenuSettingsButton; // Opens the settings panel
+    public Button mainMenuCreditsButton;  // Opens the credits panel
+    public GameObject mainMenuSettingsPanel; // Settings sub-panel
+    public GameObject mainMenuCreditsPanel;  // Credits sub-panel
+
+    private RectTransform mainMenuPanelRect;
+    private Vector2 mainMenuPanelOnScreenPosition;
+    private Vector2 mainMenuPanelOffScreenPosition;
+    private bool isMainMenuPanelVisible = true;
+    private Coroutine mainMenuPanelCoroutine;
+    private static bool mainMenuDismissed = false; // persists across scene loads
+
+    private CanvasGroup mainMenuSettingsCanvasGroup;
+    [Tooltip("Speed at which the settings panel fades in/out (alpha per second)")]
+    public float mainMenuSettingsFadeSpeed = 4f;
+    private bool isMainMenuSettingsVisible = false;
+    private Coroutine mainMenuSettingsCoroutine;
+
+    private CanvasGroup mainMenuCreditsCanvasGroup;
+    private bool isMainMenuCreditsVisible = false;
+    private Coroutine mainMenuCreditsCoroutine;
+
     [Header("Erase Data Button")]
     public Button eraseDataButton; // Assign the erase data button in inspector
     
@@ -155,6 +183,12 @@ public class WorkshopUIManager : MonoBehaviour
             quitButton.onClick.AddListener(() => PlayerDataManager.Instance.QuitGame());
         }
 
+        // Setup main menu return button
+        if (mainMenuButton != null)
+        {
+            mainMenuButton.onClick.AddListener(ShowMainMenuPanel);
+        }
+
         // Setup campaign panel slide animation
         if (campaignPanel != null)
         {
@@ -180,6 +214,63 @@ public class WorkshopUIManager : MonoBehaviour
         {
             campaignButton.onClick.AddListener(ToggleCampaignPanel);
         }
+
+        // Setup main menu panel slide animation
+        if (mainMenuPanel != null)
+        {
+            mainMenuPanelRect = mainMenuPanel.GetComponent<RectTransform>();
+            if (mainMenuPanelRect != null)
+            {
+                mainMenuPanelOnScreenPosition = mainMenuPanelRect.anchoredPosition;
+                float panelHeight = mainMenuPanelRect.rect.height;
+                mainMenuPanelOffScreenPosition = mainMenuPanelOnScreenPosition + new Vector2(0f, (panelHeight + 100f) * 2f);
+                // Start off-screen if previously dismissed, otherwise show normally
+                if (mainMenuDismissed)
+                {
+                    mainMenuPanelRect.anchoredPosition = mainMenuPanelOffScreenPosition;
+                    isMainMenuPanelVisible = false;
+                }
+                else
+                {
+                    mainMenuPanelRect.anchoredPosition = mainMenuPanelOnScreenPosition;
+                    isMainMenuPanelVisible = true;
+                }
+            }
+        }
+
+        // Setup main menu settings sub-panel (alpha fade)
+        if (mainMenuSettingsPanel != null)
+        {
+            mainMenuSettingsCanvasGroup = mainMenuSettingsPanel.GetComponent<CanvasGroup>();
+            if (mainMenuSettingsCanvasGroup == null)
+                mainMenuSettingsCanvasGroup = mainMenuSettingsPanel.AddComponent<CanvasGroup>();
+            mainMenuSettingsCanvasGroup.alpha = 0f;
+            mainMenuSettingsCanvasGroup.interactable = false;
+            mainMenuSettingsCanvasGroup.blocksRaycasts = false;
+            mainMenuSettingsPanel.SetActive(false);
+            isMainMenuSettingsVisible = false;
+        }
+
+        // Setup main menu credits sub-panel (alpha fade)
+        if (mainMenuCreditsPanel != null)
+        {
+            mainMenuCreditsCanvasGroup = mainMenuCreditsPanel.GetComponent<CanvasGroup>();
+            if (mainMenuCreditsCanvasGroup == null)
+                mainMenuCreditsCanvasGroup = mainMenuCreditsPanel.AddComponent<CanvasGroup>();
+            mainMenuCreditsCanvasGroup.alpha = 0f;
+            mainMenuCreditsCanvasGroup.interactable = false;
+            mainMenuCreditsCanvasGroup.blocksRaycasts = false;
+            mainMenuCreditsPanel.SetActive(false);
+            isMainMenuCreditsVisible = false;
+        }
+
+        // Setup main menu button listeners
+        if (mainMenuWorkshopButton != null)
+            mainMenuWorkshopButton.onClick.AddListener(HideMainMenuPanel);
+        if (mainMenuSettingsButton != null)
+            mainMenuSettingsButton.onClick.AddListener(ToggleMainMenuSettings);
+        if (mainMenuCreditsButton != null)
+            mainMenuCreditsButton.onClick.AddListener(ToggleMainMenuCredits);
 
         // Setup erase data button listener
         if (eraseDataButton != null)
@@ -751,7 +842,7 @@ public class WorkshopUIManager : MonoBehaviour
         
         // Show full tank stats in stats panel
         float totalWeight = CalculateAndSaveTotalWeight(selectedTankSlot);
-        itemStatsText.text = $"Tank Weight: {totalWeight:F1}kg";
+        itemStatsText.text = $"Tank Weight: {totalWeight:F1}t";
         descriptionText.text = "";
         if (statsPanel != null)
             statsPanel.ShowTankStats(GetEquippedComponentsForSlot(selectedTankSlot), totalWeight, selectedTankSlot.TankName);
@@ -1274,7 +1365,7 @@ public class WorkshopUIManager : MonoBehaviour
 
             // Show full tank stats in stats panel
             float totalWeight = CalculateAndSaveTotalWeight(selectedTankSlot);
-            itemStatsText.text = $"Tank Weight: {totalWeight:F1}kg";
+            itemStatsText.text = $"Tank Weight: {totalWeight:F1}t";
             descriptionText.text = "";
             if (statsPanel != null)
                 statsPanel.ShowTankStats(GetEquippedComponentsForSlot(selectedTankSlot), totalWeight, selectedTankSlot.TankName);
@@ -2181,6 +2272,158 @@ public class WorkshopUIManager : MonoBehaviour
         campaignPanelRect.anchoredPosition = targetPosition;
         campaignSlideCoroutine = null;
     }
+
+    // ── Main Menu Panel ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Slides the main menu panel up off-screen (called by the Workshop button).
+    /// </summary>
+    public void HideMainMenuPanel()
+    {
+        if (mainMenuPanelRect == null) return;
+        if (mainMenuPanelCoroutine != null) StopCoroutine(mainMenuPanelCoroutine);
+        isMainMenuPanelVisible = false;
+        mainMenuDismissed = true;
+        mainMenuPanelCoroutine = StartCoroutine(SlideRectTo(mainMenuPanelRect, mainMenuPanelOffScreenPosition, mainMenuPanelSlideSpeed,
+            () => mainMenuPanelCoroutine = null));
+    }
+
+    /// <summary>
+    /// Slides the main menu panel back down to its on-screen position.
+    /// </summary>
+    public void ShowMainMenuPanel()
+    {
+        if (mainMenuPanelRect == null) return;
+        if (mainMenuPanelCoroutine != null) StopCoroutine(mainMenuPanelCoroutine);
+        isMainMenuPanelVisible = true;
+        mainMenuDismissed = false;
+        mainMenuPanelCoroutine = StartCoroutine(SlideRectTo(mainMenuPanelRect, mainMenuPanelOnScreenPosition, mainMenuPanelSlideSpeed,
+            () => mainMenuPanelCoroutine = null));
+    }
+
+    /// <summary>
+    /// Resets the main menu dismissed state so it shows again on next scene load.
+    /// Call this on game reset.
+    /// </summary>
+    public static void ResetMainMenuState()
+    {
+        mainMenuDismissed = false;
+    }
+
+    /// <summary>
+    /// Toggles the settings sub-panel; closes credits if open.
+    /// </summary>
+    public void ToggleMainMenuSettings()
+    {
+        if (isMainMenuCreditsVisible) HideMainMenuCredits();
+        if (isMainMenuSettingsVisible) HideMainMenuSettings();
+        else ShowMainMenuSettings();
+    }
+
+    public void ShowMainMenuSettings()
+    {
+        if (mainMenuSettingsPanel == null || mainMenuSettingsCanvasGroup == null) return;
+        if (mainMenuSettingsCoroutine != null) StopCoroutine(mainMenuSettingsCoroutine);
+        isMainMenuSettingsVisible = true;
+        mainMenuSettingsCanvasGroup.alpha = 0f; // prevent flash
+        mainMenuSettingsPanel.SetActive(true);
+        mainMenuSettingsCanvasGroup.interactable = true;
+        mainMenuSettingsCanvasGroup.blocksRaycasts = true;
+        mainMenuSettingsCoroutine = StartCoroutine(FadePanel(mainMenuSettingsPanel, mainMenuSettingsCanvasGroup, 0f, 1f, 0.2f,
+            () => mainMenuSettingsCoroutine = null));
+    }
+
+    public void HideMainMenuSettings()
+    {
+        if (mainMenuSettingsPanel == null || mainMenuSettingsCanvasGroup == null) return;
+        if (mainMenuSettingsCoroutine != null) StopCoroutine(mainMenuSettingsCoroutine);
+        isMainMenuSettingsVisible = false;
+        mainMenuSettingsCanvasGroup.interactable = false;
+        mainMenuSettingsCanvasGroup.blocksRaycasts = false;
+        mainMenuSettingsCoroutine = StartCoroutine(FadePanel(mainMenuSettingsPanel, mainMenuSettingsCanvasGroup, 1f, 0f, 0.2f,
+            () => { mainMenuSettingsPanel.SetActive(false); mainMenuSettingsCoroutine = null; }));
+    }
+
+    /// <summary>
+    /// Toggles the credits sub-panel; closes settings if open.
+    /// </summary>
+    public void ToggleMainMenuCredits()
+    {
+        if (isMainMenuSettingsVisible) HideMainMenuSettings();
+        if (isMainMenuCreditsVisible) HideMainMenuCredits();
+        else ShowMainMenuCredits();
+    }
+
+    public void ShowMainMenuCredits()
+    {
+        if (mainMenuCreditsPanel == null || mainMenuCreditsCanvasGroup == null) return;
+        if (mainMenuCreditsCoroutine != null) StopCoroutine(mainMenuCreditsCoroutine);
+        isMainMenuCreditsVisible = true;
+        mainMenuCreditsCanvasGroup.alpha = 0f; // prevent flash
+        mainMenuCreditsPanel.SetActive(true);
+        mainMenuCreditsCanvasGroup.interactable = true;
+        mainMenuCreditsCanvasGroup.blocksRaycasts = true;
+        mainMenuCreditsCoroutine = StartCoroutine(FadePanel(mainMenuCreditsPanel, mainMenuCreditsCanvasGroup, 0f, 1f, 0.2f,
+            () => mainMenuCreditsCoroutine = null));
+    }
+
+    public void HideMainMenuCredits()
+    {
+        if (mainMenuCreditsPanel == null || mainMenuCreditsCanvasGroup == null) return;
+        if (mainMenuCreditsCoroutine != null) StopCoroutine(mainMenuCreditsCoroutine);
+        isMainMenuCreditsVisible = false;
+        mainMenuCreditsCanvasGroup.interactable = false;
+        mainMenuCreditsCanvasGroup.blocksRaycasts = false;
+        mainMenuCreditsCoroutine = StartCoroutine(FadePanel(mainMenuCreditsPanel, mainMenuCreditsCanvasGroup, 1f, 0f, 0.2f,
+            () => { mainMenuCreditsPanel.SetActive(false); mainMenuCreditsCoroutine = null; }));
+    }
+
+    /// <summary>
+    /// Coroutine to fade a CanvasGroup alpha to a target value.
+    /// Uses unscaled time so it works even when Time.timeScale = 0.
+    /// </summary>
+    private IEnumerator FadePanel(GameObject panel, CanvasGroup cg, float startAlpha, float endAlpha, float duration, System.Action onComplete)
+    {
+        float time = 0f;
+        cg.alpha = startAlpha;
+        while (time < duration)
+        {
+            time += Time.unscaledDeltaTime;
+            cg.alpha = Mathf.Lerp(startAlpha, endAlpha, time / duration);
+            yield return null;
+        }
+        cg.alpha = endAlpha;
+        onComplete?.Invoke();
+    }
+
+    private IEnumerator FadeCanvasGroup(CanvasGroup cg, float targetAlpha, float speed, System.Action onComplete)
+    {
+        if (cg == null) yield break;
+        while (Mathf.Abs(cg.alpha - targetAlpha) > 0.01f)
+        {
+            cg.alpha = Mathf.MoveTowards(cg.alpha, targetAlpha, speed * Time.unscaledDeltaTime);
+            yield return null;
+        }
+        cg.alpha = targetAlpha;
+        onComplete?.Invoke();
+    }
+
+    /// <summary>
+    /// Generic coroutine to slide any RectTransform to a target anchoredPosition.
+    /// Uses unscaled time so it works even when Time.timeScale = 0.
+    /// </summary>
+    private IEnumerator SlideRectTo(RectTransform rect, Vector2 targetPos, float speed, System.Action onComplete)
+    {
+        if (rect == null) yield break;
+        while (Vector2.Distance(rect.anchoredPosition, targetPos) > 1f)
+        {
+            rect.anchoredPosition = Vector2.MoveTowards(
+                rect.anchoredPosition, targetPos, speed * Time.unscaledDeltaTime);
+            yield return null;
+        }
+        rect.anchoredPosition = targetPos;
+        onComplete?.Invoke();
+    }
     
     /// <summary>
     /// Calculates and displays the total weight of all active tank slots
@@ -2201,6 +2444,6 @@ public class WorkshopUIManager : MonoBehaviour
             }
         }
         
-        totalActiveTanksWeightText.text = $"Team Weight: {totalWeight:F1}kg";
+        totalActiveTanksWeightText.text = $"Team Weight: {totalWeight:F1}t";
     }
 }

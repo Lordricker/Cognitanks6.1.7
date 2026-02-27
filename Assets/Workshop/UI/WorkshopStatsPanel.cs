@@ -57,7 +57,7 @@ public class WorkshopStatsPanel : MonoBehaviour
         if (turretAi != null)
         {
             sb.AppendLine(turretAi.title);
-            sb.AppendLine($"Weight: {turretAi.weight}kg");
+            sb.AppendLine($"Weight: {turretAi.weight}t");
         }
         else
         {
@@ -69,7 +69,7 @@ public class WorkshopStatsPanel : MonoBehaviour
         if (navAi != null)
         {
             sb.AppendLine(navAi.title);
-            sb.AppendLine($"Weight: {navAi.weight}kg");
+            sb.AppendLine($"Weight: {navAi.weight}t");
         }
         else
         {
@@ -84,7 +84,7 @@ public class WorkshopStatsPanel : MonoBehaviour
             sb.AppendLine(engine.title);
             sb.AppendLine($"Power: {engine.enginePower}");
             sb.AppendLine($"Turning: {engine.turningPower}");
-            sb.AppendLine($"Weight Cap: {engine.weightCapacity}kg  Weight: {engine.weight}kg");
+            sb.AppendLine($"Weight Cap: {engine.weightCapacity}t  Weight: {engine.weight}t");
             sb.AppendLine();
         }
         else
@@ -99,7 +99,7 @@ public class WorkshopStatsPanel : MonoBehaviour
         {
             sb.AppendLine("── Armor ──");
             sb.AppendLine(armor.title);
-            sb.AppendLine($"HP: {armor.HP}  Weight: {armor.weight}kg");
+            sb.AppendLine($"HP: {armor.HP}  Weight: {armor.weight}t");
             sb.AppendLine();
         }
         else
@@ -120,7 +120,7 @@ public class WorkshopStatsPanel : MonoBehaviour
             sb.AppendLine($"Shots/sec: {turret.shotspersec}");
             sb.AppendLine($"Vision: {turret.visionRange}m / {turret.visionCone}°");
             sb.AppendLine($"Knockback: {turret.knockback}");
-            sb.AppendLine($"Weight: {turret.weight}kg");
+            sb.AppendLine($"Weight: {turret.weight}t");
             sb.AppendLine();
         }
         else
@@ -130,7 +130,7 @@ public class WorkshopStatsPanel : MonoBehaviour
             sb.AppendLine();
         }
 
-        sb.AppendLine($"─ Total Weight: {totalWeight:F1}kg ─");
+        sb.AppendLine($"─ Total Weight: {totalWeight:F1}t ─");
 
         statsText.text = sb.ToString();
     }

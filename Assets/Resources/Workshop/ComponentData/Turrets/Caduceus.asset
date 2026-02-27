@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   title: Caduceus
   description: Medic Please! Heals allies instead of damaging enemies.
-  cost: 400
+  cost: 250
   weight: 13
   modelPrefab: {fileID: 8231736399904978694, guid: 70401da4f665fc842877554c09a36e5a, type: 3}
   category: 0

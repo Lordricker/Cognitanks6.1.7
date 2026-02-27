@@ -31,6 +31,13 @@ public class SoundManager : MonoBehaviour
     [Range(0f, 1f)]
     public float sfxVolume = 1f;
 
+    [Header("Distance-Based Volume")]
+    [Tooltip("Within this distance from the camera, positional sounds play at full volume.")]
+    public float fullVolumeDistance = 20f;
+
+    [Tooltip("Beyond this distance, positional sounds are completely silent.")]
+    public float silenceDistance = 200f;
+
     [Tooltip("Gain multiplier applied to all positional SFX via AudioMixer (above 1 boosts beyond the normal 0-1 cap, up to +20dB at 10x).")]
     [Range(1f, 10f)]
     public float sfxGainMultiplier = 1f;
@@ -336,12 +343,27 @@ public class SoundManager : MonoBehaviour
         AudioSource source = tempAudio.AddComponent<AudioSource>();
         source.clip = clip;
         source.spatialBlend = 1f; // Full 3D audio
+        source.rolloffMode = AudioRolloffMode.Linear;
+        source.minDistance = fullVolumeDistance;   // Full volume within this radius
+        source.maxDistance = silenceDistance;       // Silent beyond this radius
         source.volume = Mathf.Clamp01(masterVolume * sfxVolume * devVolume);
         if (sfxMixerGroup != null)
             source.outputAudioMixerGroup = sfxMixerGroup; // Mixer handles gain above 1.0
         source.Play();
         
         Destroy(tempAudio, clip.length + 0.1f); // Destroy after sound finishes
+    }
+
+    /// <summary>
+    /// Applies the current distance rolloff settings to an existing AudioSource (e.g. tank driving sound).
+    /// Call this after creating a looping positional AudioSource on a tank.
+    /// </summary>
+    public void ApplyDistanceSettings(AudioSource source)
+    {
+        if (source == null) return;
+        source.rolloffMode = AudioRolloffMode.Linear;
+        source.minDistance = fullVolumeDistance;
+        source.maxDistance = silenceDistance;
     }
 
     // Tank driving sound with fade (returns AudioSource for control)

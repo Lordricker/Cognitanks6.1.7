@@ -33,8 +33,8 @@
     "dragCoefficient": 0.5,
     "angularDragCoefficient": 2.0,
     "totalWeight": 46.0,
-    "engineFrameInstanceId": "Velocity Chassis_b4af0eab-86d2-4bf7-9098-8f0dfcccb035",
-    "armorInstanceId": "Carbon Weave Armor_1ee4c8d0-667c-4e34-a138-8530041afe7b",
+    "engineFrameInstanceId": "Titan Core_b4af0eab-86d2-4bf7-9098-8f0dfcccb035",
+    "armorInstanceId": "Ceramic Laminate Plating_1ee4c8d0-667c-4e34-a138-8530041afe7b",
     "turretInstanceId": "Shotgun_6aa8b819-105c-4646-aab9-0b1a719cda5d",
     "engineFrameColor": {
         "r": 1.0,

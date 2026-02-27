@@ -492,8 +492,9 @@ public class TankMan : MonoBehaviour
         // Only apply unstuck when grounded
         if (!isGrounded)
         {
-            // Reset stuck tracking when airborne
+            // Reset stuck tracking when airborne and update reference position on landing
             timeFirstBecameStuck = -1f;
+            lastStuckCheckPosition = transform.position;
             return;
         }
 
@@ -505,17 +506,21 @@ public class TankMan : MonoBehaviour
 
         if (rb != null)
         {
-            // Check if tank is stuck (no position change)
             Vector3 currentPos = transform.position;
-            float distanceMoved = Vector3.Distance(currentPos, lastStuckCheckPosition);
             
-            if (distanceMoved < 1.0f) // Position hasn't changed significantly
+            // Use horizontal distance only (XZ plane) - ignore Y jiggling/bouncing
+            float horizontalDistance = Vector2.Distance(
+                new Vector2(currentPos.x, currentPos.z),
+                new Vector2(lastStuckCheckPosition.x, lastStuckCheckPosition.z));
+            
+            if (horizontalDistance < 1.0f) // Root position hasn't actually moved on the ground
             {
                 // Track when we first became stuck
                 if (timeFirstBecameStuck < 0)
                 {
                     timeFirstBecameStuck = Time.time;
-                    hasTriedAiRestart = false; // Reset AI restart flag for new stuck period
+                    hasTriedAiRestart = false;
+                    Debug.Log($"[{gameObject.name}] UnstuckTank: tank appears stuck (moved {horizontalDistance:F2}m horizontally from origin)");
                 }
 
                 // Try AI restart first after 1.5 seconds
@@ -523,6 +528,7 @@ public class TankMan : MonoBehaviour
                 
                 if (timeStuck >= UNSTUCK_AI_RESTART_DELAY && !hasTriedAiRestart)
                 {
+                    Debug.Log($"[{gameObject.name}] UnstuckTank: restarting AI after {timeStuck:F1}s stuck");
                     RestartAI();
                     hasTriedAiRestart = true;
                 }
@@ -531,24 +537,27 @@ public class TankMan : MonoBehaviour
                 if (timeStuck >= UNSTUCK_INITIAL_DELAY && Time.time - lastUnstuckForceTime >= UNSTUCK_FORCE_INTERVAL)
                 {
                     // Apply strong upward force to lift tank out of stuck position
-                    float upwardForce = rb.mass * 20f; // Strong impulse to lift tank
+                    float upwardForce = rb.mass * 20f;
                     rb.AddForce(Vector3.up * upwardForce, ForceMode.Impulse);
                     lastUnstuckForceTime = Time.time;
+                    Debug.Log($"[{gameObject.name}] UnstuckTank: UPWARD FORCE applied ({upwardForce:F0}N) after {timeStuck:F1}s stuck, horizontalDist={horizontalDistance:F2}m");
                 }
+                
+                // DO NOT update lastStuckCheckPosition while stuck
+                // We keep measuring from the original position where the tank first got stuck
+                // This way jiggling back and forth won't fool the detector
             }
             else
             {
-                // Tank is moving, reset stuck tracking
+                // Tank is actually moving, reset stuck tracking and update reference position
                 if (timeFirstBecameStuck >= 0)
                 {
                     timeFirstBecameStuck = -1f;
                     hasTriedAiRestart = false;
                 }
+                lastStuckCheckPosition = currentPos;
+                lastStuckCheckPositionTime = Time.time;
             }
-            
-            // Update position tracking
-            lastStuckCheckPosition = currentPos;
-            lastStuckCheckPositionTime = Time.time;
         }
     }
 
@@ -1213,6 +1222,7 @@ public class TankMan : MonoBehaviour
             tankDrivingAudioSource.playOnAwake = false;
             tankDrivingAudioSource.volume = 0f;
             tankDrivingAudioSource.spatialBlend = 1f; // 3D audio
+            SoundManager.Instance.ApplyDistanceSettings(tankDrivingAudioSource); // Use configured distance rolloff
         }
         
         tankDrivingAudioSource.Play();
@@ -3638,6 +3648,9 @@ public class TankMan : MonoBehaviour
                 lastWanderPositionCheckTime = Time.time;
             }
 
+            // Continuously check if tank is stuck and apply recovery force
+            UnstuckTank();
+
             Vector3 diff = currentWanderTarget - transform.position;
             diff.y = 0;
             float distance = diff.magnitude;
@@ -3773,6 +3786,9 @@ public class TankMan : MonoBehaviour
             targetPosition.x = Mathf.Clamp(targetPosition.x, 30f, 770f);
             targetPosition.z = Mathf.Clamp(targetPosition.z, 30f, 770f);
 
+            // Continuously check if tank is stuck and apply recovery force
+            UnstuckTank();
+
             // Chase continuously - AI tree conditions (like IfRange) decide when to stop
             // Use NavState_MoveToWaypoint for smooth movement toward target
             NavState_MoveToWaypoint(targetPosition);
@@ -3820,6 +3836,9 @@ public class TankMan : MonoBehaviour
             // Clamp to map boundaries
             fleeTarget.x = Mathf.Clamp(fleeTarget.x, 30f, 770f);
             fleeTarget.z = Mathf.Clamp(fleeTarget.z, 30f, 770f);
+
+            // Continuously check if tank is stuck and apply recovery force
+            UnstuckTank();
 
             // Flee continuously - AI tree conditions (like IfRange) decide when to stop
             // Use NavState_MoveToWaypoint to move toward flee position (away from target)
@@ -4767,6 +4786,9 @@ public class TankMan : MonoBehaviour
                 continue;
             }
             
+            // Continuously check if tank is stuck and apply recovery force
+            UnstuckTank();
+
             // Move forward at full speed
             SetMovementInput(1f, 0f);
             yield return new WaitForFixedUpdate();
