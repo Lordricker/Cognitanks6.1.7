@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Caduceus
   m_EditorClassIdentifier: 
   title: Caduceus
-  description: Patience is a virtue. So is excessive damage. (stops before firing)
-  cost: 900
-  weight: 20
+  description: Medic Please! Heals allies instead of damaging enemies.
+  cost: 400
+  weight: 13
   modelPrefab: {fileID: 8231736399904978694, guid: 70401da4f665fc842877554c09a36e5a, type: 3}
   category: 0
   instanceId: 
@@ -23,10 +23,10 @@ MonoBehaviour:
   turretType: 3
   animationPrefab: {fileID: 0}
   deathModelPrefab: {fileID: 0}
-  damage: 20
-  range: 700
+  damage: 8
+  range: 130
   shotspersec: 0.5
-  bulletSpeed: 400
-  knockback: Medium
+  bulletSpeed: 100
+  knockback: Low
   visionRange: 300
   visionCone: 100

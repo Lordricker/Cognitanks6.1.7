@@ -717,6 +717,11 @@ public class TankAssembly : MonoBehaviour
                     prefab = Resources.Load<GameObject>("Models/Prefabs/Turrets/Sniper");
                     Debug.Log($"[TankAssembly] Loaded turret: {(prefab != null ? "SUCCESS" : "FAILED")} - Models/Prefabs/Turrets/Sniper");
                 }
+                else if (componentName == "Caduceus" || componentName.Contains("Caduceus"))
+                {
+                    prefab = Resources.Load<GameObject>("Models/Prefabs/Turrets/Caduceus");
+                    Debug.Log($"[TankAssembly] Loaded turret: {(prefab != null ? "SUCCESS" : "FAILED")} - Models/Prefabs/Turrets/Caduceus");
+                }
                 break;
         }
         
@@ -786,6 +791,8 @@ public class TankAssembly : MonoBehaviour
                     return "Assets/Resources/Models/Prefabs/Turrets/Laser.prefab";
                 else if (componentName == "Sniper" || componentName.Contains("Sniper"))
                     return "Assets/Resources/Models/Prefabs/Turrets/Sniper.prefab";
+                else if (componentName == "Caduceus" || componentName.Contains("Caduceus"))
+                    return "Assets/Resources/Models/Prefabs/Turrets/Caduceus.prefab";
                 break;
         }
         

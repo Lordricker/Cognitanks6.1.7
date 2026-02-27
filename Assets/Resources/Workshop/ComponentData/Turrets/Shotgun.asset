@@ -16,7 +16,7 @@ MonoBehaviour:
   description: Fires two bullets, increasing knockback
   cost: 400
   weight: 8
-  modelPrefab: {fileID: 4366391098555595496, guid: 10a2e801364ea6b44adb022eee844c60, type: 3}
+  modelPrefab: {fileID: 7130448153178295769, guid: b122bfa9744e8e242880185c52a5e67b, type: 3}
   category: 0
   instanceId: 
   customColor: {r: 1, g: 1, b: 1, a: 1}

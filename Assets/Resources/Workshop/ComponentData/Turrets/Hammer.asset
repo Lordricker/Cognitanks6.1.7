@@ -16,12 +16,12 @@ MonoBehaviour:
   description: BAM! BAM! BAM! BAM!
   cost: 500
   weight: 10
-  modelPrefab: {fileID: 6832200886334635956, guid: 76125a29ea57773408527c9d8ab77fda, type: 3}
+  modelPrefab: {fileID: 3216970213566971821, guid: 986e64a6e252ac74eb7c6bc49d739974, type: 3}
   category: 0
   instanceId: 
   customColor: {r: 1, g: 1, b: 1, a: 1}
   turretType: 2
-  animationPrefab: {fileID: 6087376497018792813, guid: fd87c9a901805134398c0cbeb2b0822a, type: 3}
+  animationPrefab: {fileID: 2425559156324266349, guid: c1ad575c20b0ca148b642d9ee87fc4e8, type: 3}
   deathModelPrefab: {fileID: 8866708125569307663, guid: 44e94cd2917bdbc4abc3d302ba040f75, type: 3}
   damage: 12
   range: 2

@@ -3963,23 +3963,28 @@ public class TankMan : MonoBehaviour
     /// </summary>
     private Vector3 GetMapCenter()
     {
-        // Try to find terrain in the scene
+        // Per-scene manual overrides — add entries here for each arena
+        string sceneName = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+        switch (sceneName)
+        {
+            case "Arena1": return new Vector3(400f, 0f, 400f);
+            case "Arena2": return new Vector3(500f, 0f, 500f);
+            // Add more arenas below as needed:
+            // case "Arena3": return new Vector3(600f, 0f, 600f);
+        }
+
+        // Auto-calculate from active terrain if no manual override matched
         Terrain terrain = Terrain.activeTerrain;
-        
         if (terrain != null)
         {
-            // Get terrain bounds and calculate center
             Vector3 terrainSize = terrain.terrainData.size;
             Vector3 terrainPos = terrain.transform.position;
             Vector3 center = terrainPos + new Vector3(terrainSize.x * 0.5f, 0, terrainSize.z * 0.5f);
             return center;
         }
-        else
-        {
-            // Fallback: Use hardcoded map boundaries (30-770 range suggests 800x800 map)
-            // Center would be at 400, 400
-            return new Vector3(400f, 0f, 400f);
-        }
+
+        // Final fallback
+        return new Vector3(400f, 0f, 400f);
     }
 
     /// <summary>

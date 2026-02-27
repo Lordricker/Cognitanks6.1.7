@@ -130,7 +130,7 @@ public class WorkshopStatsPanel : MonoBehaviour
             sb.AppendLine();
         }
 
-        sb.AppendLine($"── Total Weight: {totalWeight:F1}kg ──");
+        sb.AppendLine($"─ Total Weight: {totalWeight:F1}kg ─");
 
         statsText.text = sb.ToString();
     }

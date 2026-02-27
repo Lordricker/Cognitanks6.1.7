@@ -16,7 +16,7 @@ MonoBehaviour:
   description: Long Range AOE Shell. High Dmg on direct hit.
   cost: 1200
   weight: 20
-  modelPrefab: {fileID: 6247987888857746735, guid: 0ae77e5428ccf1c488a5b73ef1162a96, type: 3}
+  modelPrefab: {fileID: 1560303840180915853, guid: 7f977733971d32340bc7c93c79fac831, type: 3}
   category: 0
   instanceId: 
   customColor: {r: 1, g: 1, b: 1, a: 1}

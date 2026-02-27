@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Audio;
 using UnityEngine.SceneManagement;
 using System.Collections;
 
@@ -29,6 +30,19 @@ public class SoundManager : MonoBehaviour
     [Tooltip("Volume for SFX sounds (tanks, bullets, etc).")]
     [Range(0f, 1f)]
     public float sfxVolume = 1f;
+
+    [Tooltip("Gain multiplier applied to all positional SFX via AudioMixer (above 1 boosts beyond the normal 0-1 cap, up to +20dB at 10x).")]
+    [Range(1f, 10f)]
+    public float sfxGainMultiplier = 1f;
+
+    [Tooltip("AudioMixer used for SFX gain boost. Assign the SFX group's mixer in the Inspector.")]
+    public AudioMixer sfxMixer;
+
+    [Tooltip("AudioMixerGroup to route positional SFX through (the SFX group inside NewAudioMixer).")]
+    public AudioMixerGroup sfxMixerGroup;
+
+    // The exposed parameter name on the mixer group (set in Unity's AudioMixer window)
+    private const string SFXGainParam = "SFXGain";
 
     [Tooltip("Tank driving sound clip.")]
     public AudioClip tankDrivingSound;
@@ -118,6 +132,9 @@ public class SoundManager : MonoBehaviour
         // SFX sounds source
         sfxAudioSource = gameObject.AddComponent<AudioSource>();
         sfxAudioSource.playOnAwake = false;
+        if (sfxMixerGroup != null)
+            sfxAudioSource.outputAudioMixerGroup = sfxMixerGroup;
+        ApplySFXGain();
 
         // Music source
         musicAudioSource = gameObject.AddComponent<AudioSource>();
@@ -152,6 +169,10 @@ public class SoundManager : MonoBehaviour
         float savedSFX = PlayerPrefs.GetFloat("SFXVolume", -1f);
         if (savedSFX != -1f) sfxVolume = savedSFX;
         else PlayerPrefs.SetFloat("SFXVolume", sfxVolume);
+
+        float savedGain = PlayerPrefs.GetFloat("SFXGainMultiplier", -1f);
+        if (savedGain != -1f) sfxGainMultiplier = savedGain;
+        else PlayerPrefs.SetFloat("SFXGainMultiplier", sfxGainMultiplier);
 
         // Listen to scene changes
         UnityEngine.SceneManagement.SceneManager.sceneLoaded += OnSceneLoaded;
@@ -218,7 +239,23 @@ public class SoundManager : MonoBehaviour
         PlayerPrefs.SetFloat("UISoundsVolume", uiSoundsVolume);
         PlayerPrefs.SetFloat("MusicVolume", musicVolume);
         PlayerPrefs.SetFloat("SFXVolume", sfxVolume);
+        PlayerPrefs.SetFloat("SFXGainMultiplier", sfxGainMultiplier);
         PlayerPrefs.Save();
+    }
+
+    /// <summary>
+    /// Applies sfxGainMultiplier to the AudioMixer as a dB value so SFX can
+    /// exceed the 0-1 volume cap. Requires the mixer to have an exposed float
+    /// parameter named "SFXGain". Range: 1x = 0dB, 2x ≈ +6dB, 4x ≈ +12dB, 10x ≈ +20dB.
+    /// </summary>
+    public void ApplySFXGain()
+    {
+        if (sfxMixer == null) return;
+        // Convert linear multiplier to decibels: dB = 20 * log10(gain)
+        // Floor at -80dB to avoid log(0)
+        float gain = Mathf.Max(sfxGainMultiplier, 0.0001f);
+        float dB = Mathf.Log10(gain) * 20f;
+        sfxMixer.SetFloat(SFXGainParam, dB);
     }
 
     // SFX Play Methods
@@ -299,7 +336,9 @@ public class SoundManager : MonoBehaviour
         AudioSource source = tempAudio.AddComponent<AudioSource>();
         source.clip = clip;
         source.spatialBlend = 1f; // Full 3D audio
-        source.volume = masterVolume * sfxVolume * devVolume;
+        source.volume = Mathf.Clamp01(masterVolume * sfxVolume * devVolume);
+        if (sfxMixerGroup != null)
+            source.outputAudioMixerGroup = sfxMixerGroup; // Mixer handles gain above 1.0
         source.Play();
         
         Destroy(tempAudio, clip.length + 0.1f); // Destroy after sound finishes
@@ -314,8 +353,10 @@ public class SoundManager : MonoBehaviour
         source.clip = tankDrivingSound;
         source.loop = true;
         source.volume = 0f;
+        if (sfxMixerGroup != null)
+            source.outputAudioMixerGroup = sfxMixerGroup;
         source.Play();
-        StartCoroutine(FadeAudioSource(source, masterVolume * sfxVolume * tankDrivingVolume, fadeDuration));
+        StartCoroutine(FadeAudioSource(source, Mathf.Clamp01(masterVolume * sfxVolume * tankDrivingVolume), fadeDuration));
         return source;
     }
 

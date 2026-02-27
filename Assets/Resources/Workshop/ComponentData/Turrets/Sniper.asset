@@ -16,7 +16,7 @@ MonoBehaviour:
   description: Patience is a virtue. So is excessive damage. (stops before firing)
   cost: 900
   weight: 20
-  modelPrefab: {fileID: 339407622525442576, guid: f085541d58a1a35488e21e5de75d3023, type: 3}
+  modelPrefab: {fileID: 5189266976590202132, guid: d4a35d943dfc37b4aa5a427a11a94d21, type: 3}
   category: 0
   instanceId: 
   customColor: {r: 1, g: 1, b: 1, a: 1}
