@@ -84,7 +84,6 @@ public class WorkshopUIManager : MonoBehaviour
     private RectTransform mainMenuPanelRect;
     private Vector2 mainMenuPanelOnScreenPosition;
     private Vector2 mainMenuPanelOffScreenPosition;
-    private bool isMainMenuPanelVisible = true;
     private Coroutine mainMenuPanelCoroutine;
     private static bool mainMenuDismissed = false; // persists across scene loads
 
@@ -228,12 +227,10 @@ public class WorkshopUIManager : MonoBehaviour
                 if (mainMenuDismissed)
                 {
                     mainMenuPanelRect.anchoredPosition = mainMenuPanelOffScreenPosition;
-                    isMainMenuPanelVisible = false;
                 }
                 else
                 {
                     mainMenuPanelRect.anchoredPosition = mainMenuPanelOnScreenPosition;
-                    isMainMenuPanelVisible = true;
                 }
             }
         }
@@ -2282,7 +2279,6 @@ public class WorkshopUIManager : MonoBehaviour
     {
         if (mainMenuPanelRect == null) return;
         if (mainMenuPanelCoroutine != null) StopCoroutine(mainMenuPanelCoroutine);
-        isMainMenuPanelVisible = false;
         mainMenuDismissed = true;
         mainMenuPanelCoroutine = StartCoroutine(SlideRectTo(mainMenuPanelRect, mainMenuPanelOffScreenPosition, mainMenuPanelSlideSpeed,
             () => mainMenuPanelCoroutine = null));
@@ -2295,7 +2291,6 @@ public class WorkshopUIManager : MonoBehaviour
     {
         if (mainMenuPanelRect == null) return;
         if (mainMenuPanelCoroutine != null) StopCoroutine(mainMenuPanelCoroutine);
-        isMainMenuPanelVisible = true;
         mainMenuDismissed = false;
         mainMenuPanelCoroutine = StartCoroutine(SlideRectTo(mainMenuPanelRect, mainMenuPanelOnScreenPosition, mainMenuPanelSlideSpeed,
             () => mainMenuPanelCoroutine = null));
