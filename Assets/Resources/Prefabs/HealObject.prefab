@@ -5044,7 +5044,7 @@ MonoBehaviour:
   isArtillery: 0
   isHammer: 0
   isHealer: 0
-  healerRotationSpeed: 90
+  healerRotationSpeed: 360
   startPosition: {x: 0, y: 0, z: 0}
   isInitialized: 0
 --- !u!136 &6828232831453195090

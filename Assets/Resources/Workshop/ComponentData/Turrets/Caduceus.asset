@@ -23,7 +23,7 @@ MonoBehaviour:
   turretType: 3
   animationPrefab: {fileID: 0}
   deathModelPrefab: {fileID: 0}
-  damage: 8
+  damage: 5
   range: 130
   shotspersec: 0.5
   bulletSpeed: 100
