@@ -25,8 +25,7 @@ public class TankMan : MonoBehaviour
     
     [Header("Tank Components")]
     [SerializeField] private Transform turretTransform;
-    [SerializeField] private Transform firePoint;
-    [SerializeField] private Transform firePoint1;
+    private List<Transform> firePoints = new List<Transform>();
     
     [Header("Hammer Animation")]
     [SerializeField] private GameObject hammerDownPrefab; // Animation prefab assigned by TankAssembly
@@ -882,17 +881,10 @@ public class TankMan : MonoBehaviour
     /// <summary>
     /// Set the turret and fire point transforms (called by TankAssembly)
     /// </summary>
-    public void SetTurretComponents(Transform turret, Transform firePointTransform)
+    public void SetTurretComponents(Transform turret, List<Transform> firePointsList)
     {
         turretTransform = turret;
-        firePoint = firePointTransform;
-        
-        // Also look for firePoint1 if it exists (for double-barrel shotguns)
-        Transform firePoint1Transform = turret.Find("FirePoint1");
-        if (firePoint1Transform != null)
-        {
-            firePoint1 = firePoint1Transform;
-        }
+        firePoints = firePointsList ?? new List<Transform>();
     }
     
     /// <summary>
@@ -2884,7 +2876,7 @@ public class TankMan : MonoBehaviour
             return;
         }
         
-        if (firePoint == null)
+        if (firePoints == null || firePoints.Count == 0)
         {
             return;
         }
@@ -2915,121 +2907,55 @@ public class TankMan : MonoBehaviour
                 direction = turretTransform.forward;
             }
             
-            GameObject bullet = Instantiate(prefabToUse, firePoint.position, Quaternion.LookRotation(direction));
-            
-            // Make artillery bullets twice as fat (wider and taller)
-            if (turretType == TurretType.Artillery)
+            // Fire from every fire point found on the turret (e.g. FirePoint, FirePoint (1), etc.)
+            foreach (Transform fp in firePoints)
             {
-                bullet.transform.localScale = new Vector3(2f, 2f, 1f);
-            }
-            
-            // Give bullet velocity based on turret's bullet speed
-            Rigidbody bulletRb = bullet.GetComponent<Rigidbody>();
-            if (bulletRb != null)
-            {
-                // Configure physics based on turret type
-                if (turretType == TurretType.Artillery)
-                {
-                    // Artillery uses Unity physics with gravity
-                    bulletRb.isKinematic = false;
-                    bulletRb.useGravity = true;
-                    
-                    // Calculate launch velocity with proper angle
-                    Vector3 horizontalDirection = Vector3.ProjectOnPlane(direction, Vector3.up).normalized;
-                    Vector3 launchVelocity = Quaternion.AngleAxis(launchAngle, Vector3.Cross(horizontalDirection, Vector3.up)) * horizontalDirection * bulletSpeed;
-                    bulletRb.linearVelocity = launchVelocity;
-                }
-                else
-                {
-                    bulletRb.useGravity = false;
-                    bulletRb.linearVelocity = direction * bulletSpeed;
-                }
-            }
-            
-            // Pass combat stats to bullet (bullet prefab has its own explosion effect)
-            BulletScript bulletScript = bullet.GetComponent<BulletScript>();
-            if (bulletScript != null)
-            {
-                // Hammer uses AOE like artillery but with custom radius of 20
-                if (turretType == TurretType.Hammer)
-                {
-                    bulletScript.Initialize(damage, range, myTeamInfo.teamId, false, ParseKnockback(), 20f, this, true, false);
-                }
-                else if (turretType == TurretType.Healer)
-                {
-                    bulletScript.Initialize(damage, range, myTeamInfo.teamId, false, ParseKnockback(), -1f, this, false, true);
-                }
-                else
-                {
-                    bulletScript.Initialize(damage, range, myTeamInfo.teamId, turretType == TurretType.Artillery, ParseKnockback(), -1f, this, false, false);
-                }
-            }
-            else
-            {
-            }
-            
-            // Start hammer swing animation when firing
-            if (turretType == TurretType.Hammer)
-            {
-                if (hammerSwingCoroutine != null)
-                {
-                    StopCoroutine(hammerSwingCoroutine);
-                }
-                hammerSwingCoroutine = StartCoroutine(SwingHammer());
-            }
-            
-            // Fire second barrel if firePoint1 exists (for double-barrel shotguns)
-            if (firePoint1 != null)
-            {
-                GameObject bullet2 = Instantiate(prefabToUse, firePoint1.position, Quaternion.LookRotation(direction));
+                GameObject bullet = Instantiate(prefabToUse, fp.position, Quaternion.LookRotation(direction));
                 
                 // Make artillery bullets twice as fat (wider and taller)
                 if (turretType == TurretType.Artillery)
                 {
-                    bullet2.transform.localScale = new Vector3(2f, 2f, 1f);
+                    bullet.transform.localScale = new Vector3(2f, 2f, 1f);
                 }
                 
                 // Give bullet velocity based on turret's bullet speed
-                Rigidbody bulletRb2 = bullet2.GetComponent<Rigidbody>();
-                if (bulletRb2 != null)
+                Rigidbody bulletRb = bullet.GetComponent<Rigidbody>();
+                if (bulletRb != null)
                 {
-                    // Configure physics based on turret type
                     if (turretType == TurretType.Artillery)
                     {
-                        // Artillery uses Unity physics with gravity
-                        bulletRb2.isKinematic = false;
-                        bulletRb2.useGravity = true;
-                        
-                        // Calculate launch velocity with proper angle
+                        bulletRb.isKinematic = false;
+                        bulletRb.useGravity = true;
                         Vector3 horizontalDirection = Vector3.ProjectOnPlane(direction, Vector3.up).normalized;
                         Vector3 launchVelocity = Quaternion.AngleAxis(launchAngle, Vector3.Cross(horizontalDirection, Vector3.up)) * horizontalDirection * bulletSpeed;
-                        bulletRb2.linearVelocity = launchVelocity;
+                        bulletRb.linearVelocity = launchVelocity;
                     }
                     else
                     {
-                        bulletRb2.useGravity = false;
-                        bulletRb2.linearVelocity = direction * bulletSpeed;
+                        bulletRb.useGravity = false;
+                        bulletRb.linearVelocity = direction * bulletSpeed;
                     }
                 }
                 
-                // Pass combat stats to second bullet
-                BulletScript bulletScript2 = bullet2.GetComponent<BulletScript>();
-                if (bulletScript2 != null)
+                // Pass combat stats to bullet
+                BulletScript bulletScript = bullet.GetComponent<BulletScript>();
+                if (bulletScript != null)
                 {
-                    // Hammer uses AOE like artillery but with custom radius of 20
                     if (turretType == TurretType.Hammer)
-                    {
-                        bulletScript2.Initialize(damage, range, myTeamInfo.teamId, false, ParseKnockback(), 20f, this, true, false);
-                    }
+                        bulletScript.Initialize(damage, range, myTeamInfo.teamId, false, ParseKnockback(), 20f, this, true, false);
                     else if (turretType == TurretType.Healer)
-                    {
-                        bulletScript2.Initialize(damage, range, myTeamInfo.teamId, false, ParseKnockback(), -1f, this, false, true);
-                    }
+                        bulletScript.Initialize(damage, range, myTeamInfo.teamId, false, ParseKnockback(), -1f, this, false, true);
                     else
-                    {
-                        bulletScript2.Initialize(damage, range, myTeamInfo.teamId, turretType == TurretType.Artillery, ParseKnockback(), -1f, this, false, false);
-                    }
+                        bulletScript.Initialize(damage, range, myTeamInfo.teamId, turretType == TurretType.Artillery, ParseKnockback(), -1f, this, false, false);
                 }
+            }
+            
+            // Start hammer swing animation when firing (once per shot, not per barrel)
+            if (turretType == TurretType.Hammer)
+            {
+                if (hammerSwingCoroutine != null)
+                    StopCoroutine(hammerSwingCoroutine);
+                hammerSwingCoroutine = StartCoroutine(SwingHammer());
             }
         }
         
@@ -3201,7 +3127,7 @@ public class TankMan : MonoBehaviour
     /// </summary>
     Vector3 CalculateArtilleryDirection(out float launchAngle, Vector3 targetPos)
     {
-        Vector3 firePos = firePoint.position;
+        Vector3 firePos = firePoints.Count > 0 ? firePoints[0].position : transform.position;
         
         // Calculate horizontal distance and height difference
         Vector3 horizontalDisplacement = Vector3.ProjectOnPlane(targetPos - firePos, Vector3.up);
@@ -3868,10 +3794,6 @@ public class TankMan : MonoBehaviour
                 yield break;
         }
         
-        // Unstuck the tank before starting movement
-        UnstuckTank();
-        yield return new WaitForFixedUpdate();
-
         // Get the parent cycle node if this action is part of a cycle
         AiExecutableNode parentCycle = null;
         if (currentNavActionNode != null)
@@ -3900,10 +3822,13 @@ public class TankMan : MonoBehaviour
             
             if (distance < wanderReachDistance)
             {
-                // Reached map center - stop
+                // Reached map center - stop (don't call unstuck when intentionally stopped)
                 StopMovement();
                 break;
             }
+
+            // Tank is actively trying to move - run unstuck check each frame (rate-limited internally)
+            UnstuckTank();
 
             // Use NavState_MoveToWaypoint to move toward map center
             NavState_MoveToWaypoint(mapCenter);

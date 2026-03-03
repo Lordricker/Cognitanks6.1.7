@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 using AiEditor;
 
 public class TankAssembly : MonoBehaviour
@@ -211,17 +212,17 @@ public class TankAssembly : MonoBehaviour
                 
                 SetLayerRecursively(turretInstance, 6); // Set to Shadow layer
                 
-                // Find fire point for turret
-                Transform firePoint = FindFirePointRecursive(turretInstance.transform);
-                if (firePoint != null)
+                // Find all fire points for turret (matches any child containing "firepoint" in its name)
+                List<Transform> firePointsList = FindAllFirePointsRecursive(turretInstance.transform);
+                if (firePointsList.Count > 0)
                 {
-                    Debug.Log($"TankAssembly: Found FirePoint for turret {turretInstance.name} at position {firePoint.localPosition}");
+                    Debug.Log($"TankAssembly: Found {firePointsList.Count} FirePoint(s) for turret {turretInstance.name}");
                 }
                 else
                 {
-                    Debug.LogWarning($"TankAssembly: No FirePoint found in turret {turretInstance.name}");
+                    Debug.LogWarning($"TankAssembly: No FirePoints found in turret {turretInstance.name}");
                 }
-                tankMan.SetTurretComponents(turretInstance.transform, firePoint);
+                tankMan.SetTurretComponents(turretInstance.transform, firePointsList);
                 
                 // Get skin and decal paths (use JSON path first, fallback to ComponentCustomizationManager)
                 string skinPathForModels = !string.IsNullOrEmpty(data.turretSkinPath) 
@@ -354,21 +355,19 @@ public class TankAssembly : MonoBehaviour
       /// <summary>
     /// Recursively searches for a FirePoint transform in the hierarchy
     /// </summary>
-    private Transform FindFirePointRecursive(Transform parent)
+    private List<Transform> FindAllFirePointsRecursive(Transform parent)
     {
-        // Check if current transform is FirePoint
-        if (parent.name == "FirePoint")
-            return parent;
-              
-        // Search all children recursively
-        foreach (Transform child in parent)
-        {
-            Transform result = FindFirePointRecursive(child);
-            if (result != null)
-                return result;
-        }
-        
-        return null;
+        List<Transform> results = new List<Transform>();
+        CollectFirePoints(parent, results);
+        return results;
+    }
+
+    private void CollectFirePoints(Transform t, List<Transform> results)
+    {
+        if (t.name.IndexOf("firepoint", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            results.Add(t);
+        foreach (Transform child in t)
+            CollectFirePoints(child, results);
     }
     
     /// <summary>
