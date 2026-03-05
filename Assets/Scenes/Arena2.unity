@@ -1558,11 +1558,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8165367752184632059, guid: 95c22e50b4fda814c8e93e4be60756d2, type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: 295.33972
+      value: 163
       objectReference: {fileID: 0}
     - target: {fileID: 8165367752184632059, guid: 95c22e50b4fda814c8e93e4be60756d2, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: 53.4082
+      value: -2
       objectReference: {fileID: 0}
     - target: {fileID: 8165367752184632059, guid: 95c22e50b4fda814c8e93e4be60756d2, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
@@ -15666,7 +15666,7 @@ MonoBehaviour:
     m_SelectedTrigger: Selected
     m_DisabledTrigger: Disabled
   m_Interactable: 1
-  m_TargetGraphic: {fileID: 0}
+  m_TargetGraphic: {fileID: 1865859451}
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
