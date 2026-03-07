@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6268f30a789a0804e810de80c788ef84, type: 3}
   m_Name: Accelerator Frame
   m_EditorClassIdentifier: 
-  title: 'Accelerator Frame '
+  title: Accelerator Frame
   description: Faster movement but low weight capacity
   cost: 250
   weight: 25

@@ -200,7 +200,7 @@ public class WorkshopUIManager : MonoBehaviour
                 // Calculate off-screen position (slide to the right)
                 // Move it far enough right that it's completely off screen
                 float panelWidth = campaignPanelRect.rect.width;
-                campaignPanelOffScreenPosition = campaignPanelOnScreenPosition + new Vector2((panelWidth + 100f) * 2, 0);
+                campaignPanelOffScreenPosition = campaignPanelOnScreenPosition + new Vector2((panelWidth + 100f) * 1.2f, 0);
                 
                 // Start with panel off-screen to the right
                 campaignPanelRect.anchoredPosition = campaignPanelOffScreenPosition;
@@ -222,7 +222,7 @@ public class WorkshopUIManager : MonoBehaviour
             {
                 mainMenuPanelOnScreenPosition = mainMenuPanelRect.anchoredPosition;
                 float panelHeight = mainMenuPanelRect.rect.height;
-                mainMenuPanelOffScreenPosition = mainMenuPanelOnScreenPosition + new Vector2(0f, (panelHeight + 100f) * 2f);
+                mainMenuPanelOffScreenPosition = mainMenuPanelOnScreenPosition + new Vector2(0f, (panelHeight + 100f) * 1.2f);
                 // Start off-screen if previously dismissed, otherwise show normally
                 if (mainMenuDismissed)
                 {

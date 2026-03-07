@@ -322,6 +322,7 @@ public class PlayerDataManager : MonoBehaviour
             "ComponentUnlocked_Shotgun",
             "ComponentUnlocked_Sniper",
             "ComponentUnlocked_Artillery",
+            "ComponentUnlocked_Caduceus",
             "ComponentUnlocked_Carbon Weave Armor",
             "ComponentUnlocked_Ceramic Laminate Plating",
             "ComponentUnlocked_MK-VI Alloy Shell",
