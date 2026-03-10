@@ -13,7 +13,7 @@ public class AssignedComponentStats : MonoBehaviour
     [Tooltip("The text component to display the stats")]
     public TMP_Text statsText;
     
-    private string lastTreeName = "";
+    private string lastInstanceId = "";
     
     void Start()
     {
@@ -30,12 +30,12 @@ public class AssignedComponentStats : MonoBehaviour
     
     void Update()
     {
-        // Only refresh when the AI file changes (check tree name)
-        string currentTreeName = GetCurrentTreeName();
-        if (currentTreeName != lastTreeName)
+        // Only refresh when the AI file changes (check instance ID, not tree name)
+        string currentInstanceId = GetCurrentAIInstanceId();
+        if (currentInstanceId != lastInstanceId)
         {
-            lastTreeName = currentTreeName;
-            Debug.Log($"[AssignedComponentStats] AI file changed to: {currentTreeName}");
+            lastInstanceId = currentInstanceId;
+            Debug.Log($"[AssignedComponentStats] AI file changed to instance: {currentInstanceId}");
             UpdateStats();
         }
     }
@@ -81,97 +81,44 @@ public class AssignedComponentStats : MonoBehaviour
     }
     
     /// <summary>
-    /// Gets the instance ID of the currently open AI file in the editor
+    /// Gets the instance ID of the currently open AI file in the editor.
+    /// Reads directly from the loaded JSON file via AiEditorFileUI to avoid
+    /// ambiguity when multiple files share the same name.
     /// </summary>
     private string GetCurrentAIInstanceId()
     {
-        // Look for the tree name and find the matching file
-        string currentTreeName = GetCurrentTreeName();
-        
-        Debug.Log($"[AssignedComponentStats] Looking for AI tree: {currentTreeName}");
-        
-        if (string.IsNullOrEmpty(currentTreeName))
+        // Get the AiEditorFileUI to read the currently loaded file path
+        var fileUI = FindObjectOfType<AiEditorFileUI>();
+        if (fileUI == null)
         {
-            Debug.LogWarning("[AssignedComponentStats] Current tree name is empty");
+            Debug.LogWarning("[AssignedComponentStats] AiEditorFileUI not found");
             return null;
         }
-            
-        // Determine branch type from which start button is active
-        bool isTurret = IsCurrentBranchTurret();
-        string folderName = isTurret ? "TurretFiles" : "NavFiles";
         
-        Debug.Log($"[AssignedComponentStats] Branch type: {(isTurret ? "Turret" : "Nav")}");
-        
-        // Search for the AI file with this name in persistent data path
-        string persistentFolder = Path.Combine(Application.persistentDataPath, "AiTrees", folderName);
-        
-        Debug.Log($"[AssignedComponentStats] Searching in: {persistentFolder}");
-        
-        if (Directory.Exists(persistentFolder))
+        string jsonPath = fileUI.CurrentJsonPath;
+        if (string.IsNullOrEmpty(jsonPath) || !File.Exists(jsonPath))
         {
-            string[] jsonFiles = Directory.GetFiles(persistentFolder, "*.json");
-            Debug.Log($"[AssignedComponentStats] Found {jsonFiles.Length} JSON files");
-            
-            foreach (string filePath in jsonFiles)
+            Debug.Log("[AssignedComponentStats] No AI file currently loaded");
+            return null;
+        }
+        
+        try
+        {
+            string jsonContent = File.ReadAllText(jsonPath);
+            var aiTree = JsonUtility.FromJson<AiTreeAssetJson>(jsonContent);
+            if (aiTree != null && !string.IsNullOrEmpty(aiTree.instanceId))
             {
-                try
-                {
-                    string jsonContent = File.ReadAllText(filePath);
-                    var aiTree = JsonUtility.FromJson<AiTreeAssetJson>(jsonContent);
-                    if (aiTree != null && (aiTree.TreeName == currentTreeName || aiTree.title == currentTreeName))
-                    {
-                        Debug.Log($"[AssignedComponentStats] Found matching AI: {aiTree.TreeName} with instanceId: {aiTree.instanceId}");
-                        return aiTree.instanceId;
-                    }
-                }
-                catch (System.Exception e)
-                {
-                    Debug.LogWarning($"[AssignedComponentStats] Error reading file {filePath}: {e.Message}");
-                }
+                Debug.Log($"[AssignedComponentStats] Current AI: {aiTree.TreeName} instanceId: {aiTree.instanceId}");
+                return aiTree.instanceId;
             }
         }
-        else
+        catch (System.Exception e)
         {
-            Debug.LogWarning($"[AssignedComponentStats] Folder does not exist: {persistentFolder}");
+            Debug.LogWarning($"[AssignedComponentStats] Error reading current file {jsonPath}: {e.Message}");
         }
         
         Debug.LogWarning("[AssignedComponentStats] Could not find AI instance ID");
         return null;
-    }
-    
-    /// <summary>
-    /// Gets the current tree name from the UI
-    /// </summary>
-    private string GetCurrentTreeName()
-    {
-        var uiCanvas = GameObject.Find("UICanvas");
-        if (uiCanvas != null)
-        {
-            var fileButtonPanel = uiCanvas.transform.Find("FileButtonPanel");
-            if (fileButtonPanel != null)
-            {
-                var fileNameText = fileButtonPanel.Find("FileNameText");
-                if (fileNameText != null)
-                {
-                    var tmp = fileNameText.GetComponent<TMP_Text>();
-                    if (tmp != null && !string.IsNullOrEmpty(tmp.text))
-                        return tmp.text;
-                }
-            }
-        }
-        return null;
-    }
-    
-    /// <summary>
-    /// Determines if the current branch is Turret (vs Nav)
-    /// </summary>
-    private bool IsCurrentBranchTurret()
-    {
-        var startTurretButton = GameObject.Find("StartTurretButton");
-        if (startTurretButton != null && startTurretButton.activeInHierarchy)
-            return true;
-            
-        return false;
     }
     
     /// <summary>

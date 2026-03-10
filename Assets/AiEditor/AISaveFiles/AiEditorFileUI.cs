@@ -26,6 +26,11 @@ public class AiEditorFileUI : MonoBehaviour
     private string turretFolder = "TurretFiles";
     private string currentJsonPath = ""; // Path to currently loaded JSON file
 
+    /// <summary>
+    /// Gets the path to the currently loaded JSON file (read-only access for other components)
+    /// </summary>
+    public string CurrentJsonPath => currentJsonPath;
+
     // Auto-save functionality
     private bool autoSaveEnabled = true;
     private float lastAutoSaveTime = 0f;

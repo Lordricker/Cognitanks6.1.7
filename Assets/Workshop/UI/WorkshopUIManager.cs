@@ -5,6 +5,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
 using AiEditor;
 #if UNITY_EDITOR
 using UnityEditor;
@@ -491,6 +492,27 @@ public class WorkshopUIManager : MonoBehaviour
             playerInventory.Add(turretAI2);
             
             // Note: No need to add to PlayerData save since AI components are stored as JSON files
+        }
+    }
+
+    private void Update()
+    {
+        // Hide campaign panel when clicking anywhere outside it
+        var mouse = Mouse.current;
+        if (isCampaignPanelVisible && mouse != null && mouse.leftButton.wasPressedThisFrame)
+        {
+            Vector2 mousePos = mouse.position.ReadValue();
+
+            bool clickedPanel = campaignPanelRect != null &&
+                RectTransformUtility.RectangleContainsScreenPoint(campaignPanelRect, mousePos, null);
+            bool clickedButton = campaignButton != null &&
+                RectTransformUtility.RectangleContainsScreenPoint(
+                    campaignButton.GetComponent<RectTransform>(), mousePos, null);
+
+            if (!clickedPanel && !clickedButton)
+            {
+                HideCampaignPanel();
+            }
         }
     }
 
@@ -2228,8 +2250,9 @@ public class WorkshopUIManager : MonoBehaviour
             StopCoroutine(campaignSlideCoroutine);
         }
         
+        campaignPanel.SetActive(true);
         isCampaignPanelVisible = true;
-        campaignSlideCoroutine = StartCoroutine(SlideCampaignPanel(campaignPanelOnScreenPosition));
+        campaignSlideCoroutine = StartCoroutine(SlideCampaignPanel(campaignPanelOnScreenPosition, false));
     }
     
     /// <summary>
@@ -2245,13 +2268,13 @@ public class WorkshopUIManager : MonoBehaviour
         }
         
         isCampaignPanelVisible = false;
-        campaignSlideCoroutine = StartCoroutine(SlideCampaignPanel(campaignPanelOffScreenPosition));
+        campaignSlideCoroutine = StartCoroutine(SlideCampaignPanel(campaignPanelOffScreenPosition, true));
     }
     
     /// <summary>
     /// Coroutine to smoothly slide the campaign panel to a target position
     /// </summary>
-    private IEnumerator SlideCampaignPanel(Vector2 targetPosition)
+    private IEnumerator SlideCampaignPanel(Vector2 targetPosition, bool deactivateOnFinish)
     {
         if (campaignPanelRect == null) yield break;
         
@@ -2268,6 +2291,11 @@ public class WorkshopUIManager : MonoBehaviour
         // Snap to final position
         campaignPanelRect.anchoredPosition = targetPosition;
         campaignSlideCoroutine = null;
+        
+        if (deactivateOnFinish && campaignPanel != null)
+        {
+            campaignPanel.SetActive(false);
+        }
     }
 
     // ── Main Menu Panel ────────────────────────────────────────────────────

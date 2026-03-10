@@ -1,0 +1,255 @@
+{
+    "branchType": 1,
+    "nodes": [
+        {
+            "nodeId": "55af7303-29a1-4434-bf16-1fe126b772d3",
+            "nodeType": "EndNode(Clone)",
+            "nodeLabel": "Fire",
+            "position": {
+                "x": -1984.0,
+                "y": 96.0
+            },
+            "properties": []
+        },
+        {
+            "nodeId": "86ec3211-1813-49d5-a69c-7c307064b976",
+            "nodeType": "EndNode(Clone)",
+            "nodeLabel": "Lead Target 0",
+            "position": {
+                "x": -1984.0,
+                "y": 64.0
+            },
+            "properties": []
+        },
+        {
+            "nodeId": "01f97f14-8b51-4a3e-b41f-0fd48e8ecd65",
+            "nodeType": "MiddleNode(Clone)",
+            "nodeLabel": "Cycle 3",
+            "position": {
+                "x": -2302.693603515625,
+                "y": -32.434085845947269
+            },
+            "properties": []
+        },
+        {
+            "nodeId": "bb646ce9-b9ba-4dba-a3bb-a1246ed85cee",
+            "nodeType": "EndNode(Clone)",
+            "nodeLabel": "Align Right",
+            "position": {
+                "x": -2096.0,
+                "y": -32.0
+            },
+            "properties": []
+        },
+        {
+            "nodeId": "f7a9f074-f96d-49b1-89cd-8eb3513ca33a",
+            "nodeType": "EndNode(Clone)",
+            "nodeLabel": "Align Front",
+            "position": {
+                "x": -2096.0,
+                "y": -64.0
+            },
+            "properties": []
+        },
+        {
+            "nodeId": "06fb421b-fa79-4b56-b0c1-555fa50128b8",
+            "nodeType": "MiddleNode(Clone)",
+            "nodeLabel": "If Ally",
+            "position": {
+                "x": -2304.0,
+                "y": 96.0
+            },
+            "properties": []
+        },
+        {
+            "nodeId": "90e259f3-96ce-40d0-b15f-fae36aa63f37",
+            "nodeType": "MiddleNode(Clone)",
+            "nodeLabel": "If Enemy",
+            "position": {
+                "x": -2363.074462890625,
+                "y": 225.64608764648438
+            },
+            "properties": []
+        },
+        {
+            "nodeId": "b3654118-842d-422b-8676-21beb84f19e4",
+            "nodeType": "EndNode(Clone)",
+            "nodeLabel": "Align Back",
+            "position": {
+                "x": -2144.0,
+                "y": 224.0
+            },
+            "properties": []
+        }
+    ],
+    "connections": [
+        {
+            "fromNodeId": "StartTurretButton",
+            "fromPortId": "TurretOrigin",
+            "toNodeId": "01f97f14-8b51-4a3e-b41f-0fd48e8ecd65",
+            "toPortId": "Input"
+        },
+        {
+            "fromNodeId": "01f97f14-8b51-4a3e-b41f-0fd48e8ecd65",
+            "fromPortId": "Output",
+            "toNodeId": "bb646ce9-b9ba-4dba-a3bb-a1246ed85cee",
+            "toPortId": "Input"
+        },
+        {
+            "fromNodeId": "01f97f14-8b51-4a3e-b41f-0fd48e8ecd65",
+            "fromPortId": "Output",
+            "toNodeId": "f7a9f074-f96d-49b1-89cd-8eb3513ca33a",
+            "toPortId": "Input"
+        },
+        {
+            "fromNodeId": "StartTurretButton",
+            "fromPortId": "TurretOrigin",
+            "toNodeId": "06fb421b-fa79-4b56-b0c1-555fa50128b8",
+            "toPortId": "Input"
+        },
+        {
+            "fromNodeId": "06fb421b-fa79-4b56-b0c1-555fa50128b8",
+            "fromPortId": "Output",
+            "toNodeId": "55af7303-29a1-4434-bf16-1fe126b772d3",
+            "toPortId": "Input"
+        },
+        {
+            "fromNodeId": "06fb421b-fa79-4b56-b0c1-555fa50128b8",
+            "fromPortId": "Output",
+            "toNodeId": "86ec3211-1813-49d5-a69c-7c307064b976",
+            "toPortId": "Input"
+        },
+        {
+            "fromNodeId": "StartTurretButton",
+            "fromPortId": "TurretOrigin",
+            "toNodeId": "90e259f3-96ce-40d0-b15f-fae36aa63f37",
+            "toPortId": "Input"
+        },
+        {
+            "fromNodeId": "90e259f3-96ce-40d0-b15f-fae36aa63f37",
+            "fromPortId": "Output",
+            "toNodeId": "b3654118-842d-422b-8676-21beb84f19e4",
+            "toPortId": "Input"
+        }
+    ],
+    "executableNodes": [
+        {
+            "nodeId": "55af7303-29a1-4434-bf16-1fe126b772d3",
+            "methodName": "Fire",
+            "originalLabel": "Fire",
+            "nodeType": 2,
+            "numericValue": 0.0,
+            "connectedNodeIds": [],
+            "position": {
+                "x": -1984.0,
+                "y": 96.0
+            }
+        },
+        {
+            "nodeId": "86ec3211-1813-49d5-a69c-7c307064b976",
+            "methodName": "LeadTarget",
+            "originalLabel": "Lead Target 0",
+            "nodeType": 2,
+            "numericValue": 0.0,
+            "connectedNodeIds": [],
+            "position": {
+                "x": -1984.0,
+                "y": 64.0
+            }
+        },
+        {
+            "nodeId": "01f97f14-8b51-4a3e-b41f-0fd48e8ecd65",
+            "methodName": "Cycle3",
+            "originalLabel": "Cycle 3",
+            "nodeType": 2,
+            "numericValue": 3.0,
+            "connectedNodeIds": [
+                "f7a9f074-f96d-49b1-89cd-8eb3513ca33a",
+                "bb646ce9-b9ba-4dba-a3bb-a1246ed85cee"
+            ],
+            "position": {
+                "x": -2302.693603515625,
+                "y": -32.434085845947269
+            }
+        },
+        {
+            "nodeId": "bb646ce9-b9ba-4dba-a3bb-a1246ed85cee",
+            "methodName": "AlignRight",
+            "originalLabel": "Align Right",
+            "nodeType": 2,
+            "numericValue": 0.0,
+            "connectedNodeIds": [],
+            "position": {
+                "x": -2096.0,
+                "y": -32.0
+            }
+        },
+        {
+            "nodeId": "f7a9f074-f96d-49b1-89cd-8eb3513ca33a",
+            "methodName": "AlignFront",
+            "originalLabel": "Align Front",
+            "nodeType": 2,
+            "numericValue": 0.0,
+            "connectedNodeIds": [],
+            "position": {
+                "x": -2096.0,
+                "y": -64.0
+            }
+        },
+        {
+            "nodeId": "06fb421b-fa79-4b56-b0c1-555fa50128b8",
+            "methodName": "IfAlly",
+            "originalLabel": "If Ally",
+            "nodeType": 1,
+            "numericValue": 0.0,
+            "connectedNodeIds": [
+                "86ec3211-1813-49d5-a69c-7c307064b976",
+                "55af7303-29a1-4434-bf16-1fe126b772d3"
+            ],
+            "position": {
+                "x": -2304.0,
+                "y": 96.0
+            }
+        },
+        {
+            "nodeId": "90e259f3-96ce-40d0-b15f-fae36aa63f37",
+            "methodName": "IfEnemy",
+            "originalLabel": "If Enemy",
+            "nodeType": 1,
+            "numericValue": 0.0,
+            "connectedNodeIds": [
+                "b3654118-842d-422b-8676-21beb84f19e4"
+            ],
+            "position": {
+                "x": -2363.074462890625,
+                "y": 225.64608764648438
+            }
+        },
+        {
+            "nodeId": "b3654118-842d-422b-8676-21beb84f19e4",
+            "methodName": "AlignBack",
+            "originalLabel": "Align Back",
+            "nodeType": 2,
+            "numericValue": 0.0,
+            "connectedNodeIds": [],
+            "position": {
+                "x": -2144.0,
+                "y": 224.0
+            }
+        }
+    ],
+    "startNodeId": "01f97f14-8b51-4a3e-b41f-0fd48e8ecd65",
+    "title": "L2R3HealT",
+    "description": "AI behavior tree for Turret control",
+    "cost": 150,
+    "weight": 0,
+    "category": 2,
+    "instanceId": "L1R1RifleT_2748e871-44f8-4ec2-bbc7-62357099aecb",
+    "customColor": {
+        "r": 1.0,
+        "g": 1.0,
+        "b": 1.0,
+        "a": 1.0
+    },
+    "treeName": "L2R3HealT"
+}
