@@ -2525,9 +2525,16 @@ public class TankMan : MonoBehaviour
         switch (actionNode.methodName)
         {
             case "Fire":
-                if (CanFire())
+                if (currentTarget != null)
                 {
-                    Fire();
+                    float fireLeadDistance = actionNode.numericValue;
+                    currentLeadDistance = fireLeadDistance;
+                    if (CanFire())
+                    {
+                        Fire();
+                    }
+                    if (!isSameAction)
+                        currentActionCoroutine = StartCoroutine(FireAction(fireLeadDistance, actionNode.nodeId, isNavAI));
                 }
                 break;
             case "Wander":
@@ -4172,6 +4179,94 @@ public class TankMan : MonoBehaviour
         
         // Clear wait action flag
         isInWaitAction = false;
+    }
+
+    /// <summary>
+    /// Combined fire action - aims turret at target (with optional lead) and fires when aimed
+    /// leadDistance = 0: aims directly at target center
+    /// leadDistance > 0: aims ahead of target's movement direction by that distance
+    /// </summary>
+    IEnumerator FireAction(float leadDistance, string nodeId, bool isNavAI)
+    {
+        // Update the last used node ID to track that we've moved to a different action
+        if (isNavAI)
+            lastUsedNavNodeId = nodeId;
+        else
+            lastUsedTurretNodeId = nodeId;
+        
+        // Reset turret rotation ramp-up when starting to track
+        turretRotationStartTime = Time.time;
+        previousTurretRotation = turretTransform != null ? turretTransform.rotation : Quaternion.identity;
+        currentTurretRotationSpeed = 0f;
+        
+        // Continuously rotate turret to face the lead point and fire when aimed
+        while (currentTarget != null && turretTransform != null)
+        {
+            Quaternion targetRotation;
+            
+            // Artillery turrets need special handling - aim at elevation angle
+            if (turretType == TurretType.Artillery)
+            {
+                Transform basePivot = GetTargetBasePivot(currentTarget);
+                Vector3 targetPosition = basePivot.position;
+                
+                float launchAngle;
+                Vector3 horizontalDirection = CalculateArtilleryDirection(out launchAngle, targetPosition);
+                
+                Vector3 horizontalDir = Vector3.ProjectOnPlane(horizontalDirection, Vector3.up);
+                if (horizontalDir.magnitude > 0.1f)
+                {
+                    Quaternion horizontalRotation = Quaternion.LookRotation(horizontalDir);
+                    float adjustedAngle = launchAngle - 60f;
+                    targetRotation = horizontalRotation * Quaternion.Euler(-adjustedAngle, 0f, 0f);
+                }
+                else
+                {
+                    targetRotation = turretTransform.rotation;
+                }
+            }
+            else
+            {
+                // Direct fire turrets - aim directly at lead point
+                Vector3 leadPoint = CalculateLeadPoint(currentTarget, leadDistance);
+                Vector3 targetDirection = leadPoint - turretTransform.position;
+                
+                if (targetDirection.magnitude > 0.1f)
+                {
+                    targetDirection.Normalize();
+                    targetRotation = Quaternion.LookRotation(targetDirection);
+                }
+                else
+                {
+                    targetRotation = turretTransform.rotation;
+                }
+            }
+            
+            // Gradual ramp-up for turret rotation to prevent jumpiness
+            float timeSinceRotationStart = Time.time - turretRotationStartTime;
+            float rampProgress = Mathf.Clamp01(timeSinceRotationStart / turretRampUpTime);
+            
+            float targetSpeed = TurnSpeed * turretRotationSpeed;
+            currentTurretRotationSpeed = Mathf.Lerp(0f, targetSpeed, rampProgress);
+            
+            targetRotation = ClampTurretPitch(targetRotation);
+            
+            turretTransform.rotation = Quaternion.RotateTowards(
+                turretTransform.rotation,
+                targetRotation,
+                currentTurretRotationSpeed * Time.deltaTime
+            );
+            
+            previousTurretRotation = turretTransform.rotation;
+            
+            // Fire when turret is aimed
+            if (CanFire())
+            {
+                Fire();
+            }
+            
+            yield return null;
+        }
     }
 
     /// <summary>

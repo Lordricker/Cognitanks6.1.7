@@ -55,16 +55,21 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
 
     public void OnPointerDown(PointerEventData eventData)
     {
+        if (eventData.button != PointerEventData.InputButton.Left) return;
         pointerDownPos = eventData.position;
         pointerDownTime = Time.unscaledTime;
     }
 
     public void OnPointerUp(PointerEventData eventData)
     {
+        if (eventData.button != PointerEventData.InputButton.Left) return;
         float dist = Vector2.Distance(pointerDownPos, eventData.position);
         float t = Time.unscaledTime - pointerDownTime;
         if (dist < clickThreshold && t < clickTime && eventData.pointerPress == nodeImage.gameObject)
         {
+            // Clear multi-select when clicking a node directly
+            NodeSelectionManager.StaticClearSelection();
+
             if (deleteButton != null && deleteButton.gameObject.activeSelf)
             {
                 HideDeleteButton();
@@ -233,6 +238,11 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
                 newLabel = $"Lead Target {number}";
                 Debug.Log($"Created new label for 'Lead Target ' pattern: '{newLabel}'");
             }
+            else if (currentLabel.Contains("Fire") || currentLabel.StartsWith("Fire"))
+            {
+                newLabel = $"Fire{number}";
+                Debug.Log($"Created new label for 'Fire' pattern: '{newLabel}'");
+            }
             else if (currentLabel.Contains("RotateUp") || currentLabel.Contains("Rotate Up"))
             {
                 newLabel = $"Rotate Up {number}°";
@@ -398,6 +408,7 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
                nodeLabel.Contains("If Range>#") ||
                nodeLabel.Contains("LeadTarget#") ||
                nodeLabel.Contains("Lead Target #") ||
+               nodeLabel.Contains("Fire") ||
                nodeLabel.Contains("RotateUp") ||
                nodeLabel.Contains("Rotate Up") ||
                nodeLabel.Contains("RotateDown") ||
@@ -438,6 +449,7 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
                nodeLabel.StartsWith("If Range>") ||
                nodeLabel.StartsWith("LeadTarget") ||
                nodeLabel.StartsWith("Lead Target ") ||
+               nodeLabel.StartsWith("Fire") ||
                nodeLabel.Contains("Cycle"); // Added for cycle nodes
     }
     
@@ -555,6 +567,13 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
         else if (nodeLabel.StartsWith("Lead Target "))
         {
             string numberPart = nodeLabel.Substring(12); // Skip "Lead Target "
+            if (numberPart == "#" || string.IsNullOrEmpty(numberPart))
+                return "0";
+            return numberPart;
+        }
+        else if (nodeLabel.StartsWith("Fire"))
+        {
+            string numberPart = nodeLabel.Substring(4); // Skip "Fire"
             if (numberPart == "#" || string.IsNullOrEmpty(numberPart))
                 return "0";
             return numberPart;

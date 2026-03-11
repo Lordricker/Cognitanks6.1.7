@@ -10,6 +10,9 @@ public class NodeDraggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
     private Vector2 offset;
     private List<UILineConnector> connectedLines = new List<UILineConnector>();
 
+    /// <summary>Returns a read-only view of connected lines (used by NodeSelectionManager for group move).</summary>
+    public IReadOnlyList<UILineConnector> GetConnectedLines() => connectedLines;
+
     public string nodeId; // Unique identifier for serialization
     public OutputButtonDrag.BranchType branchType = OutputButtonDrag.BranchType.None; // Branch type for the node
 
@@ -72,6 +75,12 @@ public class NodeDraggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
 
     public void OnBeginDrag(PointerEventData eventData)
     {
+        // Only drag with left mouse button
+        if (eventData.button != PointerEventData.InputButton.Left) return;
+
+        // If a multi-selection is active, clear it so single-node drag works normally
+        NodeSelectionManager.StaticClearSelection();
+
         // Calculate offset between pointer and node center, relative to Content panel
         Vector2 localPoint;
         RectTransformUtility.ScreenPointToLocalPointInRectangle(
@@ -84,6 +93,8 @@ public class NodeDraggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
 
     public void OnDrag(PointerEventData eventData)
     {
+        if (eventData.button != PointerEventData.InputButton.Left) return;
+
         Vector2 localPoint;
         RectTransformUtility.ScreenPointToLocalPointInRectangle(
             contentRectTransform,

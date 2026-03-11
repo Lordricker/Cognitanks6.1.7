@@ -14,6 +14,9 @@ public class CanvasPanZoom : MonoBehaviour, IPointerDownHandler, IDragHandler, I
 
     public void OnPointerDown(PointerEventData eventData)
     {
+        // Only pan on right or middle mouse button — left is reserved for selection rectangle
+        if (eventData.button == PointerEventData.InputButton.Left) return;
+
         // Only pan if not clicking a node or button
         if (eventData.pointerEnter == gameObject)
         {
@@ -25,6 +28,8 @@ public class CanvasPanZoom : MonoBehaviour, IPointerDownHandler, IDragHandler, I
     public void OnDrag(PointerEventData eventData)
     {
         if (!isPanning) return;
+        // Don't pan on left-drag (selection rect)
+        if (eventData.button == PointerEventData.InputButton.Left) return;
         Vector2 pointerPos;
         RectTransformUtility.ScreenPointToLocalPointInRectangle(content.parent as RectTransform, eventData.position, eventData.pressEventCamera, out pointerPos);
         Vector2 delta = pointerPos - lastPointerPos;

@@ -395,7 +395,7 @@ public class ContextMenuUI : MonoBehaviour
         
         // Actions - Turret
         if (lowerLabel.Contains("fire"))
-            return "Fires the tanks weapon. Use leadtarget to have the turret aim before firing";
+            return "Fires the tanks weapon when pointed at the target. Enter a number to predict targets position in meters based on its current velocity (0 is default = aim at center)";
         if (lowerLabel.Contains("leadtarget") || lowerLabel.Contains("lead target"))
             return "Using this under a Fire node will force it to verify aim before shooting. 0 will point right at target, any other numbers will predict enemy position e.g. leadtarget 15";
         if (lowerLabel.Contains("align front"))

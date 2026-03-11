@@ -347,6 +347,12 @@ public class TankAssembly : MonoBehaviour
             Debug.LogWarning($"TankAssembly: Could not load dirt emitter prefab from Resources/Vefects/DirtEmitter");
         }
 
+        // Add debug vision cone visualization
+        VisionConeDebug visionCone = GetComponent<VisionConeDebug>();
+        if (visionCone == null)
+            visionCone = gameObject.AddComponent<VisionConeDebug>();
+        visionCone.Initialize(tankMan);
+
         // Rigidbody configuration is now handled by TankMan.Start() and CalculateStats()
         // This ensures physics parameters from TankSlotDataJson are properly applied
         
