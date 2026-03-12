@@ -4,7 +4,7 @@
         {
             "nodeId": "d151d1ba-7d02-4707-827a-533f24ceda3b",
             "nodeType": "EndNode(Clone)",
-            "nodeLabel": "Wander",
+            "nodeLabel": "Map Center",
             "position": {
                 "x": -2240.0,
                 "y": -80.0
@@ -55,8 +55,8 @@
     "executableNodes": [
         {
             "nodeId": "d151d1ba-7d02-4707-827a-533f24ceda3b",
-            "methodName": "Wander",
-            "originalLabel": "Wander",
+            "methodName": "MapCenter",
+            "originalLabel": "Map Center",
             "nodeType": 2,
             "numericValue": 0.0,
             "connectedNodeIds": [],

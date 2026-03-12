@@ -25,9 +25,7 @@ public class CameraController : MonoBehaviour
 
     public Transform globalAnchor; // Assign in inspector for global view
 
-    /// <summary>
-    /// True when the camera is currently in global (arena overview) mode.
-    /// </summary>
+    /// <summary>Returns true when the camera is currently on the global overview anchor.</summary>
     public bool IsGlobalCamera => targetAnchor != null && targetAnchor == globalAnchor;
 
     [Header("Global Camera Zoom (FOV)")]

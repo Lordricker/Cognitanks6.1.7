@@ -240,7 +240,7 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
             }
             else if (currentLabel.Contains("Fire") || currentLabel.StartsWith("Fire"))
             {
-                newLabel = $"Fire{number}";
+                newLabel = $"Fire {number}";
                 Debug.Log($"Created new label for 'Fire' pattern: '{newLabel}'");
             }
             else if (currentLabel.Contains("RotateUp") || currentLabel.Contains("Rotate Up"))
@@ -573,7 +573,7 @@ public class NodeDeleteUI : MonoBehaviour, IPointerClickHandler, IPointerDownHan
         }
         else if (nodeLabel.StartsWith("Fire"))
         {
-            string numberPart = nodeLabel.Substring(4); // Skip "Fire"
+            string numberPart = nodeLabel.Substring(4).TrimStart(); // Skip "Fire" (and optional space)
             if (numberPart == "#" || string.IsNullOrEmpty(numberPart))
                 return "0";
             return numberPart;

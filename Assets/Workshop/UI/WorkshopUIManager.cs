@@ -5,7 +5,6 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using UnityEngine.EventSystems;
-using UnityEngine.InputSystem;
 using AiEditor;
 #if UNITY_EDITOR
 using UnityEditor;
@@ -85,6 +84,7 @@ public class WorkshopUIManager : MonoBehaviour
     private RectTransform mainMenuPanelRect;
     private Vector2 mainMenuPanelOnScreenPosition;
     private Vector2 mainMenuPanelOffScreenPosition;
+    private bool isMainMenuPanelVisible = true;
     private Coroutine mainMenuPanelCoroutine;
     private static bool mainMenuDismissed = false; // persists across scene loads
 
@@ -201,7 +201,7 @@ public class WorkshopUIManager : MonoBehaviour
                 // Calculate off-screen position (slide to the right)
                 // Move it far enough right that it's completely off screen
                 float panelWidth = campaignPanelRect.rect.width;
-                campaignPanelOffScreenPosition = campaignPanelOnScreenPosition + new Vector2((panelWidth + 100f) * 1.2f, 0);
+                campaignPanelOffScreenPosition = campaignPanelOnScreenPosition + new Vector2((panelWidth + 100f) * 2, 0);
                 
                 // Start with panel off-screen to the right
                 campaignPanelRect.anchoredPosition = campaignPanelOffScreenPosition;
@@ -223,15 +223,17 @@ public class WorkshopUIManager : MonoBehaviour
             {
                 mainMenuPanelOnScreenPosition = mainMenuPanelRect.anchoredPosition;
                 float panelHeight = mainMenuPanelRect.rect.height;
-                mainMenuPanelOffScreenPosition = mainMenuPanelOnScreenPosition + new Vector2(0f, (panelHeight + 100f) * 1.2f);
+                mainMenuPanelOffScreenPosition = mainMenuPanelOnScreenPosition + new Vector2(0f, (panelHeight + 100f) * 2f);
                 // Start off-screen if previously dismissed, otherwise show normally
                 if (mainMenuDismissed)
                 {
                     mainMenuPanelRect.anchoredPosition = mainMenuPanelOffScreenPosition;
+                    isMainMenuPanelVisible = false;
                 }
                 else
                 {
                     mainMenuPanelRect.anchoredPosition = mainMenuPanelOnScreenPosition;
+                    isMainMenuPanelVisible = true;
                 }
             }
         }
@@ -292,7 +294,12 @@ public class WorkshopUIManager : MonoBehaviour
         
         // Load unlocked components from PlayerPrefs
         LoadUnlockedComponents();
-        
+
+        // Force the flag manager to re-read PlayerPrefs now that shop data is loaded.
+        // This is called explicitly here so Start() execution order doesn't matter.
+        if (NewItemFlagManager.Instance != null)
+            NewItemFlagManager.Instance.RefreshAllFlags();
+
         LoadPlayerInventoryFromSave();
         
         // Load player cash from PlayerDataManager and update UI
@@ -495,27 +502,6 @@ public class WorkshopUIManager : MonoBehaviour
         }
     }
 
-    private void Update()
-    {
-        // Hide campaign panel when clicking anywhere outside it
-        var mouse = Mouse.current;
-        if (isCampaignPanelVisible && mouse != null && mouse.leftButton.wasPressedThisFrame)
-        {
-            Vector2 mousePos = mouse.position.ReadValue();
-
-            bool clickedPanel = campaignPanelRect != null &&
-                RectTransformUtility.RectangleContainsScreenPoint(campaignPanelRect, mousePos, null);
-            bool clickedButton = campaignButton != null &&
-                RectTransformUtility.RectangleContainsScreenPoint(
-                    campaignButton.GetComponent<RectTransform>(), mousePos, null);
-
-            if (!clickedPanel && !clickedButton)
-            {
-                HideCampaignPanel();
-            }
-        }
-    }
-
     private ComponentData FindComponentPrefabById(string id)
     {
         // Search shop lists first
@@ -631,46 +617,75 @@ public class WorkshopUIManager : MonoBehaviour
         var allTurretAI = Resources.LoadAll<AiTreeAsset>("ShopAI/TurretAI");
         var allNavAI = Resources.LoadAll<AiTreeAsset>("ShopAI/NavAI");
         
-        // Check each component if it's unlocked and add to shop if not already there
+        // Check each component if it's unlocked and add to shop if not already there.
+        // If it was just unlocked this session (NewItemJustUnlocked tag), also set the
+        // NewItemFlag PlayerPrefs key so NewItemFlagManager will show the badge.
         foreach (var turret in allTurrets)
         {
             if (PlayerPrefs.GetInt($"ComponentUnlocked_{turret.id}", 0) == 1 && !turretShopComponents.Contains(turret))
             {
                 turretShopComponents.Add(turret);
+                if (PlayerPrefs.GetInt($"NewItemJustUnlocked_{turret.id}", 0) == 1)
+                {
+                    PlayerPrefs.SetInt("NewItemFlag_Turret", 1);
+                    PlayerPrefs.DeleteKey($"NewItemJustUnlocked_{turret.id}");
+                }
             }
         }
-        
+
         foreach (var armor in allArmor)
         {
             if (PlayerPrefs.GetInt($"ComponentUnlocked_{armor.id}", 0) == 1 && !armorShopComponents.Contains(armor))
             {
                 armorShopComponents.Add(armor);
+                if (PlayerPrefs.GetInt($"NewItemJustUnlocked_{armor.id}", 0) == 1)
+                {
+                    PlayerPrefs.SetInt("NewItemFlag_Armor", 1);
+                    PlayerPrefs.DeleteKey($"NewItemJustUnlocked_{armor.id}");
+                }
             }
         }
-        
+
         foreach (var engineFrame in allEngineFrames)
         {
             if (PlayerPrefs.GetInt($"ComponentUnlocked_{engineFrame.id}", 0) == 1 && !engineFrameShopComponents.Contains(engineFrame))
             {
                 engineFrameShopComponents.Add(engineFrame);
+                if (PlayerPrefs.GetInt($"NewItemJustUnlocked_{engineFrame.id}", 0) == 1)
+                {
+                    PlayerPrefs.SetInt("NewItemFlag_EngineFrame", 1);
+                    PlayerPrefs.DeleteKey($"NewItemJustUnlocked_{engineFrame.id}");
+                }
             }
         }
-        
+
         foreach (var ai in allTurretAI)
         {
             if (PlayerPrefs.GetInt($"ComponentUnlocked_{ai.id}", 0) == 1 && !turretAIShopComponents.Contains(ai))
             {
                 turretAIShopComponents.Add(ai);
+                if (PlayerPrefs.GetInt($"NewItemJustUnlocked_{ai.id}", 0) == 1)
+                {
+                    PlayerPrefs.SetInt("NewItemFlag_TurretAI", 1);
+                    PlayerPrefs.DeleteKey($"NewItemJustUnlocked_{ai.id}");
+                }
             }
         }
-        
+
         foreach (var ai in allNavAI)
         {
             if (PlayerPrefs.GetInt($"ComponentUnlocked_{ai.id}", 0) == 1 && !navAIShopComponents.Contains(ai))
             {
                 navAIShopComponents.Add(ai);
+                if (PlayerPrefs.GetInt($"NewItemJustUnlocked_{ai.id}", 0) == 1)
+                {
+                    PlayerPrefs.SetInt("NewItemFlag_NavAI", 1);
+                    PlayerPrefs.DeleteKey($"NewItemJustUnlocked_{ai.id}");
+                }
             }
         }
+
+        PlayerPrefs.Save();
     }
 
     public void ClearUnlockedComponentsFromShop()
@@ -2250,9 +2265,8 @@ public class WorkshopUIManager : MonoBehaviour
             StopCoroutine(campaignSlideCoroutine);
         }
         
-        campaignPanel.SetActive(true);
         isCampaignPanelVisible = true;
-        campaignSlideCoroutine = StartCoroutine(SlideCampaignPanel(campaignPanelOnScreenPosition, false));
+        campaignSlideCoroutine = StartCoroutine(SlideCampaignPanel(campaignPanelOnScreenPosition));
     }
     
     /// <summary>
@@ -2268,13 +2282,13 @@ public class WorkshopUIManager : MonoBehaviour
         }
         
         isCampaignPanelVisible = false;
-        campaignSlideCoroutine = StartCoroutine(SlideCampaignPanel(campaignPanelOffScreenPosition, true));
+        campaignSlideCoroutine = StartCoroutine(SlideCampaignPanel(campaignPanelOffScreenPosition));
     }
     
     /// <summary>
     /// Coroutine to smoothly slide the campaign panel to a target position
     /// </summary>
-    private IEnumerator SlideCampaignPanel(Vector2 targetPosition, bool deactivateOnFinish)
+    private IEnumerator SlideCampaignPanel(Vector2 targetPosition)
     {
         if (campaignPanelRect == null) yield break;
         
@@ -2291,11 +2305,6 @@ public class WorkshopUIManager : MonoBehaviour
         // Snap to final position
         campaignPanelRect.anchoredPosition = targetPosition;
         campaignSlideCoroutine = null;
-        
-        if (deactivateOnFinish && campaignPanel != null)
-        {
-            campaignPanel.SetActive(false);
-        }
     }
 
     // ── Main Menu Panel ────────────────────────────────────────────────────
@@ -2307,6 +2316,7 @@ public class WorkshopUIManager : MonoBehaviour
     {
         if (mainMenuPanelRect == null) return;
         if (mainMenuPanelCoroutine != null) StopCoroutine(mainMenuPanelCoroutine);
+        isMainMenuPanelVisible = false;
         mainMenuDismissed = true;
         mainMenuPanelCoroutine = StartCoroutine(SlideRectTo(mainMenuPanelRect, mainMenuPanelOffScreenPosition, mainMenuPanelSlideSpeed,
             () => mainMenuPanelCoroutine = null));
@@ -2319,6 +2329,7 @@ public class WorkshopUIManager : MonoBehaviour
     {
         if (mainMenuPanelRect == null) return;
         if (mainMenuPanelCoroutine != null) StopCoroutine(mainMenuPanelCoroutine);
+        isMainMenuPanelVisible = true;
         mainMenuDismissed = false;
         mainMenuPanelCoroutine = StartCoroutine(SlideRectTo(mainMenuPanelRect, mainMenuPanelOnScreenPosition, mainMenuPanelSlideSpeed,
             () => mainMenuPanelCoroutine = null));

@@ -1013,6 +1013,9 @@ public class ArenaManager : MonoBehaviour
             {
                 if (!string.IsNullOrEmpty(componentId))
                 {
+                    // Only tag as "just unlocked" the very first time this component is unlocked
+                    if (PlayerPrefs.GetInt($"ComponentUnlocked_{componentId}", 0) == 0)
+                        PlayerPrefs.SetInt($"NewItemJustUnlocked_{componentId}", 1);
                     PlayerPrefs.SetInt($"ComponentUnlocked_{componentId}", 1);
                     Debug.Log($"[ArenaManager] Unlocked component: {componentId}");
                 }
@@ -1137,7 +1140,12 @@ public class ArenaManager : MonoBehaviour
                 {
                     System.IO.File.WriteAllText(targetPath, aiFile.text);
                     Debug.Log($"[ArenaManager] Copied AI file to shop: {targetFolder}/{fileName}.json");
-                    
+
+                    // Tag this AI category so the Workshop shows the "New" flag
+                    string flagCategory = targetFolder == "NavAI" ? "NavAI" : "TurretAI";
+                    PlayerPrefs.SetInt($"NewItemFlag_{flagCategory}", 1);
+                    PlayerPrefs.Save();
+
 #if UNITY_EDITOR
                     // Refresh asset database in editor
                     UnityEditor.AssetDatabase.Refresh();

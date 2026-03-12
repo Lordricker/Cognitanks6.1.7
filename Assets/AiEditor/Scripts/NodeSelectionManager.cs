@@ -722,17 +722,28 @@ public class NodeSelectionManager : MonoBehaviour
 
         if (pasteButtonPrefab == null || clipboard.Count == 0) return;
 
+        Camera cam = (UICanvasObj != null && UICanvasObj.renderMode != RenderMode.ScreenSpaceOverlay)
+            ? UICanvasObj.worldCamera
+            : null;
+
         Vector2 localPos;
         RectTransformUtility.ScreenPointToLocalPointInRectangle(
-            content, screenPos, null, out localPos);
+            content, screenPos, cam, out localPos);
+
+        Debug.Log($"[PasteButton] Screen cursor: {screenPos} → content-local: {localPos}");
 
         pasteButtonInstance = Instantiate(pasteButtonPrefab, content);
         var rt = pasteButtonInstance.GetComponent<RectTransform>();
-        // Reset anchors/pivot so anchoredPosition maps directly to content-local coords
-        rt.anchorMin = new Vector2(0, 0);
-        rt.anchorMax = new Vector2(0, 0);
-        rt.pivot = new Vector2(0.5f, 0.5f);
-        rt.anchoredPosition = localPos;
+
+        // Keep the prefab's anchor/pivot settings intact.
+        // Just move the button to the cursor position using world position so
+        // it doesn't matter what anchor the prefab has.
+        Vector3 worldPos;
+        RectTransformUtility.ScreenPointToWorldPointInRectangle(
+            content, screenPos, cam, out worldPos);
+        rt.position = worldPos;
+
+        Debug.Log($"[PasteButton] Spawned at world: {worldPos}, anchoredPosition after: {rt.anchoredPosition}");
 
         var btn = pasteButtonInstance.GetComponent<Button>();
         if (btn != null)

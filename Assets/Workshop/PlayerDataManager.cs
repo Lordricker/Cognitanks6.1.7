@@ -197,8 +197,8 @@ public class PlayerDataManager : MonoBehaviour
             }
         }
         
-        // Note: We do NOT delete the AiTrees folder or ShopAI folders
-        // This preserves all AI files while just unassigning them from tank slots
+        // Reset ShopAI folders to only contain default files
+        ResetShopAIFoldersToDefaults();
         
         // Force TankSlotJsonManager to reinitialize with fresh default slots
         // This must happen BEFORE scene reload so the new scene has clean data
@@ -231,9 +231,9 @@ public class PlayerDataManager : MonoBehaviour
     /// </summary>
     private void ResetShopAIFoldersToDefaults()
     {
-        // Define the first default file names (should match what you have in the folders)
-        string defaultNavAIFileName = "Round1Nav.json"; // Change this to your actual default Nav AI file name
-        string defaultTurretAIFileName = "Round1Turret.json"; // Change this to your actual default Turret AI file name
+        // Default files to keep after erase
+        string defaultNavAIFileName = "L1R1RifleN.json";
+        string defaultTurretAIFileName = "L1R1RifleT.json";
         
         // Reset NavAI folder
         string navAIFolder = Path.Combine(Application.dataPath, "Resources", "ShopAI", "NavAI");
@@ -359,7 +359,14 @@ public class PlayerDataManager : MonoBehaviour
         PlayerPrefs.DeleteKey("SelectedRound");
         PlayerPrefs.DeleteKey("SelectedArenaKey");
         PlayerPrefs.DeleteKey("ArenaEntryFee");
-        
+
+        // Clear new-item flag badges
+        PlayerPrefs.DeleteKey("NewItemFlag_Turret");
+        PlayerPrefs.DeleteKey("NewItemFlag_Armor");
+        PlayerPrefs.DeleteKey("NewItemFlag_EngineFrame");
+        PlayerPrefs.DeleteKey("NewItemFlag_TurretAI");
+        PlayerPrefs.DeleteKey("NewItemFlag_NavAI");
+
         PlayerPrefs.Save();
         Debug.Log("[PlayerDataManager] Cleared all progression data from PlayerPrefs");
     }

@@ -24,7 +24,7 @@
         {
             "nodeId": "4a08f521-02e0-429a-8069-60c6d0784aa3",
             "nodeType": "MiddleNode(Clone)",
-            "nodeLabel": "If Range<10",
+            "nodeLabel": "If Range<35",
             "position": {
                 "x": -2080.0,
                 "y": 128.0
@@ -68,16 +68,6 @@
             "position": {
                 "x": -2112.0,
                 "y": -144.0
-            },
-            "properties": []
-        },
-        {
-            "nodeId": "f5940e4e-39be-4321-8655-de970942ac18",
-            "nodeType": "EndNode(Clone)",
-            "nodeLabel": "Chase",
-            "position": {
-                "x": -1920.0,
-                "y": -48.0
             },
             "properties": []
         }
@@ -157,9 +147,9 @@
         {
             "nodeId": "4a08f521-02e0-429a-8069-60c6d0784aa3",
             "methodName": "IfRange",
-            "originalLabel": "If Range<10",
+            "originalLabel": "If Range<35",
             "nodeType": 1,
-            "numericValue": 10.0,
+            "numericValue": 35.0,
             "connectedNodeIds": [
                 "4757730f-f034-4a20-ac62-736afe5afc9f"
             ],
