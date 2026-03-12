@@ -1,0 +1,51 @@
+{
+    "branchType": 2,
+    "nodes": [
+        {
+            "nodeId": "e5aa9b24-5c25-46f5-9a35-e10cc1d9e8af",
+            "nodeType": "EndNode(Clone)",
+            "nodeLabel": "Map Center",
+            "position": {
+                "x": -2192.0,
+                "y": -32.0
+            },
+            "properties": []
+        }
+    ],
+    "connections": [
+        {
+            "fromNodeId": "StartNavButton",
+            "fromPortId": "NavOrigin",
+            "toNodeId": "e5aa9b24-5c25-46f5-9a35-e10cc1d9e8af",
+            "toPortId": "Input"
+        }
+    ],
+    "executableNodes": [
+        {
+            "nodeId": "e5aa9b24-5c25-46f5-9a35-e10cc1d9e8af",
+            "methodName": "MapCenter",
+            "originalLabel": "Map Center",
+            "nodeType": 2,
+            "numericValue": 0.0,
+            "connectedNodeIds": [],
+            "position": {
+                "x": -2192.0,
+                "y": -32.0
+            }
+        }
+    ],
+    "startNodeId": "e5aa9b24-5c25-46f5-9a35-e10cc1d9e8af",
+    "title": "L1R1RifleN",
+    "description": "AI behavior tree for Nav control",
+    "cost": 100,
+    "weight": 0,
+    "category": 2,
+    "instanceId": "L1R2RifleN_25932148-027c-4b6e-8320-8200261452d2",
+    "customColor": {
+        "r": 1.0,
+        "g": 1.0,
+        "b": 1.0,
+        "a": 1.0
+    },
+    "treeName": "L1R1RifleN"
+}

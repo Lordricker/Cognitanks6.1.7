@@ -2,7 +2,7 @@
     "isActive": true,
     "teamId": 1,
     "isPlayerControlled": false,
-    "displayName": "EnemyTank 1",
+    "displayName": "EnemyTank 2",
     "turretPrefabGuid": "",
     "armorPrefabGuid": "",
     "engineFramePrefabGuid": "",
@@ -17,7 +17,7 @@
     "turretKnockback": "medium",
     "turretVisionRange": 200.0,
     "turretVisionCone": 160.0,
-    "armorHP": 120,
+    "armorHP": 20,
     "engineWeightCapacity": 40,
     "enginePower": 14000,
     "engineFrameHP": 0,
@@ -33,9 +33,9 @@
     "dragCoefficient": 0.5,
     "angularDragCoefficient": 2.0,
     "totalWeight": 48.0,
-    "engineFrameInstanceId": "Velocity Chassis_70caacca-2d43-47ec-a03b-297166347eb7",
-    "armorInstanceId": "MK-VI Alloy Shell_43bd0069-5c7f-492b-9c01-45f2ffc4639e",
-    "turretInstanceId": "Hammer_6063e093-c826-496e-83c2-bf8160ef71f7",
+    "engineFrameInstanceId": "Velocity Chassis_70caacca-2d43-47ec-a03b-297466347eb7",
+    "armorInstanceId": "Carbon Weave Armor_43bd0069-5c7f-492b-9c01-45f2ffc5639e",
+    "turretInstanceId": "Hammer_6063e093-c826-496e-83c2-bf8160tf71f7",
     "engineFrameColor": {
         "r": 1.0,
         "g": 1.0,
@@ -45,7 +45,7 @@
     "armorColor": {
         "r": 1.0,
         "g": 0.0,
-        "b": 1.0,
+        "b": 0.0,
         "a": 1.0
     },
     "turretColor": {
@@ -54,5 +54,5 @@
         "b": 1.0,
         "a": 1.0
     },
-    "spawnPointName": "SpawnPoint12"
+    "spawnPointName": "SpawnPoint13"
 }

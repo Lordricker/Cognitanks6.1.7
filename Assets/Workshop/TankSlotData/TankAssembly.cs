@@ -233,9 +233,18 @@ public class TankAssembly : MonoBehaviour
                     : ComponentCustomizationManager.Instance?.GetDecal(data.turretInstanceId);
                 
                 // Load and assign hammer animation prefab if specified
-                if (!string.IsNullOrEmpty(data.turretAnimationPrefabPath))
+                string animPrefabPath = data.turretAnimationPrefabPath;
+                
+                // Fallback: if turret type is Hammer but no animation path is set, use default HammerDown path
+                if (string.IsNullOrEmpty(animPrefabPath) && data.turretType == TurretTypeJson.Hammer)
                 {
-                    GameObject animationPrefab = Resources.Load<GameObject>(data.turretAnimationPrefabPath);
+                    animPrefabPath = "Models/Prefabs/Turrets/HammerDown";
+                    Debug.Log($"TankAssembly: No animation path in slot data for Hammer turret, using default: {animPrefabPath}");
+                }
+                
+                if (!string.IsNullOrEmpty(animPrefabPath))
+                {
+                    GameObject animationPrefab = Resources.Load<GameObject>(animPrefabPath);
                     if (animationPrefab != null)
                     {
                         tankMan.SetHammerAnimationPrefab(animationPrefab, data.turretColor.ToUnityColor(), skinPathForModels, decalPathForModels);
@@ -243,7 +252,7 @@ public class TankAssembly : MonoBehaviour
                     }
                     else
                     {
-                        Debug.LogWarning($"TankAssembly: Could not load animation prefab from path: {data.turretAnimationPrefabPath}");
+                        Debug.LogWarning($"TankAssembly: Could not load animation prefab from path: {animPrefabPath}");
                     }
                 }
                 
