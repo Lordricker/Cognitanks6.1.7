@@ -30,17 +30,16 @@ public class VisionConeDebug : MonoBehaviour
         meshFilter = coneObject.AddComponent<MeshFilter>();
         meshRenderer = coneObject.AddComponent<MeshRenderer>();
 
-        // Create transparent grey unlit material (URP)
-        Material coneMaterial = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
-        coneMaterial.SetFloat("_Surface", 1f); // Transparent
-        coneMaterial.SetFloat("_Blend", 0f);   // Alpha blend
-        coneMaterial.SetColor("_BaseColor", new Color(0.5f, 0.5f, 0.5f, 0.12f));
-        coneMaterial.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-        coneMaterial.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-        coneMaterial.SetInt("_ZWrite", 0);
-        coneMaterial.SetInt("_Cull", 0); // Render both sides
+        // Create transparent grey material using Sprites/Default (always available in builds)
+        Shader shader = Shader.Find("Sprites/Default");
+        if (shader == null)
+        {
+            Debug.LogError("[VisionConeDebug] Sprites/Default shader not found! Vision cone will not render.");
+            return;
+        }
+        Material coneMaterial = new Material(shader);
+        coneMaterial.color = new Color(0.5f, 0.5f, 0.5f, 0.12f);
         coneMaterial.renderQueue = 3000;
-        coneMaterial.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
 
         meshRenderer.material = coneMaterial;
         meshRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;

@@ -20,11 +20,15 @@ public class SoundManager : MonoBehaviour
     [Range(0f, 1f)]
     public float uiSoundsVolume = 1f;
 
-    [Tooltip("Audio clips for different button sounds.")]
-    public AudioClip[] buttonSounds; // Assign clips in Inspector, indexed by enum
+    [Tooltip("Default button click sound.")]
+    public AudioClip defaultClickSound;
+    [Range(0f, 1f)]
+    public float defaultClickVolume = 1f;
 
-    [Tooltip("Individual volumes for button sounds (0-1).")]
-    public float[] buttonSoundVolumes;
+    [Tooltip("Purchase cha-ching sound (also respects button volume).")]
+    public AudioClip purchaseChachingSound;
+    [Range(0f, 1f)]
+    public float purchaseChachingVolume = 1f;
 
     [Header("SFX Sounds")]
     [Tooltip("Volume for SFX sounds (tanks, bullets, etc).")]
@@ -232,10 +236,20 @@ public class SoundManager : MonoBehaviour
 
     public void PlayButtonSound(ButtonSoundType soundType)
     {
-        int index = (int)soundType;
-        if (!enableSounds || buttonSounds.Length <= index || buttonSounds[index] == null) return;
-        float volume = (buttonSoundVolumes.Length > index ? buttonSoundVolumes[index] : 1f) * masterVolume * uiSoundsVolume;
-        buttonAudioSource.PlayOneShot(buttonSounds[index], volume);
+        if (!enableSounds) return;
+        switch (soundType)
+        {
+            case ButtonSoundType.DefaultClick:
+                if (defaultClickSound != null)
+                    buttonAudioSource.PlayOneShot(defaultClickSound, defaultClickVolume * masterVolume * uiSoundsVolume);
+                break;
+        }
+    }
+
+    public void PlayPurchaseSound()
+    {
+        if (!enableSounds || purchaseChachingSound == null) return;
+        buttonAudioSource.PlayOneShot(purchaseChachingSound, purchaseChachingVolume * masterVolume * uiSoundsVolume);
     }
 
     // Call this to save settings
@@ -496,6 +510,5 @@ public class SoundManager : MonoBehaviour
 public enum ButtonSoundType
 {
     DefaultClick,
-    SpecialClick,
     // Add more as needed
 }

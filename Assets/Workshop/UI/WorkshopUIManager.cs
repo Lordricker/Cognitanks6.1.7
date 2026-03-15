@@ -1002,6 +1002,20 @@ public class WorkshopUIManager : MonoBehaviour
         PlayerDataManager.Instance.SavePlayerData();
         UpdatePlayerCashUI();
         PopulateComponentList();
+
+        // Show purchase feedback
+        string purchaseLabel;
+        if (component is TurretData)
+            purchaseLabel = "Turret Purchased!";
+        else if (component is ArmorData)
+            purchaseLabel = "Armor Purchased!";
+        else if (component is EngineFrameData)
+            purchaseLabel = "Engine Frame Purchased!";
+        else if (component is AiTreeAsset aiPurchased)
+            purchaseLabel = aiPurchased.branchType == AiEditor.AiBranchType.Turret ? "Turret AI Purchased!" : "Nav AI Purchased!";
+        else
+            purchaseLabel = "Item Purchased!";
+        ShowPurchaseMessage(purchaseLabel);
     }
 
     private void OnSellComponent(ComponentData component)
@@ -1331,17 +1345,28 @@ public class WorkshopUIManager : MonoBehaviour
     {
         if (debugTextCoroutine != null)
             StopCoroutine(debugTextCoroutine);
-        debugTextCoroutine = StartCoroutine(ShowDebugMessageRoutine(message, duration));
+        debugTextCoroutine = StartCoroutine(ShowDebugMessageRoutine(message, Color.red, duration));
         
         // Play error sound
         if (SoundManager.Instance != null)
             SoundManager.Instance.PlayErrorSound();
     }
 
-    private IEnumerator ShowDebugMessageRoutine(string message, float duration)
+    public void ShowPurchaseMessage(string message, float duration = 2f)
+    {
+        if (debugTextCoroutine != null)
+            StopCoroutine(debugTextCoroutine);
+        debugTextCoroutine = StartCoroutine(ShowDebugMessageRoutine(message, Color.green, duration));
+
+        // Play purchase sound through SoundManager (respects UI volume / button group)
+        if (SoundManager.Instance != null)
+            SoundManager.Instance.PlayPurchaseSound();
+    }
+
+    private IEnumerator ShowDebugMessageRoutine(string message, Color color, float duration)
     {
         debugText.text = message;
-        debugText.color = Color.red;
+        debugText.color = color;
         debugText.gameObject.SetActive(true);
 
         // Optional: flash effect

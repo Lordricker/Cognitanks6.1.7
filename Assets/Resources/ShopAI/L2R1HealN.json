@@ -1,0 +1,227 @@
+{
+    "branchType": 2,
+    "nodes": [
+        {
+            "nodeId": "e5aa9b24-5c25-46f5-9a35-e10cc1d9e8af",
+            "nodeType": "EndNode(Clone)",
+            "nodeLabel": "Map Center",
+            "position": {
+                "x": -2192.0,
+                "y": -32.0
+            },
+            "properties": []
+        },
+        {
+            "nodeId": "9d2c112f-4303-452e-bf95-7f4eaa386390",
+            "nodeType": "MiddleNode(Clone)",
+            "nodeLabel": "If Range<40",
+            "position": {
+                "x": -2144.0,
+                "y": 176.0
+            },
+            "properties": []
+        },
+        {
+            "nodeId": "f725c790-adf9-4d1d-b0cd-b82d9740298f",
+            "nodeType": "EndNode(Clone)",
+            "nodeLabel": "Wait",
+            "position": {
+                "x": -1968.0,
+                "y": 176.0
+            },
+            "properties": []
+        },
+        {
+            "nodeId": "096854fb-a856-4c6a-9437-c3e6ccb4d4d4",
+            "nodeType": "MiddleNode(Clone)",
+            "nodeLabel": "If Ally",
+            "position": {
+                "x": -2376.71240234375,
+                "y": 163.08078002929688
+            },
+            "properties": []
+        },
+        {
+            "nodeId": "48930bf4-40a4-426d-b9f1-c4642f6b027d",
+            "nodeType": "EndNode(Clone)",
+            "nodeLabel": "Chase",
+            "position": {
+                "x": -2144.0,
+                "y": 112.0
+            },
+            "properties": []
+        },
+        {
+            "nodeId": "07198aa9-f10c-49e2-9792-f9b145d1b41b",
+            "nodeType": "MiddleNode(Clone)",
+            "nodeLabel": "Cycle 9",
+            "position": {
+                "x": -2378.214599609375,
+                "y": -38.170799255371097
+            },
+            "properties": []
+        },
+        {
+            "nodeId": "495189fe-3d85-4eaf-ac7d-210039eba6cf",
+            "nodeType": "EndNode(Clone)",
+            "nodeLabel": "Wander",
+            "position": {
+                "x": -2192.0,
+                "y": -64.0
+            },
+            "properties": []
+        }
+    ],
+    "connections": [
+        {
+            "fromNodeId": "9d2c112f-4303-452e-bf95-7f4eaa386390",
+            "fromPortId": "Output",
+            "toNodeId": "f725c790-adf9-4d1d-b0cd-b82d9740298f",
+            "toPortId": "Input"
+        },
+        {
+            "fromNodeId": "096854fb-a856-4c6a-9437-c3e6ccb4d4d4",
+            "fromPortId": "Output",
+            "toNodeId": "9d2c112f-4303-452e-bf95-7f4eaa386390",
+            "toPortId": "Input"
+        },
+        {
+            "fromNodeId": "096854fb-a856-4c6a-9437-c3e6ccb4d4d4",
+            "fromPortId": "Output",
+            "toNodeId": "48930bf4-40a4-426d-b9f1-c4642f6b027d",
+            "toPortId": "Input"
+        },
+        {
+            "fromNodeId": "StartNavButton",
+            "fromPortId": "NavOrigin",
+            "toNodeId": "07198aa9-f10c-49e2-9792-f9b145d1b41b",
+            "toPortId": "Input"
+        },
+        {
+            "fromNodeId": "07198aa9-f10c-49e2-9792-f9b145d1b41b",
+            "fromPortId": "Output",
+            "toNodeId": "e5aa9b24-5c25-46f5-9a35-e10cc1d9e8af",
+            "toPortId": "Input"
+        },
+        {
+            "fromNodeId": "StartNavButton",
+            "fromPortId": "NavOrigin",
+            "toNodeId": "096854fb-a856-4c6a-9437-c3e6ccb4d4d4",
+            "toPortId": "Input"
+        },
+        {
+            "fromNodeId": "07198aa9-f10c-49e2-9792-f9b145d1b41b",
+            "fromPortId": "Output",
+            "toNodeId": "495189fe-3d85-4eaf-ac7d-210039eba6cf",
+            "toPortId": "Input"
+        }
+    ],
+    "executableNodes": [
+        {
+            "nodeId": "e5aa9b24-5c25-46f5-9a35-e10cc1d9e8af",
+            "methodName": "MapCenter",
+            "originalLabel": "Map Center",
+            "nodeType": 2,
+            "numericValue": 0.0,
+            "connectedNodeIds": [],
+            "position": {
+                "x": -2192.0,
+                "y": -32.0
+            }
+        },
+        {
+            "nodeId": "9d2c112f-4303-452e-bf95-7f4eaa386390",
+            "methodName": "IfRange",
+            "originalLabel": "If Range<40",
+            "nodeType": 1,
+            "numericValue": 40.0,
+            "connectedNodeIds": [
+                "f725c790-adf9-4d1d-b0cd-b82d9740298f"
+            ],
+            "position": {
+                "x": -2144.0,
+                "y": 176.0
+            }
+        },
+        {
+            "nodeId": "f725c790-adf9-4d1d-b0cd-b82d9740298f",
+            "methodName": "Wait",
+            "originalLabel": "Wait",
+            "nodeType": 2,
+            "numericValue": 0.0,
+            "connectedNodeIds": [],
+            "position": {
+                "x": -1968.0,
+                "y": 176.0
+            }
+        },
+        {
+            "nodeId": "096854fb-a856-4c6a-9437-c3e6ccb4d4d4",
+            "methodName": "IfAlly",
+            "originalLabel": "If Ally",
+            "nodeType": 1,
+            "numericValue": 0.0,
+            "connectedNodeIds": [
+                "48930bf4-40a4-426d-b9f1-c4642f6b027d",
+                "9d2c112f-4303-452e-bf95-7f4eaa386390"
+            ],
+            "position": {
+                "x": -2376.71240234375,
+                "y": 163.08078002929688
+            }
+        },
+        {
+            "nodeId": "48930bf4-40a4-426d-b9f1-c4642f6b027d",
+            "methodName": "Chase",
+            "originalLabel": "Chase",
+            "nodeType": 2,
+            "numericValue": 0.0,
+            "connectedNodeIds": [],
+            "position": {
+                "x": -2144.0,
+                "y": 112.0
+            }
+        },
+        {
+            "nodeId": "07198aa9-f10c-49e2-9792-f9b145d1b41b",
+            "methodName": "Cycle9",
+            "originalLabel": "Cycle 9",
+            "nodeType": 2,
+            "numericValue": 9.0,
+            "connectedNodeIds": [
+                "495189fe-3d85-4eaf-ac7d-210039eba6cf",
+                "e5aa9b24-5c25-46f5-9a35-e10cc1d9e8af"
+            ],
+            "position": {
+                "x": -2378.214599609375,
+                "y": -38.170799255371097
+            }
+        },
+        {
+            "nodeId": "495189fe-3d85-4eaf-ac7d-210039eba6cf",
+            "methodName": "Wander",
+            "originalLabel": "Wander",
+            "nodeType": 2,
+            "numericValue": 0.0,
+            "connectedNodeIds": [],
+            "position": {
+                "x": -2192.0,
+                "y": -64.0
+            }
+        }
+    ],
+    "startNodeId": "07198aa9-f10c-49e2-9792-f9b145d1b41b",
+    "title": "L2R1HealN",
+    "description": "AI behavior tree for Nav control",
+    "cost": 100,
+    "weight": 0,
+    "category": 2,
+    "instanceId": "L1R2RifleN_25932148-027c-4b6e-8320-8200261452d2",
+    "customColor": {
+        "r": 1.0,
+        "g": 1.0,
+        "b": 1.0,
+        "a": 1.0
+    },
+    "treeName": "L2R1HealN"
+}

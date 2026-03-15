@@ -76,7 +76,7 @@ public class CameraController : MonoBehaviour
 
     void LateUpdate()
     {
-        if (cameraAnchors.Count == 0) return;
+        if (targetAnchor == null && cameraAnchors.Count == 0) return;
 
         // Handle scroll wheel zoom via FOV (only for global camera)
         bool isGlobalCamera = targetAnchor != null && targetAnchor == globalAnchor;

@@ -7,7 +7,7 @@
     "armorPrefabGuid": "",
     "engineFramePrefabGuid": "",
     "turretAIInstanceId": "Round1Turret_8984983e-2ee0-4516-9341-180382418730",
-    "navAIInstanceId": "L1R2HammerN_c54e4649-dbdb-4078-8768-3de81e20addf",
+    "navAIInstanceId": "Round1Nav_49492aae-ca13-454e-ad22-1b47b1359d32",
     "turretType": 0,
     "turretAnimationPrefabPath": "",
     "turretDamage": 15,
