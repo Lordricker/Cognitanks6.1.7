@@ -446,7 +446,13 @@ public class TankSlotJsonManager : MonoBehaviour
             : $"TankSlot {tankSlotData.slotIndex}.json";
             
         string filePath = Path.Combine(jsonFolder, fileName);
-        string jsonContent = JsonUtility.ToJson(tankSlotData, true);
+
+        // Make a copy and strip fields that are always sourced from ScriptableObjects at
+        // assembly time — keeping them in the JSON would just create stale data.
+        TankSlotDataJson saveData = JsonUtility.FromJson<TankSlotDataJson>(JsonUtility.ToJson(tankSlotData));
+        StripSOSourcedFields(saveData);
+
+        string jsonContent = JsonUtility.ToJson(saveData, true);
         
         try
         {
@@ -457,6 +463,29 @@ public class TankSlotJsonManager : MonoBehaviour
         {
             Debug.LogError($"[TankSlotJsonManager] Failed to save tank slot JSON: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Clears fields that are always loaded from component ScriptableObjects at assembly time.
+    /// This prevents stale values being written to JSON.
+    /// </summary>
+    public static void StripSOSourcedFields(TankSlotDataJson d)
+    {
+        // Turret — from TurretData SO
+        d.turretDamage = 0;
+        d.turretRange = 0f;
+        d.turretShotsPerSec = 0f;
+        d.turretBulletSpeed = 0f;
+        d.turretKnockback = "";
+        d.turretVisionRange = 0f;
+        d.turretVisionCone = 0f;
+        // Armor — from ArmorData SO
+        d.armorHP = 0;
+        // Engine frame — from EngineFrameData SO
+        d.engineWeightCapacity = 0;
+        d.enginePower = 0;
+        d.engineForce = 0f;
+        d.engineTorque = 0f;
     }
     
     /// <summary>

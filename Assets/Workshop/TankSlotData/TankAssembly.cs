@@ -70,6 +70,67 @@ public class TankAssembly : MonoBehaviour
         tankMan = GetComponent<TankMan>();
         if (tankMan == null)
             tankMan = gameObject.AddComponent<TankMan>();
+
+        // Pull stats directly from ScriptableObjects so the JSON only needs instanceId references.
+        // Editing an SO propagates automatically to every tank that uses it.
+        if (!string.IsNullOrEmpty(data.engineFrameInstanceId))
+        {
+            string efName = data.engineFrameInstanceId.Contains("_")
+                ? data.engineFrameInstanceId.Substring(0, data.engineFrameInstanceId.LastIndexOf("_"))
+                : data.engineFrameInstanceId;
+            EngineFrameData efData = Resources.Load<EngineFrameData>($"Workshop/ComponentData/EngineFrames/{efName}");
+            if (efData != null)
+            {
+                data.engineForce = efData.enginePower;
+                data.engineTorque = efData.turningPower;
+                data.engineWeightCapacity = efData.weightCapacity;
+                Debug.Log($"[TankAssembly] Engine stats from SO '{efName}': force={data.engineForce}, torque={data.engineTorque}");
+            }
+            else
+            {
+                Debug.LogWarning($"[TankAssembly] EngineFrameData SO not found for '{efName}' — falling back to JSON values");
+            }
+        }
+
+        if (!string.IsNullOrEmpty(data.armorInstanceId))
+        {
+            string armorName = data.armorInstanceId.Contains("_")
+                ? data.armorInstanceId.Substring(0, data.armorInstanceId.LastIndexOf("_"))
+                : data.armorInstanceId;
+            ArmorData armorData = Resources.Load<ArmorData>($"Workshop/ComponentData/Armors/{armorName}");
+            if (armorData != null)
+            {
+                data.armorHP = armorData.HP;
+                Debug.Log($"[TankAssembly] Armor stats from SO '{armorName}': HP={data.armorHP}");
+            }
+            else
+            {
+                Debug.LogWarning($"[TankAssembly] ArmorData SO not found for '{armorName}' — falling back to JSON values");
+            }
+        }
+
+        if (!string.IsNullOrEmpty(data.turretInstanceId))
+        {
+            string turretName = data.turretInstanceId.Contains("_")
+                ? data.turretInstanceId.Substring(0, data.turretInstanceId.LastIndexOf("_"))
+                : data.turretInstanceId;
+            TurretData turretData = Resources.Load<TurretData>($"Workshop/ComponentData/Turrets/{turretName}");
+            if (turretData != null)
+            {
+                data.turretDamage = turretData.damage;
+                data.turretRange = turretData.range;
+                data.turretShotsPerSec = turretData.shotspersec;
+                data.turretBulletSpeed = turretData.bulletSpeed;
+                data.turretKnockback = turretData.knockback;
+                data.turretVisionRange = turretData.visionRange;
+                data.turretVisionCone = turretData.visionCone;
+                Debug.Log($"[TankAssembly] Turret stats from SO '{turretName}': dmg={data.turretDamage}, range={data.turretRange}");
+            }
+            else
+            {
+                Debug.LogWarning($"[TankAssembly] TurretData SO not found for '{turretName}' — falling back to JSON values");
+            }
+        }
         
         // Set the tank slot data so TankMan can calculate stats
         tankMan.SetTankSlotData(data);
@@ -357,6 +418,10 @@ public class TankAssembly : MonoBehaviour
         // This ensures physics parameters from TankSlotDataJson are properly applied
         
         // Old wheel markers removed - using 4-sphere collider system instead
+
+        // Scale the tank root after full assembly so all colliders/children were built at scale 1
+        // and Unity scales them correctly - mirrors setting scale manually in the inspector
+        transform.localScale = new Vector3(0.5f, 0.5f, 0.5f);
     }
       /// <summary>
     /// Recursively searches for a FirePoint transform in the hierarchy

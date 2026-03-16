@@ -227,7 +227,13 @@ public class TankSlotDataConverter : MonoBehaviour
             : $"TankSlot {tankSlotData.slotIndex}.json";
             
         string filePath = Path.Combine(jsonFolder, fileName);
-        string jsonContent = JsonUtility.ToJson(tankSlotData, true);
+
+        // Make a copy and strip fields that are always sourced from ScriptableObjects at
+        // assembly time — keeping them in the JSON would just create stale data.
+        TankSlotDataJson saveData = JsonUtility.FromJson<TankSlotDataJson>(JsonUtility.ToJson(tankSlotData));
+        TankSlotJsonManager.StripSOSourcedFields(saveData);
+
+        string jsonContent = JsonUtility.ToJson(saveData, true);
         
         try
         {

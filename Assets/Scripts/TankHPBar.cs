@@ -14,7 +14,7 @@ public class TankHPBar : MonoBehaviour
     [SerializeField] private TextMeshProUGUI hpText; // Health text display
     [SerializeField] private float barWidth = 200f;
     [SerializeField] private float barHeight = 10f; // Half the previous height (was 20f)
-    [SerializeField] private float heightOffset = 25f; // How high above tank to display
+    [SerializeField] private float heightOffset = 12.5f; // How high above tank to display
     
     private TankMan targetTank;
     private Camera mainCamera;

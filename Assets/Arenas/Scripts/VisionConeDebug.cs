@@ -77,6 +77,15 @@ public class VisionConeDebug : MonoBehaviour
             coneObject.transform.rotation = Quaternion.Euler(0f, transform.eulerAngles.y, 0f);
         }
 
+        // Compensate for tank root scale so the mesh always displays at correct world-space size.
+        // The actual detection range (OverlapSphere) uses raw float values unaffected by transform scale,
+        // so the visual must match by undoing the parent's lossy scale.
+        Vector3 ps = transform.lossyScale;
+        coneObject.transform.localScale = new Vector3(
+            ps.x > 0f ? 1f / ps.x : 1f,
+            1f,
+            ps.z > 0f ? 1f / ps.z : 1f);
+
         // Regenerate mesh if vision parameters changed
         if (!Mathf.Approximately(tankMan.VisionCone, lastVisionCone) ||
             !Mathf.Approximately(tankMan.VisionRange, lastVisionRange))
