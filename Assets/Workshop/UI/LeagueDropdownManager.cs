@@ -236,6 +236,18 @@ public class LeagueDropdownManager : MonoBehaviour
         PlayerPrefs.SetInt("ArenaEntryFee", entryFee);
         PlayerPrefs.Save();
         
+        // Advance tutorial step when entering the arena
+        if (PlayerDataManager.Instance != null)
+        {
+            int step = PlayerDataManager.Instance.playerData.tutorialStep;
+            if (step < 2)
+            {
+                PlayerDataManager.Instance.playerData.tutorialStep = step + 1;
+                PlayerDataManager.Instance.SavePlayerData();
+                Debug.Log($"[LeagueDropdownManager] Tutorial step advanced: {step} → {step + 1}");
+            }
+        }
+        
         Debug.Log($"[LeagueDropdownManager] Loading {leagueName}/{roundName} - {sceneName}");
         
         // Use portal transition if available, otherwise load directly

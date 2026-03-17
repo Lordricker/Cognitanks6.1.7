@@ -1,9 +1,11 @@
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
+using TMPro;
 
 /// <summary>
 /// Handles multi-select (left-click drag rectangle), group move (drag bounding box),
@@ -25,6 +27,9 @@ public class NodeSelectionManager : MonoBehaviour
     public GameObject EndNodePrefab;
     public GameObject SubAINodePrefab;
     public GameObject UILinePrefab;
+
+    [Header("Debug UI")]
+    public TMP_Text noFileDebugText; // Assign in inspector — shown when clicking with no file loaded
 
     [Header("Selection Rect Style")]
     public Color selectionRectColor = new Color(0.2f, 0.5f, 1f, 0.25f);
@@ -178,9 +183,16 @@ public class NodeSelectionManager : MonoBehaviour
             }
             else
             {
-                // LMB click without drag on background → spawn context menu
+                // LMB click without drag on background → spawn context menu only if a file is loaded
                 Debug.Log("[NodeSelectionManager] LMB released without drag — spawning context menu");
-                SpawnContextMenu(mousePos);
+                if (IsFileLoaded())
+                {
+                    SpawnContextMenu(mousePos);
+                }
+                else
+                {
+                    FlashNoFileMessage();
+                }
             }
         }
 
@@ -804,6 +816,41 @@ public class NodeSelectionManager : MonoBehaviour
         }
 
         Debug.Log($"[NodeSelectionManager] Spawned context menu at {spawnPos}");
+    }
+
+    private Coroutine _noFileFlashCoroutine;
+
+    /// <summary>
+    /// Returns true if an AI file is currently loaded in the editor.
+    /// </summary>
+    private bool IsFileLoaded()
+    {
+        var fileUI = FindFirstObjectByType<AiEditorFileUI>();
+        return fileUI != null && !string.IsNullOrEmpty(fileUI.CurrentJsonPath);
+    }
+
+    private void FlashNoFileMessage()
+    {
+        if (noFileDebugText == null) return;
+        if (_noFileFlashCoroutine != null) StopCoroutine(_noFileFlashCoroutine);
+        _noFileFlashCoroutine = StartCoroutine(FlashNoFileRoutine());
+    }
+
+    private IEnumerator FlashNoFileRoutine()
+    {
+        noFileDebugText.text = "Load a File→";
+        noFileDebugText.color = Color.red;
+        noFileDebugText.gameObject.SetActive(true);
+        float duration = 1.5f;
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            noFileDebugText.alpha = Mathf.PingPong(Time.time * 2f, 1f);
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+        noFileDebugText.alpha = 0f;
+        noFileDebugText.gameObject.SetActive(false);
     }
 
     private void DestroyContextMenu()

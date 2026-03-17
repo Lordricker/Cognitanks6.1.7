@@ -24,6 +24,7 @@ public class PlayerData
     public int playerElo = 1000; // Player's ELO rating (synced from Firebase)
     public string lastKnownDiscordId = ""; // Cache Discord ID for offline access
     public bool hasSeenTipsOnFirstLaunch = false; // Track if player has seen tips on first launch
+    public int tutorialStep = 0; // 0=new player, 1=after first fight, 2=after second fight, 3=tutorial complete
 }
 
 [Serializable]
@@ -369,6 +370,9 @@ public class PlayerDataManager : MonoBehaviour
 
         PlayerPrefs.Save();
         Debug.Log("[PlayerDataManager] Cleared all progression data from PlayerPrefs");
+        
+        // Reset tutorial step
+        playerData.tutorialStep = 0;
     }
 
     /// <summary>

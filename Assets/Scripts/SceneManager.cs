@@ -66,10 +66,30 @@ public class SceneManager : MonoBehaviour
             return;
         }
         
+        // Advance tutorial step when entering the arena
+        AdvanceTutorialStep();
+        
         if (showDebugMessages)
             Debug.Log("Loading Arena1 scene...");
         
         UnityEngine.SceneManagement.SceneManager.LoadScene("Arena1");
+    }
+    
+    /// <summary>
+    /// Advances the tutorial step when the player enters the arena.
+    /// Step 0 → 1 (after first fight), Step 1 → 2 (after second fight).
+    /// </summary>
+    private void AdvanceTutorialStep()
+    {
+        if (PlayerDataManager.Instance == null) return;
+        
+        int step = PlayerDataManager.Instance.playerData.tutorialStep;
+        if (step < 2)
+        {
+            PlayerDataManager.Instance.playerData.tutorialStep = step + 1;
+            PlayerDataManager.Instance.SavePlayerData();
+            Debug.Log($"[SceneManager] Tutorial step advanced: {step} → {step + 1}");
+        }
     }
 
     /// <summary>

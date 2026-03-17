@@ -50,10 +50,23 @@ public class WorkshopUIManager : MonoBehaviour
     public WorkshopModelPreview modelPreview;
     public WorkshopStatsPanel statsPanel;
     
-    [Header("Tip Bubbles")]
-    public List<GameObject> tipBubbles = new List<GameObject>(); // Assign all tip bubble GameObjects in inspector
-    private bool tipsVisible = false;
-    private const string TIPS_VISIBLE_KEY = "WorkshopTipsVisible";
+    [Header("Tutorial Section 1 - Getting to the Arena")]
+    [Tooltip("UI elements shown on first load. Teaches the player how to enter the arena.")]
+    public List<GameObject> tutorialSection1 = new List<GameObject>();
+    
+    [Header("Tutorial Section 2 - Activating More Tanks")]
+    [Tooltip("UI elements shown after returning from first fight. Teaches the player to activate more tanks.")]
+    public List<GameObject> tutorialSection2 = new List<GameObject>();
+    
+    [Header("Tutorial Section 3 - Buying, Assigning & AI Editor")]
+    [Tooltip("UI elements shown after returning from second fight. Teaches buying, assigning components, and the AI editor.")]
+    public List<GameObject> tutorialSection3 = new List<GameObject>();
+    
+    [Header("Tutorial Starter Kit")]
+    [Tooltip("Components to auto-purchase and assign to the first 3 tank slots on new game.")]
+    public ComponentData starterTurret;       // Rifle
+    public ComponentData starterArmor;        // Carbon Weave Armor
+    public ComponentData starterEngineFrame;  // Velocity Chassis
     
     [Header("Quit Button")]
     public Button quitButton; // Assign the quit button in inspector
@@ -137,22 +150,8 @@ public class WorkshopUIManager : MonoBehaviour
             tankSlotJsonManager = managerGO.AddComponent<TankSlotJsonManager>();
         }
         
-        // Check if this is the first time the player is launching the game
-        if (PlayerDataManager.Instance != null && !PlayerDataManager.Instance.playerData.hasSeenTipsOnFirstLaunch)
-        {
-            // First time launch - show tips automatically
-            tipsVisible = true;
-            PlayerDataManager.Instance.playerData.hasSeenTipsOnFirstLaunch = true;
-            PlayerDataManager.Instance.SavePlayerData();
-            PlayerPrefs.SetInt(TIPS_VISIBLE_KEY, 1);
-            PlayerPrefs.Save();
-        }
-        else
-        {
-            // Not first time - load tip visibility state from PlayerPrefs
-            tipsVisible = PlayerPrefs.GetInt(TIPS_VISIBLE_KEY, 0) == 1;
-        }
-        UpdateTipBubbleVisibility();
+        // Tutorial system - show appropriate section based on tutorialStep
+        UpdateTutorialSections();
         
         // Ensure only one of Shop/Inventory is active
         shopToggle.isOn = true;
@@ -301,6 +300,13 @@ public class WorkshopUIManager : MonoBehaviour
             NewItemFlagManager.Instance.RefreshAllFlags();
 
         LoadPlayerInventoryFromSave();
+        
+        // On first load (tutorialStep 0), set up the starter kit for the first 3 tank slots
+        if (PlayerDataManager.Instance != null && PlayerDataManager.Instance.playerData.tutorialStep == 0
+            && playerInventory.Count == 0)
+        {
+            SetupTutorialStarterKit();
+        }
         
         // Load player cash from PlayerDataManager and update UI
         if (PlayerDataManager.Instance != null)
@@ -2212,7 +2218,7 @@ public class WorkshopUIManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Hides a tip bubble permanently (saves state to PlayerPrefs)
+    /// Hides a tutorial tip element permanently
     /// Pass the button GameObject as parameter
     /// </summary>
     public void HideTipBubble(GameObject tipBubble)
@@ -2220,47 +2226,246 @@ public class WorkshopUIManager : MonoBehaviour
         if (tipBubble != null)
         {
             tipBubble.SetActive(false);
-            // Mark tips as hidden
-            tipsVisible = false;
-            PlayerPrefs.SetInt(TIPS_VISIBLE_KEY, 0);
-            PlayerPrefs.Save();
         }
     }
     
     /// <summary>
-    /// Shows all tip bubbles
+    /// Dismisses the current tutorial section and advances to the next step
+    /// Call from a "Got it" / dismiss button on tutorial UI
+    /// </summary>
+    public void DismissCurrentTutorialSection()
+    {
+        if (PlayerDataManager.Instance == null) return;
+        
+        int currentStep = PlayerDataManager.Instance.playerData.tutorialStep;
+        
+        // Only advance from step 2 → 3 here (sections 1 and 2 advance when entering arena)
+        if (currentStep == 2)
+        {
+            PlayerDataManager.Instance.playerData.tutorialStep = 3;
+            PlayerDataManager.Instance.SavePlayerData();
+            Debug.Log("[WorkshopUIManager] Tutorial completed! Step advanced to 3.");
+        }
+        
+        UpdateTutorialSections();
+    }
+    
+    /// <summary>
+    /// Shows all tutorial tips for the current section
     /// </summary>
     public void ShowTips()
     {
-        tipsVisible = true;
-        PlayerPrefs.SetInt(TIPS_VISIBLE_KEY, 1);
-        PlayerPrefs.Save();
-        UpdateTipBubbleVisibility();
+        UpdateTutorialSections();
     }
     
     /// <summary>
-    /// Toggles tip bubble visibility
+    /// Toggles tutorial tip visibility for the current section
     /// </summary>
     public void ToggleTips()
     {
-        tipsVisible = !tipsVisible;
-        PlayerPrefs.SetInt(TIPS_VISIBLE_KEY, tipsVisible ? 1 : 0);
-        PlayerPrefs.Save();
-        UpdateTipBubbleVisibility();
+        if (PlayerDataManager.Instance == null) return;
+        int step = PlayerDataManager.Instance.playerData.tutorialStep;
+        
+        List<GameObject> currentSection = GetTutorialSectionForStep(step);
+        if (currentSection == null || currentSection.Count == 0) return;
+        
+        // Check if any are currently visible
+        bool anyVisible = false;
+        foreach (var obj in currentSection)
+        {
+            if (obj != null && obj.activeSelf) { anyVisible = true; break; }
+        }
+        
+        // Toggle them
+        foreach (var obj in currentSection)
+        {
+            if (obj != null) obj.SetActive(!anyVisible);
+        }
     }
     
     /// <summary>
-    /// Updates visibility of all tip bubbles based on current state
+    /// Updates visibility of all tutorial sections based on the current tutorialStep
     /// </summary>
-    private void UpdateTipBubbleVisibility()
+    private void UpdateTutorialSections()
     {
-        foreach (var tipBubble in tipBubbles)
+        int step = 3; // Default to tutorial complete (hide everything)
+        if (PlayerDataManager.Instance != null)
+            step = PlayerDataManager.Instance.playerData.tutorialStep;
+        
+        // Section 1: shown only at step 0
+        SetSectionVisibility(tutorialSection1, step == 0);
+        // Section 2: shown only at step 1
+        SetSectionVisibility(tutorialSection2, step == 1);
+        // Section 3: shown only at step 2
+        SetSectionVisibility(tutorialSection3, step == 2);
+    }
+    
+    private void SetSectionVisibility(List<GameObject> section, bool visible)
+    {
+        if (section == null) return;
+        foreach (var obj in section)
         {
-            if (tipBubble != null)
-            {
-                tipBubble.SetActive(tipsVisible);
-            }
+            if (obj != null)
+                obj.SetActive(visible);
         }
+    }
+    
+    private List<GameObject> GetTutorialSectionForStep(int step)
+    {
+        switch (step)
+        {
+            case 0: return tutorialSection1;
+            case 1: return tutorialSection2;
+            case 2: return tutorialSection3;
+            default: return null;
+        }
+    }
+    
+    /// <summary>
+    /// Sets up 15 starter components (5 per tank slot × 3 slots) for new players.
+    /// Purchases Rifle, Carbon Weave Armor, Velocity Chassis, L1R1RifleT, L1R1RifleN
+    /// and assigns them to tank slots 0, 1, and 2. Only slot 0 is activated.
+    /// </summary>
+    private void SetupTutorialStarterKit()
+    {
+        Debug.Log("[WorkshopUIManager] Setting up tutorial starter kit for 3 tank slots...");
+        
+        if (tankSlotJsonManager == null)
+        {
+            Debug.LogError("[WorkshopUIManager] TankSlotJsonManager not found! Cannot set up starter kit.");
+            return;
+        }
+        
+        // Find the AI shop components for L1R1RifleT and L1R1RifleN
+        ComponentData turretAIPrefab = aiTreeShopComponents.Find(c => c.title == "L1R1RifleT" && c is AiTreeAsset tree && tree.branchType == AiEditor.AiBranchType.Turret);
+        ComponentData navAIPrefab = aiTreeShopComponents.Find(c => c.title == "L1R1RifleN" && c is AiTreeAsset tree && tree.branchType == AiEditor.AiBranchType.Nav);
+        
+        if (starterTurret == null || starterArmor == null || starterEngineFrame == null)
+        {
+            Debug.LogError("[WorkshopUIManager] Starter kit components not assigned in inspector! Assign Rifle, Carbon Weave Armor, Velocity Chassis.");
+            return;
+        }
+        
+        if (turretAIPrefab == null || navAIPrefab == null)
+        {
+            Debug.LogError("[WorkshopUIManager] Could not find L1R1RifleT or L1R1RifleN in AI shop components!");
+            return;
+        }
+        
+        for (int slotIndex = 0; slotIndex < 3; slotIndex++)
+        {
+            // Create Turret instance
+            ComponentData turret = Instantiate(starterTurret);
+            turret.instanceId = $"{starterTurret.title}_{System.Guid.NewGuid()}";
+            playerInventory.Add(turret);
+            
+            // Create Armor instance
+            ComponentData armor = Instantiate(starterArmor);
+            armor.instanceId = $"{starterArmor.title}_{System.Guid.NewGuid()}";
+            playerInventory.Add(armor);
+            
+            // Create Engine Frame instance
+            ComponentData engine = Instantiate(starterEngineFrame);
+            engine.instanceId = $"{starterEngineFrame.title}_{System.Guid.NewGuid()}";
+            playerInventory.Add(engine);
+            
+            // Create Turret AI instance
+            ComponentData tAI = Instantiate(turretAIPrefab);
+            tAI.instanceId = $"{turretAIPrefab.title}_{System.Guid.NewGuid()}";
+            if (turretAIPrefab.name.EndsWith("_JSON"))
+                CreateJsonAiFileFromPurchase(tAI as AiTreeAsset);
+            playerInventory.Add(tAI);
+            
+            // Create Nav AI instance
+            ComponentData nAI = Instantiate(navAIPrefab);
+            nAI.instanceId = $"{navAIPrefab.title}_{System.Guid.NewGuid()}";
+            if (navAIPrefab.name.EndsWith("_JSON"))
+                CreateJsonAiFileFromPurchase(nAI as AiTreeAsset);
+            playerInventory.Add(nAI);
+            
+            // Get the tank slot and activate only slot 0
+            var slotData = tankSlotJsonManager.GetTankSlot(slotIndex);
+            if (slotData == null) continue;
+            
+            slotData.isActive = (slotIndex == 0);
+            
+            // Assign each component to the tank slot (replicates TankSlotButtonUI.AssignComponent logic)
+            // Turret
+            slotData.turretInstanceId = turret.instanceId;
+            slotData.turretColor = new ColorJson(turret.customColor);
+            if (turret is TurretData td)
+            {
+                slotData.turretType = (TurretTypeJson)td.turretType;
+                slotData.turretDamage = td.damage;
+                slotData.turretRange = td.range;
+                slotData.turretShotsPerSec = td.shotspersec;
+                slotData.turretBulletSpeed = td.bulletSpeed;
+                slotData.turretKnockback = td.knockback;
+                slotData.turretVisionRange = td.visionRange;
+                slotData.turretVisionCone = td.visionCone;
+                slotData.turretWeight = turret.weight;
+                if (td.animationPrefab != null)
+                    slotData.turretAnimationPrefabPath = ComponentDataJson.GetPrefabResourcePath(td.animationPrefab);
+                if (td.deathModelPrefab != null)
+                    slotData.turretDeathModelPrefabPath = ComponentDataJson.GetPrefabResourcePath(td.deathModelPrefab);
+            }
+            
+            // Armor
+            slotData.armorInstanceId = armor.instanceId;
+            slotData.armorColor = new ColorJson(armor.customColor);
+            if (armor is ArmorData ad)
+            {
+                slotData.armorHP = ad.HP;
+                slotData.armorWeight = armor.weight;
+            }
+            
+            // Engine Frame
+            slotData.engineFrameInstanceId = engine.instanceId;
+            slotData.engineFrameColor = new ColorJson(engine.customColor);
+            if (engine is EngineFrameData ed)
+            {
+                slotData.engineWeightCapacity = ed.weightCapacity;
+                slotData.enginePower = ed.enginePower;
+                slotData.engineTorque = ed.turningPower;
+                slotData.engineWeight = engine.weight;
+            }
+            
+            // Turret AI
+            slotData.turretAIInstanceId = tAI.instanceId;
+            slotData.turretAIWeight = tAI.weight;
+            
+            // Nav AI
+            slotData.navAIInstanceId = nAI.instanceId;
+            slotData.navAIWeight = nAI.weight;
+            
+            // Recalculate total weight
+            slotData.totalWeight = slotData.armorWeight + slotData.turretWeight + slotData.engineWeight + slotData.turretAIWeight + slotData.navAIWeight;
+            
+            // Save updated slot
+            tankSlotJsonManager.UpdateTankSlot(slotIndex, slotData);
+            
+            Debug.Log($"[WorkshopUIManager] Starter kit assigned to slot {slotIndex}: Turret={turret.instanceId}, Armor={armor.instanceId}, Engine={engine.instanceId}, TurretAI={tAI.instanceId}, NavAI={nAI.instanceId}");
+        }
+        
+        // Save regular components to PlayerData (AI components saved as JSON files above)
+        foreach (var comp in playerInventory)
+        {
+            if (comp.category == ComponentCategory.AITree || 
+                comp.category == ComponentCategory.TurretAI || 
+                comp.category == ComponentCategory.NavAI)
+                continue;
+                
+            var entry = PlayerDataManager.Instance.playerData.ownedComponents.Find(e => e.id == comp.id);
+            if (entry == null)
+            {
+                entry = new OwnedComponentEntry { id = comp.id, instanceIds = new List<string>() };
+                PlayerDataManager.Instance.playerData.ownedComponents.Add(entry);
+            }
+            entry.instanceIds.Add(comp.instanceId);
+        }
+        
+        PlayerDataManager.Instance.SavePlayerData();
+        Debug.Log("[WorkshopUIManager] Tutorial starter kit setup complete. 15 components assigned to 3 tank slots.");
     }
     
     /// <summary>
