@@ -22,4 +22,4 @@ MonoBehaviour:
   customColor: {r: 1, g: 1, b: 1, a: 1}
   weightCapacity: 90
   enginePower: 2222
-  turningPower: 1100
+  turningPower: 11000
