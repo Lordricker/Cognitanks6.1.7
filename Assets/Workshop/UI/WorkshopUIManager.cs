@@ -154,18 +154,31 @@ public class WorkshopUIManager : MonoBehaviour
 
     private void Update()
     {
-        // Close the campaign panel when the player clicks outside of it
-        if (isCampaignPanelVisible && campaignPanelRect != null)
+        var mouse = UnityEngine.InputSystem.Mouse.current;
+        bool clicked = mouse != null && mouse.leftButton.wasPressedThisFrame;
+
+        // Dismiss the first-tip panel on any click while it is visible
+        if (clicked && firstTipPanel != null && firstTipPanel.activeSelf)
         {
-            var mouse = UnityEngine.InputSystem.Mouse.current;
-            if (mouse != null && mouse.leftButton.wasPressedThisFrame)
-            {
-                Camera cam = null; // null = screen-space overlay canvas
-                bool insidePanel = RectTransformUtility.RectangleContainsScreenPoint(
-                    campaignPanelRect, mouse.position.ReadValue(), cam);
-                if (!insidePanel)
-                    HideCampaignPanel();
-            }
+            HideFirstTipPanel();
+            return;
+        }
+
+        // Dismiss the recommend-tutorial panel on any click while it is visible
+        if (clicked && recommendTutorialPanel != null && recommendTutorialPanel.activeSelf)
+        {
+            recommendTutorialPanel.SetActive(false);
+            return;
+        }
+
+        // Close the campaign panel when the player clicks outside of it
+        if (isCampaignPanelVisible && campaignPanelRect != null && clicked)
+        {
+            Camera cam = null; // null = screen-space overlay canvas
+            bool insidePanel = RectTransformUtility.RectangleContainsScreenPoint(
+                campaignPanelRect, mouse.position.ReadValue(), cam);
+            if (!insidePanel)
+                HideCampaignPanel();
         }
     }
 
@@ -179,30 +192,13 @@ public class WorkshopUIManager : MonoBehaviour
             tankSlotJsonManager = managerGO.AddComponent<TankSlotJsonManager>();
         }
         
-        // First-tip panel: show on very first load, wire click-to-close and reactivate button
+        // First-tip panel: show only the very first time (hasSeenTipsOnFirstLaunch flag).
+        // Click-to-dismiss is handled in Update(). No runtime Button needed.
         if (firstTipPanel != null)
         {
-            bool isNewPlayer = PlayerDataManager.Instance != null &&
-                               PlayerDataManager.Instance.playerData.tutorialStep == 0;
-            firstTipPanel.SetActive(isNewPlayer);
-
-            // Make the panel itself clickable to dismiss (add a Button if none exists)
-            if (firstTipPanel.GetComponent<UnityEngine.UI.Button>() == null)
-            {
-                var img = firstTipPanel.GetComponent<UnityEngine.UI.Image>();
-                if (img == null)
-                {
-                    img = firstTipPanel.AddComponent<UnityEngine.UI.Image>();
-                    img.color = new Color(0, 0, 0, 0);
-                }
-                img.raycastTarget = true;
-                var btn = firstTipPanel.AddComponent<UnityEngine.UI.Button>();
-                var cb = UnityEngine.UI.ColorBlock.defaultColorBlock;
-                cb.normalColor = cb.highlightedColor = cb.pressedColor = cb.selectedColor = Color.white;
-                btn.colors = cb;
-                btn.targetGraphic = img;
-                btn.onClick.AddListener(HideFirstTipPanel);
-            }
+            bool showFirstTip = PlayerDataManager.Instance != null &&
+                                !PlayerDataManager.Instance.playerData.hasSeenTipsOnFirstLaunch;
+            firstTipPanel.SetActive(showFirstTip);
         }
 
         if (firstTipReactivateButton != null)
@@ -214,21 +210,26 @@ public class WorkshopUIManager : MonoBehaviour
             tutorialButton.onClick.AddListener(OnTutorialButtonPressed);
         }
 
-        // Hide recommend-tutorial panel by default; show it if player has failed 2+ missions
-        // without ever pressing the tutorial button.
+        // Recommend-tutorial panel: show if player failed 2+ missions without pressing Tutorial.
+        // Click-to-dismiss is handled in Update(). No runtime Button needed.
         if (recommendTutorialPanel != null)
         {
-            bool shouldRecommend = PlayerDataManager.Instance != null
-                && !PlayerDataManager.Instance.playerData.tutorialButtonPressed
-                && PlayerDataManager.Instance.playerData.missionFailCount >= 2;
+            int failCount = PlayerDataManager.Instance != null
+                ? PlayerDataManager.Instance.playerData.missionFailCount : 0;
+            bool tutSeen = PlayerDataManager.Instance != null
+                && PlayerDataManager.Instance.playerData.tutorialButtonPressed;
+            bool shouldRecommend = !tutSeen && failCount >= 2;
+            Debug.Log($"[WorkshopUIManager] RecommendTutorial: failCount={failCount}, tutSeen={tutSeen}, show={shouldRecommend}");
             recommendTutorialPanel.SetActive(shouldRecommend);
         }
 
-        // On first load show only the firstTipPanel.
-        // After each match (step > 0) auto-show the appropriate tutorial section.
+        // Auto-show the current tutorial section on return from a match, but only
+        // if the player has already pressed the Tutorial button.
+        bool tutPressed = PlayerDataManager.Instance != null
+            && PlayerDataManager.Instance.playerData.tutorialButtonPressed;
         int tutStep = PlayerDataManager.Instance != null
             ? PlayerDataManager.Instance.playerData.tutorialStep : 0;
-        if (tutStep > 0)
+        if (tutPressed && tutStep > 0)
             UpdateTutorialSections();
         else
             HideAllSectionPanels();
@@ -2328,11 +2329,17 @@ public class WorkshopUIManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Hides the first tip panel.
+    /// Hides the first tip panel and marks it as seen so it won't auto-show again.
     /// </summary>
     public void HideFirstTipPanel()
     {
         if (firstTipPanel != null) firstTipPanel.SetActive(false);
+        if (PlayerDataManager.Instance != null &&
+            !PlayerDataManager.Instance.playerData.hasSeenTipsOnFirstLaunch)
+        {
+            PlayerDataManager.Instance.playerData.hasSeenTipsOnFirstLaunch = true;
+            PlayerDataManager.Instance.SavePlayerData();
+        }
     }
 
     /// <summary>

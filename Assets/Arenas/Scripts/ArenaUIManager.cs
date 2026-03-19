@@ -108,6 +108,13 @@ public class ArenaUIManager : MonoBehaviour
 
     public void ReturnToWorkshop()
     {
+        // If the match result was never recorded (player quit mid-game), count as a loss.
+        if (PlayerPrefs.GetInt("ArenaMatchWon", 1) == 0 && PlayerDataManager.Instance != null)
+        {
+            PlayerDataManager.Instance.playerData.missionFailCount++;
+            PlayerDataManager.Instance.SavePlayerData();
+            Debug.Log($"[ArenaUIManager] Mid-game quit counted as fail. Count: {PlayerDataManager.Instance.playerData.missionFailCount}");
+        }
         // Unpause time before loading workshop to prevent model viewport issues
         Time.timeScale = 1f;
         UnityEngine.SceneManagement.SceneManager.LoadScene("Shop");

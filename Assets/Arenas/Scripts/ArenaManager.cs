@@ -779,17 +779,25 @@ public class ArenaManager : MonoBehaviour
             Debug.LogWarning("[ArenaManager] MatchFinishedPanel not found! Please create a 'MatchFinishedPanel' GameObject under the UI Canvas.");
         }
         
-        // Award rewards if player won; track failures for tutorial recommendation
+        // Award rewards if player won; track failures for tutorial recommendation.
+        // Also write result to PlayerPrefs so ReturnToWorkshop can catch mid-game quits.
         if (playerWon)
         {
+            PlayerPrefs.SetInt("ArenaMatchWon", 1);
+            PlayerPrefs.Save();
             AwardVictoryRewards(aliveTanksByTeam);
             MarkArenaCompleted();
         }
-        else if (gameMode == GameMode.Singleplayer && PlayerDataManager.Instance != null)
+        else if (!isReplayView)
         {
-            PlayerDataManager.Instance.playerData.missionFailCount++;
-            PlayerDataManager.Instance.SavePlayerData();
-            Debug.Log($"[ArenaManager] Mission fail count: {PlayerDataManager.Instance.playerData.missionFailCount}");
+            PlayerPrefs.SetInt("ArenaMatchWon", 1); // mark handled so ReturnToWorkshop doesn't double-count
+            PlayerPrefs.Save();
+            if (PlayerDataManager.Instance != null)
+            {
+                PlayerDataManager.Instance.playerData.missionFailCount++;
+                PlayerDataManager.Instance.SavePlayerData();
+                Debug.Log($"[ArenaManager] Mission fail count: {PlayerDataManager.Instance.playerData.missionFailCount}");
+            }
         }
         
         // Display match stats

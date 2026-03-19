@@ -234,13 +234,17 @@ public class LeagueDropdownManager : MonoBehaviour
         PlayerPrefs.SetString("SelectedRound", roundName);
         PlayerPrefs.SetString("SelectedArenaKey", arenaKey);
         PlayerPrefs.SetInt("ArenaEntryFee", entryFee);
+        PlayerPrefs.SetInt("ArenaMatchWon", 0); // reset before each match so quit = loss
         PlayerPrefs.Save();
         
-        // Advance tutorial step when entering the arena
-        if (PlayerDataManager.Instance != null)
+        // Advance tutorial step when entering the arena, but only if the player
+        // has already pressed the Tutorial button. Cap at 3 so section 3 stops
+        // showing after one more arena entry once the player has seen it.
+        if (PlayerDataManager.Instance != null
+            && PlayerDataManager.Instance.playerData.tutorialButtonPressed)
         {
             int step = PlayerDataManager.Instance.playerData.tutorialStep;
-            if (step < 2)
+            if (step < 3)
             {
                 PlayerDataManager.Instance.playerData.tutorialStep = step + 1;
                 PlayerDataManager.Instance.SavePlayerData();
