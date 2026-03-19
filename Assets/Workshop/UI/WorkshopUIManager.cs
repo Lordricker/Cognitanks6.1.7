@@ -67,7 +67,19 @@ public class WorkshopUIManager : MonoBehaviour
     public ComponentData starterTurret;       // Rifle
     public ComponentData starterArmor;        // Carbon Weave Armor
     public ComponentData starterEngineFrame;  // Velocity Chassis
-    
+
+    [Header("First Tip Panel")]
+    [Tooltip("Full-screen panel shown on the very first load. Click anywhere on it to close.")]
+    public GameObject firstTipPanel;
+    [Tooltip("Button that re-shows the first tip panel.")]
+    public Button firstTipReactivateButton;
+
+    [Header("Tutorial Button")]
+    [Tooltip("Button that starts the step-by-step tutorial sequence.")]
+    public Button tutorialButton;
+    [Tooltip("Panel shown when the player has failed 2+ missions without pressing Tutorial.")]
+    public GameObject recommendTutorialPanel;
+
     [Header("Quit Button")]
     public Button quitButton; // Assign the quit button in inspector
     public Button mainMenuButton; // Slides the main menu panel back down
@@ -140,6 +152,23 @@ public class WorkshopUIManager : MonoBehaviour
         }
     }
 
+    private void Update()
+    {
+        // Close the campaign panel when the player clicks outside of it
+        if (isCampaignPanelVisible && campaignPanelRect != null)
+        {
+            var mouse = UnityEngine.InputSystem.Mouse.current;
+            if (mouse != null && mouse.leftButton.wasPressedThisFrame)
+            {
+                Camera cam = null; // null = screen-space overlay canvas
+                bool insidePanel = RectTransformUtility.RectangleContainsScreenPoint(
+                    campaignPanelRect, mouse.position.ReadValue(), cam);
+                if (!insidePanel)
+                    HideCampaignPanel();
+            }
+        }
+    }
+
     private void Start()
     {
         // Initialize JSON tank slot manager
@@ -150,8 +179,59 @@ public class WorkshopUIManager : MonoBehaviour
             tankSlotJsonManager = managerGO.AddComponent<TankSlotJsonManager>();
         }
         
-        // Tutorial system - show appropriate section based on tutorialStep
-        UpdateTutorialSections();
+        // First-tip panel: show on very first load, wire click-to-close and reactivate button
+        if (firstTipPanel != null)
+        {
+            bool isNewPlayer = PlayerDataManager.Instance != null &&
+                               PlayerDataManager.Instance.playerData.tutorialStep == 0;
+            firstTipPanel.SetActive(isNewPlayer);
+
+            // Make the panel itself clickable to dismiss (add a Button if none exists)
+            if (firstTipPanel.GetComponent<UnityEngine.UI.Button>() == null)
+            {
+                var img = firstTipPanel.GetComponent<UnityEngine.UI.Image>();
+                if (img == null)
+                {
+                    img = firstTipPanel.AddComponent<UnityEngine.UI.Image>();
+                    img.color = new Color(0, 0, 0, 0);
+                }
+                img.raycastTarget = true;
+                var btn = firstTipPanel.AddComponent<UnityEngine.UI.Button>();
+                var cb = UnityEngine.UI.ColorBlock.defaultColorBlock;
+                cb.normalColor = cb.highlightedColor = cb.pressedColor = cb.selectedColor = Color.white;
+                btn.colors = cb;
+                btn.targetGraphic = img;
+                btn.onClick.AddListener(HideFirstTipPanel);
+            }
+        }
+
+        if (firstTipReactivateButton != null)
+            firstTipReactivateButton.onClick.AddListener(ShowFirstTipPanel);
+
+        if (tutorialButton != null)
+        {
+            tutorialButton.onClick.AddListener(UpdateTutorialSections);
+            tutorialButton.onClick.AddListener(OnTutorialButtonPressed);
+        }
+
+        // Hide recommend-tutorial panel by default; show it if player has failed 2+ missions
+        // without ever pressing the tutorial button.
+        if (recommendTutorialPanel != null)
+        {
+            bool shouldRecommend = PlayerDataManager.Instance != null
+                && !PlayerDataManager.Instance.playerData.tutorialButtonPressed
+                && PlayerDataManager.Instance.playerData.missionFailCount >= 2;
+            recommendTutorialPanel.SetActive(shouldRecommend);
+        }
+
+        // On first load show only the firstTipPanel.
+        // After each match (step > 0) auto-show the appropriate tutorial section.
+        int tutStep = PlayerDataManager.Instance != null
+            ? PlayerDataManager.Instance.playerData.tutorialStep : 0;
+        if (tutStep > 0)
+            UpdateTutorialSections();
+        else
+            HideAllSectionPanels();
         
         // Ensure only one of Shop/Inventory is active
         shopToggle.isOn = true;
@@ -301,9 +381,11 @@ public class WorkshopUIManager : MonoBehaviour
 
         LoadPlayerInventoryFromSave();
         
-        // On first load (tutorialStep 0), set up the starter kit for the first 3 tank slots
+        // On first load / after erase (tutorialStep 0 + no saved regular components).
+        // We check ownedComponents (regular saved items) not playerInventory so that
+        // existing AI JSON files on disk don't block the starter kit from running.
         if (PlayerDataManager.Instance != null && PlayerDataManager.Instance.playerData.tutorialStep == 0
-            && playerInventory.Count == 0)
+            && PlayerDataManager.Instance.playerData.ownedComponents.Count == 0)
         {
             SetupTutorialStarterKit();
         }
@@ -2218,98 +2300,105 @@ public class WorkshopUIManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Hides a tutorial tip element permanently
-    /// Pass the button GameObject as parameter
+    /// Hides a specific tutorial panel. Called by existing button wiring on panels.
     /// </summary>
     public void HideTipBubble(GameObject tipBubble)
     {
-        if (tipBubble != null)
-        {
-            tipBubble.SetActive(false);
-        }
+        if (tipBubble != null) tipBubble.SetActive(false);
     }
-    
+
     /// <summary>
-    /// Dismisses the current tutorial section and advances to the next step
-    /// Call from a "Got it" / dismiss button on tutorial UI
+    /// Hides all panels in the current tutorial section.
     /// </summary>
     public void DismissCurrentTutorialSection()
     {
         if (PlayerDataManager.Instance == null) return;
-        
-        int currentStep = PlayerDataManager.Instance.playerData.tutorialStep;
-        
-        // Only advance from step 2 → 3 here (sections 1 and 2 advance when entering arena)
-        if (currentStep == 2)
-        {
-            PlayerDataManager.Instance.playerData.tutorialStep = 3;
-            PlayerDataManager.Instance.SavePlayerData();
-            Debug.Log("[WorkshopUIManager] Tutorial completed! Step advanced to 3.");
-        }
-        
-        UpdateTutorialSections();
+        int step = PlayerDataManager.Instance.playerData.tutorialStep;
+        List<GameObject> section = GetTutorialSectionForStep(step);
+        if (section == null) return;
+        foreach (var o in section) if (o != null) o.SetActive(false);
     }
-    
+
     /// <summary>
-    /// Shows all tutorial tips for the current section
+    /// Shows the first tip panel.
     /// </summary>
-    public void ShowTips()
+    public void ShowFirstTipPanel()
     {
-        UpdateTutorialSections();
+        if (firstTipPanel != null) firstTipPanel.SetActive(true);
     }
-    
+
     /// <summary>
-    /// Toggles tutorial tip visibility for the current section
+    /// Hides the first tip panel.
+    /// </summary>
+    public void HideFirstTipPanel()
+    {
+        if (firstTipPanel != null) firstTipPanel.SetActive(false);
+    }
+
+    /// <summary>
+    /// Called when the player clicks the Tutorial button.
+    /// Records that the button was pressed and hides the recommendation panel.
+    /// </summary>
+    private void OnTutorialButtonPressed()
+    {
+        if (PlayerDataManager.Instance == null) return;
+        if (!PlayerDataManager.Instance.playerData.tutorialButtonPressed)
+        {
+            PlayerDataManager.Instance.playerData.tutorialButtonPressed = true;
+            PlayerDataManager.Instance.SavePlayerData();
+        }
+        if (recommendTutorialPanel != null)
+            recommendTutorialPanel.SetActive(false);
+    }
+
+    /// <summary>
+    /// Shows all panels in the active tutorial section. Also callable from ShowTips.
+    /// </summary>
+    public void ShowTips() => UpdateTutorialSections();
+
+    /// <summary>
+    /// Toggles the active tutorial section on/off.
     /// </summary>
     public void ToggleTips()
     {
         if (PlayerDataManager.Instance == null) return;
         int step = PlayerDataManager.Instance.playerData.tutorialStep;
-        
-        List<GameObject> currentSection = GetTutorialSectionForStep(step);
-        if (currentSection == null || currentSection.Count == 0) return;
-        
-        // Check if any are currently visible
-        bool anyVisible = false;
-        foreach (var obj in currentSection)
-        {
-            if (obj != null && obj.activeSelf) { anyVisible = true; break; }
-        }
-        
-        // Toggle them
-        foreach (var obj in currentSection)
-        {
-            if (obj != null) obj.SetActive(!anyVisible);
-        }
+        List<GameObject> section = GetTutorialSectionForStep(step);
+        if (section == null || section.Count == 0) return;
+
+        bool anyVisible = section.Exists(o => o != null && o.activeSelf);
+        if (anyVisible)
+            foreach (var o in section) if (o != null) o.SetActive(false);
+        else
+            UpdateTutorialSections();
     }
-    
+
     /// <summary>
-    /// Updates visibility of all tutorial sections based on the current tutorialStep
+    /// Hides all section panels then shows every panel in the active section.
+    /// Called when the player clicks the Tutorial button.
     /// </summary>
     private void UpdateTutorialSections()
     {
-        int step = 3; // Default to tutorial complete (hide everything)
+        HideAllSectionPanels();
+
+        int step = 3;
         if (PlayerDataManager.Instance != null)
             step = PlayerDataManager.Instance.playerData.tutorialStep;
-        
-        // Section 1: shown only at step 0
-        SetSectionVisibility(tutorialSection1, step == 0);
-        // Section 2: shown only at step 1
-        SetSectionVisibility(tutorialSection2, step == 1);
-        // Section 3: shown only at step 2
-        SetSectionVisibility(tutorialSection3, step == 2);
+
+        List<GameObject> active = GetTutorialSectionForStep(step);
+        if (active == null || active.Count == 0) return;
+
+        foreach (var panel in active)
+            if (panel != null) panel.SetActive(true);
     }
-    
-    private void SetSectionVisibility(List<GameObject> section, bool visible)
+
+    private void HideAllSectionPanels()
     {
-        if (section == null) return;
-        foreach (var obj in section)
-        {
-            if (obj != null)
-                obj.SetActive(visible);
-        }
+        foreach (var o in tutorialSection1) if (o != null) o.SetActive(false);
+        foreach (var o in tutorialSection2) if (o != null) o.SetActive(false);
+        foreach (var o in tutorialSection3) if (o != null) o.SetActive(false);
     }
-    
+
     private List<GameObject> GetTutorialSectionForStep(int step)
     {
         switch (step)
