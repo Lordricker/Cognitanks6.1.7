@@ -145,7 +145,13 @@ public class ComponentEntryUI : MonoBehaviour
         {
             colors.normalColor = cachedNormalColor.Value;
             equipButton.colors = colors;
-        }        equipButton.interactable = true;
+        }
+
+        var equipLabel = equipButton.GetComponentInChildren<TMP_Text>();
+        if (equipLabel != null)
+            equipLabel.text = isAssigned ? "Unequip" : "Equip";
+
+        equipButton.interactable = true;
 
         // Initialize color slider and manage visibility based on view
         if (colorSlider != null)

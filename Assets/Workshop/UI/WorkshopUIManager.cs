@@ -235,8 +235,8 @@ public class WorkshopUIManager : MonoBehaviour
             HideAllSectionPanels();
         
         // Ensure only one of Shop/Inventory is active
-        shopToggle.isOn = true;
-        inventoryToggle.isOn = false;
+        shopToggle.isOn = false;
+        inventoryToggle.isOn = true;
         
         // Ensure only one category is active
         turretToggle.isOn = true;
@@ -245,7 +245,7 @@ public class WorkshopUIManager : MonoBehaviour
         navAIToggle.isOn = false;
         engineFrameToggle.isOn = false;
 
-        SetViewShop(true);
+        SetViewShop(false);
         SetCategory(ComponentCategory.Turret);
 
         shopToggle.onValueChanged.AddListener((isOn) => { if (isOn) SetViewShop(true); });
@@ -813,6 +813,11 @@ public class WorkshopUIManager : MonoBehaviour
         selectable.colors = colors;
     }
 
+    public static void UpdateSelectableScale(Selectable selectable, bool isSelected)
+    {
+        selectable.transform.localScale = isSelected ? new Vector3(0.85f, 0.85f, 0.85f) : Vector3.one;
+    }
+
     private void SetViewShop(bool isShop)
     {
         isShopView = isShop;
@@ -837,9 +842,20 @@ public class WorkshopUIManager : MonoBehaviour
         UpdateSelectableColor(navAIToggle, navAIToggle.isOn);
         UpdateSelectableColor(engineFrameToggle, engineFrameToggle.isOn);
 
+        UpdateSelectableScale(shopToggle, shopToggle.isOn);
+        UpdateSelectableScale(inventoryToggle, inventoryToggle.isOn);
+        UpdateSelectableScale(turretToggle, turretToggle.isOn);
+        UpdateSelectableScale(armorToggle, armorToggle.isOn);
+        UpdateSelectableScale(turretAIToggle, turretAIToggle.isOn);
+        UpdateSelectableScale(navAIToggle, navAIToggle.isOn);
+        UpdateSelectableScale(engineFrameToggle, engineFrameToggle.isOn);
+
         // Also update tank slot buttons
         foreach (var slot in tankSlots)
+        {
             UpdateSelectableColor(slot.button, slot.IsSelected);
+            UpdateSelectableScale(slot.button, slot.IsSelected);
+        }
     }    public void PopulateComponentList()
     {
         foreach (Transform child in scrollContentParent)
