@@ -780,7 +780,7 @@ public class ArenaManager : MonoBehaviour
         }
         
         // Award rewards if player won; track failures for tutorial recommendation.
-        // Also write result to PlayerPrefs so ReturnToWorkshop can catch mid-game quits.
+        // Award rewards if player won.
         if (playerWon)
         {
             PlayerPrefs.SetInt("ArenaMatchWon", 1);
@@ -790,14 +790,8 @@ public class ArenaManager : MonoBehaviour
         }
         else if (!isReplayView)
         {
-            PlayerPrefs.SetInt("ArenaMatchWon", 1); // mark handled so ReturnToWorkshop doesn't double-count
+            PlayerPrefs.SetInt("ArenaMatchWon", 1);
             PlayerPrefs.Save();
-            if (PlayerDataManager.Instance != null)
-            {
-                PlayerDataManager.Instance.playerData.missionFailCount++;
-                PlayerDataManager.Instance.SavePlayerData();
-                Debug.Log($"[ArenaManager] Mission fail count: {PlayerDataManager.Instance.playerData.missionFailCount}");
-            }
         }
         
         // Display match stats

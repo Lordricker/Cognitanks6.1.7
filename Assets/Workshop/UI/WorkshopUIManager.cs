@@ -21,7 +21,8 @@ public class WorkshopUIManager : MonoBehaviour
     public Toggle navAIToggle;
     public Toggle engineFrameToggle;
 
-    public Transform scrollContentParent;
+    public Transform scrollContentParent;         // Shop scroll view content
+    public Transform inventoryScrollContentParent; // Inventory scroll view content
     public GameObject componentEntryPrefab;
 
     private bool isShopView = true;
@@ -71,14 +72,13 @@ public class WorkshopUIManager : MonoBehaviour
     [Header("First Tip Panel")]
     [Tooltip("Full-screen panel shown on the very first load. Click anywhere on it to close.")]
     public GameObject firstTipPanel;
+    private float firstTipPanelHiddenTime = -1f;
     [Tooltip("Button that re-shows the first tip panel.")]
     public Button firstTipReactivateButton;
 
     [Header("Tutorial Button")]
     [Tooltip("Button that starts the step-by-step tutorial sequence.")]
     public Button tutorialButton;
-    [Tooltip("Panel shown when the player has failed 2+ missions without pressing Tutorial.")]
-    public GameObject recommendTutorialPanel;
 
     [Header("Quit Button")]
     public Button quitButton; // Assign the quit button in inspector
@@ -164,13 +164,6 @@ public class WorkshopUIManager : MonoBehaviour
             return;
         }
 
-        // Dismiss the recommend-tutorial panel on any click while it is visible
-        if (clicked && recommendTutorialPanel != null && recommendTutorialPanel.activeSelf)
-        {
-            recommendTutorialPanel.SetActive(false);
-            return;
-        }
-
         // Close the campaign panel when the player clicks outside of it
         if (isCampaignPanelVisible && campaignPanelRect != null && clicked)
         {
@@ -210,19 +203,6 @@ public class WorkshopUIManager : MonoBehaviour
             tutorialButton.onClick.AddListener(OnTutorialButtonPressed);
         }
 
-        // Recommend-tutorial panel: show if player failed 2+ missions without pressing Tutorial.
-        // Click-to-dismiss is handled in Update(). No runtime Button needed.
-        if (recommendTutorialPanel != null)
-        {
-            int failCount = PlayerDataManager.Instance != null
-                ? PlayerDataManager.Instance.playerData.missionFailCount : 0;
-            bool tutSeen = PlayerDataManager.Instance != null
-                && PlayerDataManager.Instance.playerData.tutorialButtonPressed;
-            bool shouldRecommend = !tutSeen && failCount >= 2;
-            Debug.Log($"[WorkshopUIManager] RecommendTutorial: failCount={failCount}, tutSeen={tutSeen}, show={shouldRecommend}");
-            recommendTutorialPanel.SetActive(shouldRecommend);
-        }
-
         // Auto-show the current tutorial section on return from a match, but only
         // if the player has already pressed the Tutorial button.
         bool tutPressed = PlayerDataManager.Instance != null
@@ -235,8 +215,8 @@ public class WorkshopUIManager : MonoBehaviour
             HideAllSectionPanels();
         
         // Ensure only one of Shop/Inventory is active
-        shopToggle.isOn = false;
-        inventoryToggle.isOn = true;
+        if (shopToggle != null) shopToggle.isOn = false;
+        if (inventoryToggle != null) inventoryToggle.isOn = true;
         
         // Ensure only one category is active
         turretToggle.isOn = true;
@@ -248,8 +228,10 @@ public class WorkshopUIManager : MonoBehaviour
         SetViewShop(false);
         SetCategory(ComponentCategory.Turret);
 
-        shopToggle.onValueChanged.AddListener((isOn) => { if (isOn) SetViewShop(true); });
-        inventoryToggle.onValueChanged.AddListener((isOn) => { if (isOn) SetViewShop(false); });
+        if (shopToggle != null)
+            shopToggle.onValueChanged.AddListener((isOn) => { if (isOn) SetViewShop(true); });
+        if (inventoryToggle != null)
+            inventoryToggle.onValueChanged.AddListener((isOn) => { if (isOn) SetViewShop(false); });
         
         turretToggle.onValueChanged.AddListener((isOn) => { if (isOn) SetCategory(ComponentCategory.Turret); });
         armorToggle.onValueChanged.AddListener((isOn) => { if (isOn) SetCategory(ComponentCategory.Armor); });
@@ -398,9 +380,6 @@ public class WorkshopUIManager : MonoBehaviour
         }
         UpdatePlayerCashUI();
         
-        // Refresh shop display to show unlocked components
-        PopulateComponentList();
-        
         // Clean up any legacy AI files with old instanceId format
         CleanupLegacyAIFiles();
         
@@ -411,6 +390,9 @@ public class WorkshopUIManager : MonoBehaviour
         
         // Load tank slots from ScriptableObjects AFTER restoring activation states
         LoadTankSlotsFromScriptableObjects();
+        
+        // Refresh shop display AFTER slots are loaded so equip state is correct
+        PopulateComponentList();
         
         // Update total active tanks weight display
         UpdateTotalActiveTanksWeight();
@@ -834,16 +816,16 @@ public class WorkshopUIManager : MonoBehaviour
 
     private void UpdateToggleColors()
     {
-        UpdateSelectableColor(shopToggle, shopToggle.isOn);
-        UpdateSelectableColor(inventoryToggle, inventoryToggle.isOn);
+        if (shopToggle != null) { UpdateSelectableColor(shopToggle, shopToggle.isOn); }
+        if (inventoryToggle != null) { UpdateSelectableColor(inventoryToggle, inventoryToggle.isOn); }
         UpdateSelectableColor(turretToggle, turretToggle.isOn);
         UpdateSelectableColor(armorToggle, armorToggle.isOn);
         UpdateSelectableColor(turretAIToggle, turretAIToggle.isOn);
         UpdateSelectableColor(navAIToggle, navAIToggle.isOn);
         UpdateSelectableColor(engineFrameToggle, engineFrameToggle.isOn);
 
-        UpdateSelectableScale(shopToggle, shopToggle.isOn);
-        UpdateSelectableScale(inventoryToggle, inventoryToggle.isOn);
+        if (shopToggle != null) { UpdateSelectableScale(shopToggle, shopToggle.isOn); }
+        if (inventoryToggle != null) { UpdateSelectableScale(inventoryToggle, inventoryToggle.isOn); }
         UpdateSelectableScale(turretToggle, turretToggle.isOn);
         UpdateSelectableScale(armorToggle, armorToggle.isOn);
         UpdateSelectableScale(turretAIToggle, turretAIToggle.isOn);
@@ -854,89 +836,78 @@ public class WorkshopUIManager : MonoBehaviour
         foreach (var slot in tankSlots)
         {
             UpdateSelectableColor(slot.button, slot.IsSelected);
-            UpdateSelectableScale(slot.button, slot.IsSelected);
+            slot.transform.localScale = slot.IsSelected ? new Vector3(0.85f, 0.85f, 0.85f) : Vector3.one;
         }
     }    public void PopulateComponentList()
     {
+        // --- Shop scroll view (always shows shop items for current category) ---
         foreach (Transform child in scrollContentParent)
             Destroy(child.gameObject);
 
-        List<ComponentData> source;
-        
-        if (isShopView)
+        List<ComponentData> shopSource;
+        switch (currentCategory)
         {
-            // Use the selected category's shop list
-            switch (currentCategory)
-            {
-                case ComponentCategory.Turret:
-                    source = turretShopComponents;
-                    break;
-                case ComponentCategory.Armor:
-                    source = armorShopComponents;
-                    break;
-                case ComponentCategory.TurretAI:
-                    // Filter AITree components for Turret branch type
-                    source = aiTreeShopComponents.FindAll(c => 
-                        c is AiTreeAsset tree && tree.branchType == AiEditor.AiBranchType.Turret);
-                    break;
-                case ComponentCategory.NavAI:
-                    // Filter AITree components for Nav branch type  
-                    source = aiTreeShopComponents.FindAll(c => 
-                        c is AiTreeAsset tree && tree.branchType == AiEditor.AiBranchType.Nav);
-                    break;
-                case ComponentCategory.EngineFrame:
-                    source = engineFrameShopComponents;
-                    break;
-                default:
-                    source = new List<ComponentData>();
-                    break;
-            }
-        }
-        else
-        {
-            // Inventory: handle AI categories by branch type from playerInventory
-            if (currentCategory == ComponentCategory.TurretAI)
-            {
-                // Show Turret AI trees from playerInventory
-                source = playerInventory.FindAll(c => c is AiTreeAsset tree && tree.branchType == AiEditor.AiBranchType.Turret);
-            }
-            else if (currentCategory == ComponentCategory.NavAI)
-            {
-                // Show Nav AI trees from playerInventory
-                source = playerInventory.FindAll(c => c is AiTreeAsset tree && tree.branchType == AiEditor.AiBranchType.Nav);
-            }
-            else
-            {
-                // Filter standard inventory by category
-                source = playerInventory.FindAll(c => c.category == currentCategory);
-            }
+            case ComponentCategory.Turret:     shopSource = turretShopComponents; break;
+            case ComponentCategory.Armor:      shopSource = armorShopComponents; break;
+            case ComponentCategory.TurretAI:
+                shopSource = aiTreeShopComponents.FindAll(c =>
+                    c is AiTreeAsset tree && tree.branchType == AiEditor.AiBranchType.Turret);
+                break;
+            case ComponentCategory.NavAI:
+                shopSource = aiTreeShopComponents.FindAll(c =>
+                    c is AiTreeAsset tree && tree.branchType == AiEditor.AiBranchType.Nav);
+                break;
+            case ComponentCategory.EngineFrame: shopSource = engineFrameShopComponents; break;
+            default: shopSource = new List<ComponentData>(); break;
         }
 
-        foreach (var component in source)
+        foreach (var component in shopSource)
         {
             GameObject entryGO = Instantiate(componentEntryPrefab, scrollContentParent);
             ComponentEntryUI entryUI = entryGO.GetComponent<ComponentEntryUI>();
-            
             entryUI.Setup(
                 component,
                 GetAssignedTankName(component),
-                isShopView,
+                true,
                 OnBuyComponent,
                 OnSellComponent,
                 OnEquipComponent,
-                OnComponentSelected, // selection callback
-                (changedComponent) => {
-                    // Handle color changes for components
-                    OnComponentColorChanged(changedComponent);
-                },
-                (comp, skinPath) => {
-                    // Handle skin selection
-                    OnSkinSelected(comp, skinPath);
-                },
-                (comp, decalPath) => {
-                    // Handle decal selection (turret only)
-                    OnDecalSelected(comp, decalPath);
-                }
+                OnComponentSelected,
+                (changedComponent) => { OnComponentColorChanged(changedComponent); },
+                (comp, skinPath) => { OnSkinSelected(comp, skinPath); },
+                (comp, decalPath) => { OnDecalSelected(comp, decalPath); }
+            );
+        }
+
+        // --- Inventory scroll view (always shows owned items for current category) ---
+        if (inventoryScrollContentParent == null) return;
+
+        foreach (Transform child in inventoryScrollContentParent)
+            Destroy(child.gameObject);
+
+        List<ComponentData> inventorySource;
+        if (currentCategory == ComponentCategory.TurretAI)
+            inventorySource = playerInventory.FindAll(c => c is AiTreeAsset tree && tree.branchType == AiEditor.AiBranchType.Turret);
+        else if (currentCategory == ComponentCategory.NavAI)
+            inventorySource = playerInventory.FindAll(c => c is AiTreeAsset tree && tree.branchType == AiEditor.AiBranchType.Nav);
+        else
+            inventorySource = playerInventory.FindAll(c => c.category == currentCategory);
+
+        foreach (var component in inventorySource)
+        {
+            GameObject entryGO = Instantiate(componentEntryPrefab, inventoryScrollContentParent);
+            ComponentEntryUI entryUI = entryGO.GetComponent<ComponentEntryUI>();
+            entryUI.Setup(
+                component,
+                GetAssignedTankName(component),
+                false,
+                OnBuyComponent,
+                OnSellComponent,
+                OnEquipComponent,
+                OnComponentSelected,
+                (changedComponent) => { OnComponentColorChanged(changedComponent); },
+                (comp, skinPath) => { OnSkinSelected(comp, skinPath); },
+                (comp, decalPath) => { OnDecalSelected(comp, decalPath); }
             );
         }
     }
@@ -2341,6 +2312,8 @@ public class WorkshopUIManager : MonoBehaviour
     /// </summary>
     public void ShowFirstTipPanel()
     {
+        // Ignore if the panel was just dismissed (e.g. by Update's click-outside handler)
+        if (Time.unscaledTime - firstTipPanelHiddenTime < 0.5f) return;
         if (firstTipPanel != null) firstTipPanel.SetActive(true);
     }
 
@@ -2350,6 +2323,7 @@ public class WorkshopUIManager : MonoBehaviour
     public void HideFirstTipPanel()
     {
         if (firstTipPanel != null) firstTipPanel.SetActive(false);
+        firstTipPanelHiddenTime = Time.unscaledTime;
         if (PlayerDataManager.Instance != null &&
             !PlayerDataManager.Instance.playerData.hasSeenTipsOnFirstLaunch)
         {
@@ -2370,8 +2344,6 @@ public class WorkshopUIManager : MonoBehaviour
             PlayerDataManager.Instance.playerData.tutorialButtonPressed = true;
             PlayerDataManager.Instance.SavePlayerData();
         }
-        if (recommendTutorialPanel != null)
-            recommendTutorialPanel.SetActive(false);
     }
 
     /// <summary>

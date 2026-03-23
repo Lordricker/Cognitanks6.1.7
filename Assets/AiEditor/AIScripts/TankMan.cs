@@ -188,6 +188,7 @@ public class TankMan : MonoBehaviour
     private const float UNSTUCK_FORCE_INTERVAL = 2f; // Apply force every 2 seconds max
     private const float UNSTUCK_AI_RESTART_DELAY = 1.5f; // Try AI restart after 1.5 seconds
     private const float UNSTUCK_INITIAL_DELAY = 2.5f; // Wait 2.5 seconds after becoming stuck
+    private bool hasCalledFirstGroundedUnstuck = false; // One-time flag: restarts AI on first ground contact after spawning
     
     // Cycle node memory - tracks which child node each Cycle instance is currently executing
     private Dictionary<string, int> cycleNodeMemory = new Dictionary<string, int>();
@@ -564,6 +565,40 @@ public class TankMan : MonoBehaviour
 
     // deleted all the 
 
+    /// <summary>
+    /// Returns true if there is an unobstructed line of sight from fromPosition to the target collider.
+    /// Uses RaycastAll to skip self and target colliders, so only terrain/walls block vision.
+    /// Trigger colliders (used for grounding) are ignored by the raycast.
+    /// </summary>
+    private bool CheckLineOfSight(Vector3 fromPosition, Collider targetCollider)
+    {
+        Vector3 toPosition = targetCollider.transform.position;
+        Vector3 direction = toPosition - fromPosition;
+        float distance = direction.magnitude;
+
+        if (distance < 0.5f) return true; // Too close to be meaningfully blocked
+
+        // Find the root transform of the target tank
+        TankMan targetTankMan = targetCollider.GetComponent<TankMan>() ?? targetCollider.GetComponentInParent<TankMan>();
+        Transform targetRoot = targetTankMan != null ? targetTankMan.transform : targetCollider.transform.root;
+
+        // Cast ray from turret toward target, stopping 1 unit short to avoid hitting the target's far side
+        // Trigger colliders (ground detection triggers) are excluded automatically
+        RaycastHit[] hits = Physics.RaycastAll(fromPosition, direction.normalized, distance - 1f, Physics.AllLayers, QueryTriggerInteraction.Ignore);
+        System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+
+        foreach (var hit in hits)
+        {
+            // Skip this tank's own colliders
+            if (hit.transform.IsChildOf(transform) || hit.transform == transform) continue;
+            // Skip the target tank's colliders
+            if (hit.transform.IsChildOf(targetRoot) || hit.transform == targetRoot) continue;
+            // Something solid (terrain, wall, other tank body) is blocking line of sight
+            return false;
+        }
+        return true;
+    }
+
     // Clamp the root object's X and Z rotation to ±maxTilt degrees
     void ClampXZRotation(float maxTilt)
     {
@@ -599,7 +634,16 @@ public class TankMan : MonoBehaviour
         
         // Check for ground detection (non-bullet objects)
         if (other != null && other != GetComponent<Collider>())
+        {
             isGrounded = true;
+            // On the very first ground contact after spawning, restart AI so tanks begin moving immediately
+            if (!hasCalledFirstGroundedUnstuck)
+            {
+                hasCalledFirstGroundedUnstuck = true;
+                if (runtimeNavAI != null || runtimeTurretAI != null)
+                    RestartAI();
+            }
+        }
     }
     private void OnTriggerExit(Collider other)
     {
@@ -1869,13 +1913,15 @@ public class TankMan : MonoBehaviour
             Vector3 directionToTarget = (collider.transform.position - visionPosition).normalized;
             float angleToTarget = Vector3.Angle(visionForward, directionToTarget);
             bool inVisionCone = angleToTarget <= visionCone * 0.5f; // visionCone is full angle, so half for each side
+            // Only do the expensive LOS check when inside the cone
+            bool hasLineOfSight = inVisionCone && CheckLineOfSight(visionPosition, collider);
             
             if (shouldDebug && (isEnemy || isAlly))
             {
             }
             
-            // Add to appropriate lists based on team and vision
-            if (isEnemy && inVisionCone)
+            // Add to appropriate lists based on team and vision (both cone AND terrain LOS required)
+            if (isEnemy && hasLineOfSight)
             {
                 // Check if enemy tank is alive before adding to detected enemies
                 TankMan enemyTankMan = collider.GetComponent<TankMan>();
@@ -1896,7 +1942,7 @@ public class TankMan : MonoBehaviour
                     }
                 }
             }
-            else if (isAlly && inVisionCone)
+            else if (isAlly && hasLineOfSight)
             {
                 // Check if ally tank is alive before adding to detected allies
                 TankMan allyTankMan = collider.GetComponent<TankMan>();

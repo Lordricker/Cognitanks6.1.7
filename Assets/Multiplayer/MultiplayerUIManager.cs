@@ -382,6 +382,7 @@ public class MultiplayerUIManager : MonoBehaviour
             (matchId) => {
                 ShowDebugMessage("Match posted successfully!", false);
                 RefreshMatchLists();
+                DiscordWebhookLogger.Instance?.LogMatchPosted(postData.discordUsername, postData.matchType);
             },
             (error) => {
                 ShowDebugMessage($"Failed to post: {error}");

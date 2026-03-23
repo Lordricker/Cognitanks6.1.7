@@ -223,6 +223,12 @@ public class MultiplayerEntryUI : MonoBehaviour
         Debug.Log($"[MultiplayerEntryUI] Match runner populated. Seed={matchSeed}, " +
                   $"PosterTanks={currentMatch.tankConfigs.Count}, ChallengerTanks={challengerConfigs.Count}");
 
+        // Log match join to Discord
+        DiscordWebhookLogger.Instance?.LogMatchJoined(
+            currentMatch.discordUsername,
+            MultiplayerMatchRunner.ChallengerUsername,
+            currentMatch.matchType);
+
         // 10. Set GameMode to Multiplayer and load Arena1
         PlayerPrefs.SetInt("GameMode", (int)GameMode.Multiplayer);
         PlayerPrefs.Save();

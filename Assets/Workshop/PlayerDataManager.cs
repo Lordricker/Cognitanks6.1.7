@@ -25,7 +25,6 @@ public class PlayerData
     public string lastKnownDiscordId = ""; // Cache Discord ID for offline access
     public bool hasSeenTipsOnFirstLaunch = false; // Track if player has seen tips on first launch
     public int tutorialStep = 0; // 0=new player, 1=after first fight, 2=after second fight, 3=tutorial complete
-    public int missionFailCount = 0; // Number of missions the player has lost
     public bool tutorialButtonPressed = false; // True once the player has clicked the Tutorial button
 }
 
@@ -373,9 +372,8 @@ public class PlayerDataManager : MonoBehaviour
         PlayerPrefs.Save();
         Debug.Log("[PlayerDataManager] Cleared all progression data from PlayerPrefs");
         
-        // Reset tutorial step and tutorial recommendation tracking
+        // Reset tutorial step and tutorial tracking
         playerData.tutorialStep = 0;
-        playerData.missionFailCount = 0;
         playerData.tutorialButtonPressed = false;
     }
 

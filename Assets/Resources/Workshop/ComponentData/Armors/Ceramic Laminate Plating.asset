@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2bfddf6945fb8bb4ea6cf05aa1d693be, type: 3}
   m_Name: Ceramic Laminate Plating
   m_EditorClassIdentifier: 
-  title: Ceramic Laminate Plating
+  title: Ceramic Plating
   description: Light mobile armor cut from extremely hard ceramics
   cost: 100
   weight: 20

@@ -241,6 +241,10 @@ public class AiEditorFileUI : MonoBehaviour
     // New public field for tree name
     public TMPro.TMP_Text FileName;
 
+    [Header("No File Loaded Message")]
+    [Tooltip("Shown when no AI file is loaded (e.g. on first entry to the editor). Hidden once a file is loaded.")]
+    public GameObject noFileLoadedMessage;
+
     void Start()
     {
         saveButton.onClick.AddListener(ToggleGuidePanel);
@@ -251,6 +255,10 @@ public class AiEditorFileUI : MonoBehaviour
         loadPanel.SetActive(false);
         navFileScrollView.SetActive(false);
         turretFileScrollView.SetActive(false);
+
+        // Show the "no file loaded" message only when no file is open
+        if (noFileLoadedMessage != null)
+            noFileLoadedMessage.SetActive(string.IsNullOrEmpty(currentJsonPath));
     }
 
     // Helper function to determine if a node should have number input based on its label
@@ -736,7 +744,11 @@ public class AiEditorFileUI : MonoBehaviour
         // Load AiTreeAssetJson and reconstruct node graph
         // All files shown in AI Editor are now player-owned, so we can directly use the file
         currentJsonPath = filePath.Replace("\\", "/");
-        
+
+        // Hide the "no file loaded" message now that a file is open
+        if (noFileLoadedMessage != null)
+            noFileLoadedMessage.SetActive(false);
+
         // Try to load the JSON file directly
         try
         {

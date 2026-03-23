@@ -40,7 +40,7 @@ public class ComponentEntryUI : MonoBehaviour
     {
         component = data;
         titleText.text = data.title;
-        costText.text = $"Cost: {data.cost}";
+        costText.text = isShopView ? $"${data.cost}" : $"${data.cost / 2}";
         assignedToText.text = assignedToTank;        buyButton.gameObject.SetActive(isShopView);
         sellButton.gameObject.SetActive(!isShopView);
         equipButton.gameObject.SetActive(!isShopView);

@@ -15,6 +15,8 @@ public class FirebaseMatchService : MonoBehaviour
 
     [Header("Firebase Configuration")]
     [SerializeField] private string firebaseDatabaseUrl = "https://cognitanks-default-rtdb.firebaseio.com";
+
+    private string Url(string path) => $"{firebaseDatabaseUrl}/{path}";
     
     // Callbacks for async operations
     public event Action<List<MatchEntry>> OnMatchesLoaded;
@@ -60,7 +62,7 @@ public class FirebaseMatchService : MonoBehaviour
         };
 
         string json = MatchDataHelper.ToJson(entry);
-        string url = $"{firebaseDatabaseUrl}/matches.json";
+        string url = Url("matches.json");
 
         using (UnityWebRequest request = new UnityWebRequest(url, "POST"))
         {
@@ -101,7 +103,7 @@ public class FirebaseMatchService : MonoBehaviour
     private IEnumerator GetAvailableMatchesCoroutine(Action<List<MatchEntry>> onSuccess, Action<string> onError)
     {
         // Get all matches - we'll filter client-side to avoid needing Firebase indexes
-        string url = $"{firebaseDatabaseUrl}/matches.json";
+        string url = Url("matches.json");
 
         using (UnityWebRequest request = UnityWebRequest.Get(url))
         {
@@ -138,7 +140,7 @@ public class FirebaseMatchService : MonoBehaviour
 
     private IEnumerator DeleteMatchCoroutine(string matchId, Action onSuccess, Action<string> onError)
     {
-        string url = $"{firebaseDatabaseUrl}/matches/{matchId}.json";
+        string url = Url($"matches/{matchId}.json");
 
         using (UnityWebRequest request = UnityWebRequest.Delete(url))
         {
@@ -170,7 +172,7 @@ public class FirebaseMatchService : MonoBehaviour
     private IEnumerator CheckExistingMatchCoroutine(string odiscordUserId, MatchType matchType, Action<bool> onResult, Action<string> onError)
     {
         // Get all matches - filter client-side
-        string url = $"{firebaseDatabaseUrl}/matches.json";
+        string url = Url("matches.json");
 
         using (UnityWebRequest request = UnityWebRequest.Get(url))
         {
@@ -209,7 +211,7 @@ public class FirebaseMatchService : MonoBehaviour
     {
         replayData.completedTimestamp = MatchDataHelper.GetCurrentTimestamp();
         string json = MatchDataHelper.ToJson(replayData);
-        string url = $"{firebaseDatabaseUrl}/replays.json";
+        string url = Url("replays.json");
 
         using (UnityWebRequest request = new UnityWebRequest(url, "POST"))
         {
@@ -255,7 +257,7 @@ public class FirebaseMatchService : MonoBehaviour
     private IEnumerator GetPlayerReplaysCoroutine(string odiscordUserId, Action<List<ReplayData>> onSuccess, Action<string> onError)
     {
         // Get all replays - filter client-side to avoid needing Firebase indexes
-        string url = $"{firebaseDatabaseUrl}/replays.json";
+        string url = Url("replays.json");
 
         using (UnityWebRequest request = UnityWebRequest.Get(url))
         {
@@ -295,7 +297,7 @@ public class FirebaseMatchService : MonoBehaviour
     private IEnumerator HideReplayCoroutine(string replayId, string playerDiscordId, Action onSuccess, Action<string> onError)
     {
         // First, GET the current replay to check hiddenByPlayerIds
-        string getUrl = $"{firebaseDatabaseUrl}/replays/{replayId}.json";
+        string getUrl = Url($"replays/{replayId}.json");
         ReplayData replay = null;
         
         using (UnityWebRequest getRequest = UnityWebRequest.Get(getUrl))
@@ -334,7 +336,7 @@ public class FirebaseMatchService : MonoBehaviour
         if (posterHidden && challengerHidden)
         {
             // Both players have hidden — delete from server entirely
-            string deleteUrl = $"{firebaseDatabaseUrl}/replays/{replayId}.json";
+            string deleteUrl = Url($"replays/{replayId}.json");
             using (UnityWebRequest deleteRequest = UnityWebRequest.Delete(deleteUrl))
             {
                 yield return deleteRequest.SendWebRequest();
@@ -356,7 +358,7 @@ public class FirebaseMatchService : MonoBehaviour
             // Only one player has hidden — update hiddenByPlayerIds on server
             replay.hiddenByPlayerIds = hidden;
             string json = MatchDataHelper.ToJson(replay);
-            string putUrl = $"{firebaseDatabaseUrl}/replays/{replayId}.json";
+            string putUrl = Url($"replays/{replayId}.json");
             
             using (UnityWebRequest putRequest = UnityWebRequest.Put(putUrl, json))
             {
@@ -387,7 +389,7 @@ public class FirebaseMatchService : MonoBehaviour
 
     private IEnumerator DeleteReplayCoroutine(string replayId, Action onSuccess, Action<string> onError)
     {
-        string url = $"{firebaseDatabaseUrl}/replays/{replayId}.json";
+        string url = Url($"replays/{replayId}.json");
 
         using (UnityWebRequest request = UnityWebRequest.Delete(url))
         {
@@ -422,7 +424,7 @@ public class FirebaseMatchService : MonoBehaviour
 
     private IEnumerator GetOrCreatePlayerProfileCoroutine(string odiscordUserId, string username, Action<PlayerProfile> onSuccess, Action<string> onError)
     {
-        string url = $"{firebaseDatabaseUrl}/players/{odiscordUserId}.json";
+        string url = Url($"players/{odiscordUserId}.json");
 
         using (UnityWebRequest request = UnityWebRequest.Get(url))
         {
@@ -474,7 +476,7 @@ public class FirebaseMatchService : MonoBehaviour
     private IEnumerator CreatePlayerProfileCoroutine(PlayerProfile profile, Action<PlayerProfile> onSuccess, Action<string> onError)
     {
         string json = MatchDataHelper.ToJson(profile);
-        string url = $"{firebaseDatabaseUrl}/players/{profile.odiscordUserId}.json";
+        string url = Url($"players/{profile.odiscordUserId}.json");
 
         using (UnityWebRequest request = UnityWebRequest.Put(url, json))
         {
@@ -498,7 +500,7 @@ public class FirebaseMatchService : MonoBehaviour
     private IEnumerator UpdatePlayerProfileCoroutine(PlayerProfile profile, Action onSuccess, Action<string> onError)
     {
         string json = MatchDataHelper.ToJson(profile);
-        string url = $"{firebaseDatabaseUrl}/players/{profile.odiscordUserId}.json";
+        string url = Url($"players/{profile.odiscordUserId}.json");
 
         using (UnityWebRequest request = UnityWebRequest.Put(url, json))
         {
@@ -518,7 +520,7 @@ public class FirebaseMatchService : MonoBehaviour
 
     private IEnumerator UpdatePlayerEloCoroutine(string odiscordUserId, int newElo, Action onSuccess, Action<string> onError)
     {
-        string url = $"{firebaseDatabaseUrl}/players/{odiscordUserId}/elo.json";
+        string url = Url($"players/{odiscordUserId}/elo.json");
 
         using (UnityWebRequest request = UnityWebRequest.Put(url, newElo.ToString()))
         {
