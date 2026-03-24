@@ -2554,6 +2554,10 @@ public class TankMan : MonoBehaviour
         {
             StopCoroutine(currentActionCoroutine);
             currentActionCoroutine = null;
+            // Clear any residual movement/rotation input so the tank doesn't keep
+            // spinning or moving after a rotation coroutine (especially blank/continuous
+            // ones) is interrupted by a cycle node advancing to the next action.
+            SetMovementInput(0f, 0f);
         }
         
         // For actions that need a target, ensure we have one (either from personal vision or Coms)
@@ -4885,6 +4889,12 @@ public class TankMan : MonoBehaviour
         // If degrees is 0, rotate continuously (no target angle)
         if (degrees == 0f)
         {
+            // Update node tracking so isSameAction works correctly when the cycle
+            // moves to a different node — without this the old nodeId persists and
+            // the next node is mistakenly treated as "already running".
+            if (isNavAI) lastUsedNavNodeId = nodeId;
+            else lastUsedTurretNodeId = nodeId;
+
             while (true)
             {
                 if (!isGrounded)
@@ -4987,6 +4997,12 @@ public class TankMan : MonoBehaviour
         // If degrees is 0, rotate continuously (no target angle)
         if (degrees == 0f)
         {
+            // Update node tracking so isSameAction works correctly when the cycle
+            // moves to a different node — without this the old nodeId persists and
+            // the next node is mistakenly treated as "already running".
+            if (isNavAI) lastUsedNavNodeId = nodeId;
+            else lastUsedTurretNodeId = nodeId;
+
             while (true)
             {
                 if (!isGrounded)

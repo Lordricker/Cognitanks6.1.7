@@ -133,83 +133,84 @@ public class NodeSelectionManager : MonoBehaviour
             }
         }
 
-        // ── Left mouse button: selection rectangle ──
+        // ── Left mouse button: paste on click, pan on drag (pan handled by CanvasPanZoom) ──
         if (mouse.leftButton.wasPressedThisFrame)
         {
-            // Destroy any open context menu immediately on pointer down
-            DestroyContextMenu();
+            // Only destroy the context menu if the click is NOT on the menu itself
+            if (!IsPointerOverContextMenu(mousePos))
+                DestroyContextMenu();
 
             if (IsPointerOverBackground(mousePos))
             {
                 leftMouseDown = true;
                 leftDownScreenPos = mousePos;
-                isDragSelecting = false;
-
-                RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                    content, mousePos, null, out dragStartLocal);
-
-                Debug.Log($"[NodeSelectionManager] LMB down on background at screen {leftDownScreenPos}, local {dragStartLocal}");
-            }
-        }
-
-        if (leftMouseDown && mouse.leftButton.isPressed)
-        {
-            Vector2 currentScreenPos = mousePos;
-            float screenDist = Vector2.Distance(leftDownScreenPos, currentScreenPos);
-
-            if (!isDragSelecting && screenDist >= dragBuffer)
-            {
-                isDragSelecting = true;
-                ClearSelection();
-                CreateSelectionRect();
-                Debug.Log("[NodeSelectionManager] Started drawing selection rect");
-            }
-
-            if (isDragSelecting)
-            {
-                UpdateSelectionRect(currentScreenPos);
             }
         }
 
         if (leftMouseDown && mouse.leftButton.wasReleasedThisFrame)
         {
             leftMouseDown = false;
-
-            if (isDragSelecting)
+            float dist = Vector2.Distance(leftDownScreenPos, mousePos);
+            if (dist < dragBuffer && clipboard.Count > 0)
             {
-                isDragSelecting = false;
-                FinalizeSelection();
-                Debug.Log("[NodeSelectionManager] Finalized selection");
-            }
-            else
-            {
-                // LMB click without drag on background → spawn context menu only if a file is loaded
-                Debug.Log("[NodeSelectionManager] LMB released without drag — spawning context menu");
-                if (IsFileLoaded())
-                {
-                    SpawnContextMenu(mousePos);
-                }
-                else
-                {
-                    FlashNoFileMessage();
-                }
+                ShowPasteButton(mousePos);
             }
         }
 
-        // ── Right-click (no drag) → paste button ──
+        // ── Right mouse button: drag → selection rect, click → context menu ──
         if (mouse.rightButton.wasPressedThisFrame)
         {
-            rightClickDown = true;
-            rightClickStartScreen = mousePos;
+            // Only destroy the context menu if the click is NOT on the menu itself
+            if (!IsPointerOverContextMenu(mousePos))
+                DestroyContextMenu();
+
+            if (IsPointerOverBackground(mousePos))
+            {
+                rightClickDown = true;
+                rightClickStartScreen = mousePos;
+                isDragSelecting = false;
+
+                RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                    content, mousePos, null, out dragStartLocal);
+            }
+        }
+
+        if (rightClickDown && mouse.rightButton.isPressed)
+        {
+            float screenDist = Vector2.Distance(rightClickStartScreen, mousePos);
+
+            if (!isDragSelecting && screenDist >= dragBuffer)
+            {
+                isDragSelecting = true;
+                ClearSelection();
+                CreateSelectionRect();
+            }
+
+            if (isDragSelecting)
+            {
+                UpdateSelectionRect(mousePos);
+            }
         }
 
         if (rightClickDown && mouse.rightButton.wasReleasedThisFrame)
         {
             rightClickDown = false;
-            float dist = Vector2.Distance(rightClickStartScreen, mousePos);
-            if (dist < dragBuffer && clipboard.Count > 0)
+
+            if (isDragSelecting)
             {
-                ShowPasteButton(mousePos);
+                isDragSelecting = false;
+                FinalizeSelection();
+            }
+            else
+            {
+                // Quick right-click on background → spawn context menu
+                if (IsPointerOverBackground(mousePos))
+                {
+                    if (IsFileLoaded())
+                        SpawnContextMenu(mousePos);
+                    else
+                        FlashNoFileMessage();
+                }
             }
         }
     }
@@ -245,7 +246,7 @@ public class NodeSelectionManager : MonoBehaviour
         string hitNames = string.Join(", ", results.ConvertAll(r => r.gameObject.name));
         Debug.Log($"[NodeSelectionManager] Raycast hits: [{hitNames}]");
 
-        // Check if any hit is a node, button, or the bounding box — if so, we're NOT on the background
+        // Check if any hit is a node, button, the bounding box, or the context menu — if so, we're NOT on the background
         foreach (var result in results)
         {
             var go = result.gameObject;
@@ -253,10 +254,34 @@ public class NodeSelectionManager : MonoBehaviour
             if (go.GetComponentInParent<NodeDraggable>() != null) return false;
             if (go.GetComponent<Button>() != null) return false;
             if (go.GetComponent<BoundingBoxDragHandler>() != null) return false;
+            // Clicks on the context menu or any of its children are not background
+            if (currentContextMenu != null && go.transform.IsChildOf(currentContextMenu.transform)) return false;
         }
 
-        // If we got hits but none were nodes/buttons, we're on the background
+        // If we got hits but none were nodes/buttons/context-menu, we're on the background
         return true;
+    }
+
+    /// <summary>
+    /// Returns true if the pointer is currently over the active context menu or any of its children.
+    /// </summary>
+    private bool IsPointerOverContextMenu(Vector2 screenPos)
+    {
+        if (currentContextMenu == null) return false;
+
+        var eventSystem = EventSystem.current;
+        if (eventSystem == null) return false;
+
+        var pointerData = new PointerEventData(eventSystem) { position = screenPos };
+        var results = new List<RaycastResult>();
+        eventSystem.RaycastAll(pointerData, results);
+
+        foreach (var result in results)
+        {
+            if (result.gameObject.transform.IsChildOf(currentContextMenu.transform))
+                return true;
+        }
+        return false;
     }
 
     // ─────────────────────── SELECTION RECT (drawn during drag) ──────────────────────

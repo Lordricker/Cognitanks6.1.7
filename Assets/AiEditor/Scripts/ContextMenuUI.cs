@@ -379,9 +379,9 @@ public class ContextMenuUI : MonoBehaviour
         if (lowerLabel.Contains("move") || lowerLabel.Contains("forward"))
             return "Tank Drives forward, use with Cycle nodes to patrol an area";
         if (lowerLabel.Contains("rotate right") || lowerLabel.Contains("rotateright"))
-            return "Tank Pivots to the right by the specified degrees.";
+            return "Tank Pivots to the right. Enter a number it will rotate by the specified number in degrees.";
         if (lowerLabel.Contains("rotate left") || lowerLabel.Contains("rotateleft"))
-            return "Tank Pivots to the left by the specified degrees.";
+            return "Tank Pivots to the left. Enter a number it will rotate by the specified number in degrees.";
         if (lowerLabel.Contains("wait"))
             return "Stops movement. Tank remains stationary.";
         if (lowerLabel.Contains("chase"))
@@ -395,7 +395,7 @@ public class ContextMenuUI : MonoBehaviour
         
         // Actions - Turret
         if (lowerLabel.Contains("fire"))
-            return "Fires the tanks weapon when pointed at the target. Enter a number to predict targets position in meters based on its current velocity (0 is default = aim at center)";
+            return "Fires the tanks weapon when pointed at the target. Enter a number to predict targets position in meters per second based on its current velocity (0 is default = aim at center)";
         if (lowerLabel.Contains("leadtarget") || lowerLabel.Contains("lead target"))
             return "Using this under a Fire node will force it to verify aim before shooting. 0 will point right at target, any other numbers will predict enemy position e.g. leadtarget 15";
         if (lowerLabel.Contains("align front"))
@@ -413,7 +413,7 @@ public class ContextMenuUI : MonoBehaviour
         
         // Tag Actions - check specific ones first
         if (lowerLabel.Contains("mytag"))
-            return "Assigns a personal tag number to the current target. Only you can see and use this tag. Use IfMyTag conditions to check tags later. Useful for marking specific enemies (e.g., low HP = 1, high threat = 2).";
+            return "Assigns a personal tag number to the current target. Only this tank can see and use this tag. Use IfMyTag conditions to check tags later. Useful for marking specific enemies (e.g., low HP = 1, high threat = 2).";
         if (lowerLabel.Contains("teamtag"))
             return "Assigns a team tag number to the current target. All teammates can see and use this tag. Use IfTeamTag conditions to check tags later. Useful for coordinating focus fire (e.g., priority target = 1).";
         if (lowerLabel.Contains("tag"))

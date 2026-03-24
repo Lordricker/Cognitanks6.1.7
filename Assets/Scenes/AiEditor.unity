@@ -658,11 +658,11 @@ MonoBehaviour:
     you release, a menu will appear.\n- Nodes with a <b>#</b> sign let you enter
     a number.\n- Clicking a node lets you delete it and view its description.\n\\n<b>Tips</b>\n-
     Your changes are auto-saved after every action.\n- Each node has its own description\u2014hover
-    or click for details.\n- Right click and drag will pan the canvas, right click
-    no drag shows paste button if you have copied something, Left click and drag
-    will create selection box to edit multiple nodes at once, selecting with ctrl
-    c and ctrl v should also work\n\nExperiment, iterate, and have fun creating unique
-    tank behaviors!"
+    or click for details.\n- Left click and drag will pan the canvas,  left click
+    no drag shows paste button if you have copied something, right click and drag
+    will create selection box to edit multiple nodes at once, right click no drag
+    will spawn context menu (also ctrl c and crtl v works)\n\nExperiment, iterate,
+    and have fun creating unique tank behaviors!"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
