@@ -681,6 +681,17 @@ public class WorkshopUIManager : MonoBehaviour
     /// </summary>
     private void LoadUnlockedComponents()
     {
+        // Rebuild shop lists from scratch so that items added to the Inspector lists
+        // by the developer can never leak into a new-game / post-erase shop.
+        // Only explicitly-assigned starters are always available; everything else
+        // must be unlocked via PlayerPrefs before it appears in the shop.
+        turretShopComponents.Clear();
+        armorShopComponents.Clear();
+        engineFrameShopComponents.Clear();
+        if (starterTurret != null)      turretShopComponents.Add(starterTurret);
+        if (starterArmor != null)       armorShopComponents.Add(starterArmor);
+        if (starterEngineFrame != null) engineFrameShopComponents.Add(starterEngineFrame);
+
         // Load all component ScriptableObjects from Resources
         var allTurrets = Resources.LoadAll<TurretData>("Workshop/ComponentData/Turrets");
         var allArmor = Resources.LoadAll<ArmorData>("Workshop/ComponentData/Armors");
@@ -688,7 +699,8 @@ public class WorkshopUIManager : MonoBehaviour
         var allTurretAI = Resources.LoadAll<AiTreeAsset>("ShopAI/TurretAI");
         var allNavAI = Resources.LoadAll<AiTreeAsset>("ShopAI/NavAI");
         
-        // Check each component if it's unlocked and add to shop if not already there.
+        // For each unlocked component, add it to the appropriate shop list.
+        // Skip anything already present (starters added above won't be duplicated).
         // If it was just unlocked this session (NewItemJustUnlocked tag), also set the
         // NewItemFlag PlayerPrefs key so NewItemFlagManager will show the badge.
         foreach (var turret in allTurrets)
@@ -1779,6 +1791,44 @@ public class WorkshopUIManager : MonoBehaviour
                 {
                     // Skip invalid JSON files silently
                 }
+            }
+        }
+
+        // Also load reward AI files written to persistentDataPath (works in builds where
+        // Resources is read-only and new files cannot be added at runtime).
+        LoadPersistentAIShopFiles("NavAI", AiBranchTypeJson.Nav);
+        LoadPersistentAIShopFiles("TurretAI", AiBranchTypeJson.Turret);
+    }
+
+    /// <summary>
+    /// Reads reward AI JSON files from persistentDataPath/ShopAI/{subFolder} and adds them
+    /// to aiTreeShopComponents (skipping duplicates already loaded from Resources).
+    /// </summary>
+    private void LoadPersistentAIShopFiles(string subFolder, AiBranchTypeJson branchType)
+    {
+        string dir = System.IO.Path.Combine(Application.persistentDataPath, "ShopAI", subFolder);
+        if (!System.IO.Directory.Exists(dir)) return;
+
+        foreach (string filePath in System.IO.Directory.GetFiles(dir, "*.json"))
+        {
+            try
+            {
+                string json = System.IO.File.ReadAllText(filePath);
+                AiTreeAssetJson jsonAi = JsonUtility.FromJson<AiTreeAssetJson>(json);
+                if (jsonAi == null || string.IsNullOrEmpty(jsonAi.title)) continue;
+
+                jsonAi.branchType = branchType;
+                jsonAi.category = ComponentCategoryJson.AITree;
+
+                if (!aiTreeShopComponents.Exists(c => c.title == jsonAi.title))
+                {
+                    ComponentData proxyComponent = CreateAiTreeProxyFromJson(jsonAi);
+                    aiTreeShopComponents.Add(proxyComponent);
+                }
+            }
+            catch (System.Exception)
+            {
+                // Skip invalid or corrupt files silently
             }
         }
     }

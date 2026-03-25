@@ -1149,9 +1149,9 @@ public class ArenaManager : MonoBehaviour
                     continue;
                 }
                 
-                // Copy file to Resources/ShopAI/[NavAI or TurretAI]
-                string sourcePath = System.IO.Path.Combine(Application.dataPath, "Resources", "ShopAI", $"{fileName}.json");
-                string targetPath = System.IO.Path.Combine(Application.dataPath, "Resources", "ShopAI", targetFolder, $"{fileName}.json");
+                // Write file to persistentDataPath/ShopAI/[NavAI or TurretAI]
+                // (Application.dataPath is read-only inside a build; persistentDataPath is always writable)
+                string targetPath = System.IO.Path.Combine(Application.persistentDataPath, "ShopAI", targetFolder, $"{fileName}.json");
                 
                 // Ensure target directory exists
                 string targetDir = System.IO.Path.GetDirectoryName(targetPath);
@@ -1164,17 +1164,12 @@ public class ArenaManager : MonoBehaviour
                 if (!System.IO.File.Exists(targetPath))
                 {
                     System.IO.File.WriteAllText(targetPath, aiFile.text);
-                    Debug.Log($"[ArenaManager] Copied AI file to shop: {targetFolder}/{fileName}.json");
+                    Debug.Log($"[ArenaManager] Copied AI reward file to shop: {targetFolder}/{fileName}.json");
 
                     // Tag this AI category so the Workshop shows the "New" flag
                     string flagCategory = targetFolder == "NavAI" ? "NavAI" : "TurretAI";
                     PlayerPrefs.SetInt($"NewItemFlag_{flagCategory}", 1);
                     PlayerPrefs.Save();
-
-#if UNITY_EDITOR
-                    // Refresh asset database in editor
-                    UnityEditor.AssetDatabase.Refresh();
-#endif
                 }
                 else
                 {

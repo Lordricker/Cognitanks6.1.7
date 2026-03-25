@@ -236,7 +236,12 @@ public class PlayerDataManager : MonoBehaviour
         // Default files to keep after erase
         string defaultNavAIFileName = "L1R1RifleN.json";
         string defaultTurretAIFileName = "L1R1RifleT.json";
-        
+
+        // Clean the persistentDataPath ShopAI folders (reward files written here in builds)
+        CleanPersistentShopAIFolder("NavAI", defaultNavAIFileName);
+        CleanPersistentShopAIFolder("TurretAI", defaultTurretAIFileName);
+
+        // Also clean the dataPath Resources folders for editor/dev convenience
         // Reset NavAI folder
         string navAIFolder = Path.Combine(Application.dataPath, "Resources", "ShopAI", "NavAI");
         if (Directory.Exists(navAIFolder))
@@ -307,7 +312,33 @@ public class PlayerDataManager : MonoBehaviour
         
         Debug.Log("[PlayerDataManager] Reset shop AI folders to defaults");
     }
-    
+
+    /// <summary>
+    /// Deletes non-default reward AI files from persistentDataPath/ShopAI/{subFolder}.
+    /// The default file (e.g. L1R1RifleN.json) is preserved.
+    /// </summary>
+    private void CleanPersistentShopAIFolder(string subFolder, string defaultFileName)
+    {
+        string dir = Path.Combine(Application.persistentDataPath, "ShopAI", subFolder);
+        if (!Directory.Exists(dir)) return;
+
+        try
+        {
+            foreach (string file in Directory.GetFiles(dir, "*.json"))
+            {
+                if (Path.GetFileName(file) != defaultFileName)
+                {
+                    File.Delete(file);
+                    Debug.Log($"[PlayerDataManager] Deleted persistent reward AI file: {file}");
+                }
+            }
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"[PlayerDataManager] Failed to clean persistent ShopAI/{subFolder}: {ex.Message}");
+        }
+    }
+
     /// <summary>
     /// Clears all progression-related PlayerPrefs (unlocked components and arena progress)
     /// </summary>
@@ -325,8 +356,8 @@ public class PlayerDataManager : MonoBehaviour
             "ComponentUnlocked_Sniper",
             "ComponentUnlocked_Artillery",
             "ComponentUnlocked_Caduceus",
-            "ComponentUnlocked_Carbon Weave Armor",
-            "ComponentUnlocked_Ceramic Laminate Plating",
+            "ComponentUnlocked_Carbon Weave",          // actual title in ScriptableObject
+            "ComponentUnlocked_Ceramic Plating",       // actual title in ScriptableObject
             "ComponentUnlocked_MK-VI Alloy Shell",
             "ComponentUnlocked_Vortex Engine",
             "ComponentUnlocked_Accelerator Frame",

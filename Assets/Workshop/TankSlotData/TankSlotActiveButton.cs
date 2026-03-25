@@ -8,9 +8,12 @@ public class TankSlotActiveButton : MonoBehaviour
     public bool isActive = false;
     public TankSlotButtonUI slotButtonUI; // Assign in Inspector or via code
 
+    private Color defaultNormalColor; // the inspector's normal color, captured on Start
+
     void Start()
     {
         if (button == null) button = GetComponent<Button>();
+        defaultNormalColor = button.colors.normalColor; // capture before any UpdateColor call
         
         // Sync isActive with the JSON data's isActive value
         if (slotButtonUI != null)
@@ -64,10 +67,8 @@ public class TankSlotActiveButton : MonoBehaviour
         var colors = button.colors;
         if (isActive) {
             colors.normalColor = colors.highlightedColor;
-            
         } else {
-            colors.normalColor = colors.disabledColor;
-            
+            colors.normalColor = defaultNormalColor; // restore inspector default — no tint
         }
         button.colors = colors;
         // Force the button to refresh its visual state
