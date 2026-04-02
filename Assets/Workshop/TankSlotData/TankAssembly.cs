@@ -207,7 +207,13 @@ public class TankAssembly : MonoBehaviour
                 {
                     ApplySkinToModel(engineFrame, engineSkinPath);
                 }
-                
+
+                // Apply per-part rust overlay
+                string efRustName = data.engineFrameInstanceId.Contains("_")
+                    ? data.engineFrameInstanceId.Substring(0, data.engineFrameInstanceId.LastIndexOf("_"))
+                    : data.engineFrameInstanceId;
+                ApplyRustToModel(engineFrame, efRustName);
+
                 SetLayerRecursively(engineFrame, 6); // Set to Shadow layer
             }
             else
@@ -234,7 +240,13 @@ public class TankAssembly : MonoBehaviour
                 {
                     ApplySkinToModel(armor, armorSkinPath);
                 }
-                
+
+                // Apply per-part rust overlay
+                string armorRustName = data.armorInstanceId.Contains("_")
+                    ? data.armorInstanceId.Substring(0, data.armorInstanceId.LastIndexOf("_"))
+                    : data.armorInstanceId;
+                ApplyRustToModel(armor, armorRustName);
+
                 SetLayerRecursively(armor, 6); // Set to Shadow layer
             }
             else
@@ -261,7 +273,13 @@ public class TankAssembly : MonoBehaviour
                 {
                     ApplySkinToModel(turretInstance, turretSkinPath);
                 }
-                
+
+                // Apply per-part rust overlay
+                string turretRustName = data.turretInstanceId.Contains("_")
+                    ? data.turretInstanceId.Substring(0, data.turretInstanceId.LastIndexOf("_"))
+                    : data.turretInstanceId;
+                ApplyRustToModel(turretInstance, turretRustName);
+
                 // Apply decal: use JSON path first, fallback to ComponentCustomizationManager
                 string turretDecalPath = !string.IsNullOrEmpty(data.turretDecalPath) 
                     ? data.turretDecalPath
@@ -612,6 +630,44 @@ public class TankAssembly : MonoBehaviour
         }
     }
     
+    /// <summary>
+    /// Loads per-part rust maps from KritaArt/RustTextures and applies them to the TankPaint shader.
+    /// Silently skips maps that don't exist — only the files you provide get applied.
+    /// Naming convention (all in Assets/Resources/KritaArt/RustTextures/):
+    ///   {Name}Rust          → Tileable rust color (RGB)  (_RustTex)   — set Tiling in material to match Blender Mapping node scale
+    ///   {Name}RustMask      → UV-space painted mask (R)  (_RustMask)  — always keep Tiling 1,1 in material
+    ///   {Name}RustNormal    → Rust normal map            (_RustNormalMap)
+    ///   {Name}RustMetallic  → Metallic(R)/Smoothness(A) map          (_RustMetallicMap)
+    ///   {Name}RustHeight    → Rust height/displacement               (_RustHeightMap)
+    /// </summary>
+    private void ApplyRustToModel(GameObject model, string componentName)
+    {
+        if (model == null || string.IsNullOrEmpty(componentName)) return;
+
+        string basePath = $"KritaArt/RustTextures/{componentName}";
+        Texture2D rustTex      = Resources.Load<Texture2D>($"{basePath}Rust");
+        Texture2D rustMask     = Resources.Load<Texture2D>($"{basePath}RustMask");
+        Texture2D rustNormal   = Resources.Load<Texture2D>($"{basePath}RustNormal");
+        Texture2D rustMetallic = Resources.Load<Texture2D>($"{basePath}RustMetallic");
+        Texture2D rustHeight   = Resources.Load<Texture2D>($"{basePath}RustHeight");
+
+        if (rustTex == null && rustMask == null && rustNormal == null && rustMetallic == null && rustHeight == null) return;
+
+        var renderers = model.GetComponentsInChildren<Renderer>();
+        foreach (var renderer in renderers)
+        {
+            if (renderer is SpriteRenderer) continue;
+            foreach (var mat in renderer.materials)
+            {
+                if (rustTex      != null && mat.HasProperty("_RustTex"))         mat.SetTexture("_RustTex",         rustTex);
+                if (rustMask     != null && mat.HasProperty("_RustMask"))        mat.SetTexture("_RustMask",        rustMask);
+                if (rustNormal   != null && mat.HasProperty("_RustNormalMap"))   mat.SetTexture("_RustNormalMap",   rustNormal);
+                if (rustMetallic != null && mat.HasProperty("_RustMetallicMap")) mat.SetTexture("_RustMetallicMap", rustMetallic);
+                if (rustHeight   != null && mat.HasProperty("_RustHeightMap"))   mat.SetTexture("_RustHeightMap",   rustHeight);
+            }
+        }
+    }
+
     /// <summary>
     /// Applies a decal texture to a turret model's SpriteRenderer child
     /// </summary>
