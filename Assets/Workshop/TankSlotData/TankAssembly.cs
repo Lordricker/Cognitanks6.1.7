@@ -203,16 +203,13 @@ public class TankAssembly : MonoBehaviour
                 string engineSkinPath = !string.IsNullOrEmpty(data.engineFrameSkinPath) 
                     ? data.engineFrameSkinPath
                     : ComponentCustomizationManager.Instance?.GetSkin(data.engineFrameInstanceId);
-                if (!string.IsNullOrEmpty(engineSkinPath))
-                {
-                    ApplySkinToModel(engineFrame, engineSkinPath);
-                }
+                ApplySkinToModel(engineFrame, engineSkinPath);
 
                 // Apply per-part rust overlay
                 string efRustName = data.engineFrameInstanceId.Contains("_")
                     ? data.engineFrameInstanceId.Substring(0, data.engineFrameInstanceId.LastIndexOf("_"))
                     : data.engineFrameInstanceId;
-                ApplyRustToModel(engineFrame, efRustName);
+                ApplyRustToModel(engineFrame, GetRustBaseName(efRustName));
 
                 SetLayerRecursively(engineFrame, 6); // Set to Shadow layer
             }
@@ -236,16 +233,13 @@ public class TankAssembly : MonoBehaviour
                 string armorSkinPath = !string.IsNullOrEmpty(data.armorSkinPath) 
                     ? data.armorSkinPath
                     : ComponentCustomizationManager.Instance?.GetSkin(data.armorInstanceId);
-                if (!string.IsNullOrEmpty(armorSkinPath))
-                {
-                    ApplySkinToModel(armor, armorSkinPath);
-                }
+                ApplySkinToModel(armor, armorSkinPath);
 
                 // Apply per-part rust overlay
                 string armorRustName = data.armorInstanceId.Contains("_")
                     ? data.armorInstanceId.Substring(0, data.armorInstanceId.LastIndexOf("_"))
                     : data.armorInstanceId;
-                ApplyRustToModel(armor, armorRustName);
+                ApplyRustToModel(armor, GetRustBaseName(armorRustName));
 
                 SetLayerRecursively(armor, 6); // Set to Shadow layer
             }
@@ -269,16 +263,13 @@ public class TankAssembly : MonoBehaviour
                 string turretSkinPath = !string.IsNullOrEmpty(data.turretSkinPath) 
                     ? data.turretSkinPath
                     : ComponentCustomizationManager.Instance?.GetSkin(data.turretInstanceId);
-                if (!string.IsNullOrEmpty(turretSkinPath))
-                {
-                    ApplySkinToModel(turretInstance, turretSkinPath);
-                }
+                ApplySkinToModel(turretInstance, turretSkinPath);
 
                 // Apply per-part rust overlay
                 string turretRustName = data.turretInstanceId.Contains("_")
                     ? data.turretInstanceId.Substring(0, data.turretInstanceId.LastIndexOf("_"))
                     : data.turretInstanceId;
-                ApplyRustToModel(turretInstance, turretRustName);
+                ApplyRustToModel(turretInstance, GetRustBaseName(turretRustName));
 
                 // Apply decal: use JSON path first, fallback to ComponentCustomizationManager
                 string turretDecalPath = !string.IsNullOrEmpty(data.turretDecalPath) 
@@ -545,8 +536,9 @@ public class TankAssembly : MonoBehaviour
     /// </summary>
     private void ApplySkinToModel(GameObject model, string skinPath)
     {
+        // Fall back to the default skin if none is set
         if (string.IsNullOrEmpty(skinPath))
-            return;
+            skinPath = "KritaArt/Skins/TankPaint";
             
         // Load texture from Resources
         Texture2D skinTexture = Resources.Load<Texture2D>(skinPath);
@@ -564,6 +556,10 @@ public class TankAssembly : MonoBehaviour
         
         string additionalMapsPath = skinPath; // Folder has same name as the texture file
         Texture2D[] additionalTextures = Resources.LoadAll<Texture2D>(additionalMapsPath);
+        Debug.Log($"[TankAssembly] Skin subfolder scan: path='{additionalMapsPath}' found {(additionalTextures?.Length ?? 0)} texture(s)");
+        if (additionalTextures != null)
+            foreach (var t in additionalTextures)
+                Debug.Log($"[TankAssembly]   - {t.name}");
         
         if (additionalTextures != null && additionalTextures.Length > 0)
         {
@@ -630,28 +626,50 @@ public class TankAssembly : MonoBehaviour
         }
     }
     
+    /// Extracts the first "word" from a component name to use as the rust mask family key.
+    /// Splits on the first space (for names like "Velocity Chassis" → "Velocity"),
+    /// or on the first PascalCase boundary after a lowercase letter
+    /// (for names like "HammerDown" → "Hammer", "CarbonWeaveArmor" → "Carbon").
+    /// This means HammerDown, HammerDeath etc. all share HammerRustMask.png.
+    private static string GetRustBaseName(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return name;
+        // Space-separated: "Velocity Chassis" → "Velocity"
+        int spaceIdx = name.IndexOf(' ');
+        if (spaceIdx > 0) return name.Substring(0, spaceIdx);
+        // PascalCase: find first uppercase letter that follows a lowercase letter
+        // "HammerDown" → 'D' at index 6 follows 'r' → return "Hammer"
+        for (int i = 1; i < name.Length; i++)
+        {
+            if (char.IsUpper(name[i]) && char.IsLower(name[i - 1]))
+                return name.Substring(0, i);
+        }
+        return name;
+    }
+
     /// <summary>
-    /// Loads per-part rust maps from KritaArt/RustTextures and applies them to the TankPaint shader.
-    /// Silently skips maps that don't exist — only the files you provide get applied.
+    /// Loads the shared rust texture and a per-part mask, then applies them to the TankPaint shader.
     /// Naming convention (all in Assets/Resources/KritaArt/RustTextures/):
-    ///   {Name}Rust          → Tileable rust color (RGB)  (_RustTex)   — set Tiling in material to match Blender Mapping node scale
-    ///   {Name}RustMask      → UV-space painted mask (R)  (_RustMask)  — always keep Tiling 1,1 in material
-    ///   {Name}RustNormal    → Rust normal map            (_RustNormalMap)
-    ///   {Name}RustMetallic  → Metallic(R)/Smoothness(A) map          (_RustMetallicMap)
-    ///   {Name}RustHeight    → Rust height/displacement               (_RustHeightMap)
+    ///   rust             → shared tileable rust color RGBA      (_RustTex)   — one file for all parts
+    ///   {Name}RustMask   → per-part B/W mask painted in Blender (_RustMask)  — e.g. RifleRustMask
+    ///   {Name}RustNormal → per-part rust normal map (optional)  (_RustNormalMap)
     /// </summary>
     private void ApplyRustToModel(GameObject model, string componentName)
     {
         if (model == null || string.IsNullOrEmpty(componentName)) return;
 
-        string basePath = $"KritaArt/RustTextures/{componentName}";
-        Texture2D rustTex      = Resources.Load<Texture2D>($"{basePath}Rust");
+        // Shared rust color texture — same file used by every part
+        Texture2D rustTex = Resources.Load<Texture2D>("KritaArt/RustTextures/rust");
+
+        // Per-part files
+        string basePath    = $"KritaArt/RustTextures/{componentName}";
         Texture2D rustMask     = Resources.Load<Texture2D>($"{basePath}RustMask");
         Texture2D rustNormal   = Resources.Load<Texture2D>($"{basePath}RustNormal");
         Texture2D rustMetallic = Resources.Load<Texture2D>($"{basePath}RustMetallic");
         Texture2D rustHeight   = Resources.Load<Texture2D>($"{basePath}RustHeight");
 
-        if (rustTex == null && rustMask == null && rustNormal == null && rustMetallic == null && rustHeight == null) return;
+        // Nothing to do if there's no mask for this part (rust color alone doesn't help)
+        if (rustMask == null) return;
 
         var renderers = model.GetComponentsInChildren<Renderer>();
         foreach (var renderer in renderers)

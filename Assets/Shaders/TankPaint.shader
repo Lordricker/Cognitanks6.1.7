@@ -2,30 +2,34 @@ Shader "Custom/TankPaint"
 {
     Properties
     {
-        // Paint layer
+        // ── Paint layer ───────────────────────────────────────────────────
+        [Header(Paint Layer)]
         _BaseMap             ("Paint Albedo",                2D)           = "white" {}
         _BaseColor           ("Paint Tint Color",            Color)        = (1,1,1,1)
-        [Normal] _BumpMap    ("Paint Normal Map",            2D)           = "bump"  {}
+        [Normal] _BumpMap    ("Paint Normal Map (optional)", 2D)           = "bump"  {}
         _BumpScale           ("Paint Normal Scale",          Float)        = 1.0
         _MetallicGlossMap    ("Paint Metallic(R) Smooth(A)", 2D)           = "white" {}
         _Metallic            ("Paint Metallic",              Range(0,1))   = 0.0
         _Smoothness          ("Paint Smoothness",            Range(0,1))   = 0.5
-        _ParallaxMap         ("Paint Height Map",            2D)           = "black" {}
-        _Parallax            ("Paint Height Scale",          Range(0,0.1)) = 0.02
+        _ParallaxMap         ("Paint Height Map (optional)", 2D)           = "black" {}
+        _Parallax            ("Paint Height Scale",          Range(0,0.1)) = 0.0
 
-        // Rust layer  –  two separate textures so each has its own Tiling control:
-        //   _RustTex  : tileable rust color (set Tiling to match Blender Mapping node scale)
-        //   _RustMask : UV-space painted mask, keep Tiling at 1,1
-        _RustTex             ("Rust Albedo (tileable)",        2D)           = "black" {}
-        _RustMask            ("Rust Mask (UV-space painted)",  2D)           = "black" {}
-        [Normal] _RustNormalMap ("Rust Normal Map",            2D)           = "bump"  {}
-        _RustNormalScale     ("Rust Normal Scale",             Float)        = 1.0
-        _RustMetallicMap     ("Rust Metallic(R) Smooth(A)",    2D)           = "white" {}
-        _RustMetallic        ("Rust Metallic",                 Range(0,1))   = 0.0
-        _RustSmoothness      ("Rust Smoothness",               Range(0,1))   = 0.8
-        _RustHeightMap       ("Rust Height Map",               2D)           = "black" {}
-        _RustParallax        ("Rust Height Scale",             Range(0,0.1)) = 0.02
-        _RustBlendStrength   ("Rust Blend Strength",           Range(0,5))   = 1.0
+        // ── Rust layer ────────────────────────────────────────────────────
+        // _RustTex  : your tileable rust photo (RGB). Set Tiling to repeat it as needed.
+        // _RustMask : black/white mask painted in Blender using the model's original UVs.
+        //             White = rust shows, black = paint shows. Keep Tiling at 1,1.
+        //             Blend Strength amplifies faint grey pixels from partial brush strokes.
+        [Header(Rust Layer)]
+        _RustTex             ("Rust Albedo (tileable RGB)",       2D)           = "black" {}
+        _RustMask            ("Rust Mask (painted B/W)",          2D)           = "black" {}
+        _RustBlendStrength   ("Rust Blend Strength",              Range(0,5))   = 1.0
+        [Normal] _RustNormalMap ("Rust Normal Map (optional)",    2D)           = "bump"  {}
+        _RustNormalScale     ("Rust Normal Scale",                Float)        = 1.0
+        _RustMetallicMap     ("Rust Metallic(R) Smooth(A) (opt)", 2D)           = "white" {}
+        _RustMetallic        ("Rust Metallic",                    Range(0,1))   = 0.0
+        _RustSmoothness      ("Rust Smoothness",                  Range(0,1))   = 0.8
+        _RustHeightMap       ("Rust Height Map (optional)",       2D)           = "black" {}
+        _RustParallax        ("Rust Height Scale",                Range(0,0.1)) = 0.0
     }
 
     SubShader
@@ -121,15 +125,16 @@ Shader "Custom/TankPaint"
                 return OUT;
             }
 
-            float2 ApplyParallax(float2 uv, float scale, TEXTURE2D_PARAM(hTex, hSmp), float3 viewDirTS)
+            // Parallax offset — returns uv unchanged when scale == 0 (no height map assigned).
+            float2 ParallaxUV(float2 uv, float scale, TEXTURE2D_PARAM(hTex, hSmp), float3 viewDirTS)
             {
                 float h = SAMPLE_TEXTURE2D(hTex, hSmp, uv).r;
-                return uv + normalize(viewDirTS).xy * (h * scale - scale * 0.5);
+                return uv + normalize(viewDirTS).xy * ((h - 0.5) * scale);
             }
 
             half4 frag(Varyings IN) : SV_Target
             {
-                // Tangent basis
+                // Tangent-space view direction for parallax
                 float3 bitangentWS = IN.tangentWS.w * cross(IN.normalWS, IN.tangentWS.xyz);
                 float3 viewDirWS   = GetWorldSpaceNormalizeViewDir(IN.positionWS);
                 float3 viewDirTS   = float3(
@@ -137,34 +142,39 @@ Shader "Custom/TankPaint"
                     dot(viewDirWS, bitangentWS),
                     dot(viewDirWS, IN.normalWS));
 
-                // Per-layer UVs with optional parallax
-                float2 paintUV = ApplyParallax(TRANSFORM_TEX(IN.uv, _BaseMap), _Parallax,
-                                     TEXTURE2D_ARGS(_ParallaxMap, sampler_ParallaxMap), viewDirTS);
-                float2 rustUV  = ApplyParallax(TRANSFORM_TEX(IN.uv, _RustTex), _RustParallax,
-                                     TEXTURE2D_ARGS(_RustHeightMap, sampler_RustHeightMap), viewDirTS);
+                // Paint UVs — uses _BaseMap tiling, optional height offset
+                float2 paintUV = ParallaxUV(
+                    TRANSFORM_TEX(IN.uv, _BaseMap), _Parallax,
+                    TEXTURE2D_ARGS(_ParallaxMap, sampler_ParallaxMap), viewDirTS);
 
-                // Rust color from tileable texture; mask from separate UV-space texture
+                // Rust: tiled color texture; mask: 1:1 UV painted in Blender
+                float2 rustUV = ParallaxUV(
+                    TRANSFORM_TEX(IN.uv, _RustTex), _RustParallax,
+                    TEXTURE2D_ARGS(_RustHeightMap, sampler_RustHeightMap), viewDirTS);
+                float2 maskUV = TRANSFORM_TEX(IN.uv, _RustMask);
+
                 half4 rustSample = SAMPLE_TEXTURE2D(_RustTex,  sampler_RustTex,  rustUV);
-                float2 maskUV    = TRANSFORM_TEX(IN.uv, _RustMask);
-                half  maskValue  = SAMPLE_TEXTURE2D(_RustMask, sampler_RustMask,  maskUV).r;
-                half  blend      = saturate(maskValue * _RustBlendStrength);
+                half  maskValue  = SAMPLE_TEXTURE2D(_RustMask, sampler_RustMask, maskUV).r;
+                // mask controls region; rust alpha controls flake shape within that region
+                half  blend      = saturate(rustSample.a * maskValue * _RustBlendStrength);
 
-                // Albedo: paint tinted by color picker, rust color unchanged
-                half4 paintSample = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, paintUV);
-                half3 finalAlbedo = lerp(paintSample.rgb * _BaseColor.rgb, rustSample.rgb, blend);
+                // Albedo: paint (tinted by color picker) blends to rust (never tinted)
+                half3 paintAlbedo = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, paintUV).rgb;
+                half3 rustAlbedo  = rustSample.rgb;
+                half3 finalAlbedo = lerp(paintAlbedo * _BaseColor.rgb, rustAlbedo, blend);
 
                 // Normal maps blended by same factor
-                half3 paintNTS = UnpackNormalScale(
-                    SAMPLE_TEXTURE2D(_BumpMap,       sampler_BumpMap,
-                        TRANSFORM_TEX(IN.uv, _BumpMap)), _BumpScale);
-                half3 rustNTS  = UnpackNormalScale(
-                    SAMPLE_TEXTURE2D(_RustNormalMap, sampler_RustNormalMap,
-                        TRANSFORM_TEX(IN.uv, _RustNormalMap)), _RustNormalScale);
-                half3 finalNTS = normalize(lerp(paintNTS, rustNTS, blend));
+                half3 paintN = UnpackNormalScale(
+                    SAMPLE_TEXTURE2D(_BumpMap,       sampler_BumpMap,       TRANSFORM_TEX(IN.uv, _BumpMap)),
+                    _BumpScale);
+                half3 rustN  = UnpackNormalScale(
+                    SAMPLE_TEXTURE2D(_RustNormalMap, sampler_RustNormalMap, TRANSFORM_TEX(IN.uv, _RustNormalMap)),
+                    _RustNormalScale);
+                half3 finalNTS = normalize(lerp(paintN, rustN, blend));
                 half3 finalNWS = TransformTangentToWorld(
                     finalNTS, half3x3(IN.tangentWS.xyz, bitangentWS, IN.normalWS));
 
-                // Metallic / Smoothness (R=metallic, A=smoothness)
+                // Metallic / Smoothness blended
                 half4 paintMS = SAMPLE_TEXTURE2D(_MetallicGlossMap, sampler_MetallicGlossMap,
                                     TRANSFORM_TEX(IN.uv, _MetallicGlossMap));
                 half4 rustMS  = SAMPLE_TEXTURE2D(_RustMetallicMap,  sampler_RustMetallicMap,
@@ -174,9 +184,9 @@ Shader "Custom/TankPaint"
 
                 // URP PBR lighting
                 InputData inputData = (InputData)0;
-                inputData.positionWS      = IN.positionWS;
-                inputData.normalWS        = normalize(finalNWS);
-                inputData.viewDirectionWS = viewDirWS;
+                inputData.positionWS              = IN.positionWS;
+                inputData.normalWS                = normalize(finalNWS);
+                inputData.viewDirectionWS         = viewDirWS;
                 #if defined(_MAIN_LIGHT_SHADOWS) || defined(_MAIN_LIGHT_SHADOWS_CASCADE)
                     inputData.shadowCoord = TransformWorldToShadowCoord(IN.positionWS);
                 #else
@@ -305,4 +315,5 @@ Shader "Custom/TankPaint"
             ENDHLSL
         }
     }
+    CustomEditor "TankPaintGUI"
 }

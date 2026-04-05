@@ -26,13 +26,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6769875067564017866}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.910268, y: -0.41401944, z: -0, w: 0}
-  m_LocalPosition: {x: -0.57, y: 0.24, z: -1.26}
+  m_LocalRotation: {x: 0, y: 1, z: 0, w: 0}
+  m_LocalPosition: {x: 0.62, y: 0.41, z: -1.26}
   m_LocalScale: {x: 0.99999976, y: 0.99999976, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2665445765470829340}
-  m_LocalEulerAnglesHint: {x: 0, y: 180, z: -228.915}
+  m_LocalEulerAnglesHint: {x: 0, y: 180, z: 0}
 --- !u!198 &1764792541626689632
 ParticleSystem:
   m_ObjectHideFlags: 0
@@ -4884,7 +4884,7 @@ PrefabInstance:
     - target: {fileID: -7511558181221131132, guid: a389180d33b5e97479f5873f090c8a1e, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: 9999e322896df6e46bf14517033ca0c7, type: 2}
+      objectReference: {fileID: 2100000, guid: 7ed9b4b39a3de124eb83a24215993e3c, type: 2}
     - target: {fileID: 919132149155446097, guid: a389180d33b5e97479f5873f090c8a1e, type: 3}
       propertyPath: m_Name
       value: BulletObject
