@@ -209,7 +209,7 @@ public class TankAssembly : MonoBehaviour
                 string efRustName = data.engineFrameInstanceId.Contains("_")
                     ? data.engineFrameInstanceId.Substring(0, data.engineFrameInstanceId.LastIndexOf("_"))
                     : data.engineFrameInstanceId;
-                ApplyRustToModel(engineFrame, GetRustBaseName(efRustName));
+                ApplyTreadToModel(engineFrame, GetRustBaseName(efRustName));
 
                 SetLayerRecursively(engineFrame, 6); // Set to Shadow layer
             }
@@ -682,6 +682,51 @@ public class TankAssembly : MonoBehaviour
                 if (rustNormal   != null && mat.HasProperty("_RustNormalMap"))   mat.SetTexture("_RustNormalMap",   rustNormal);
                 if (rustMetallic != null && mat.HasProperty("_RustMetallicMap")) mat.SetTexture("_RustMetallicMap", rustMetallic);
                 if (rustHeight   != null && mat.HasProperty("_RustHeightMap"))   mat.SetTexture("_RustHeightMap",   rustHeight);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Loads the shared rubber texture and a per-part tread mask, applies them to the TankPaint shader
+    /// on the engine frame (_RustTex slot), and registers each material with TreadAnimator for scrolling.
+    /// Naming convention (all in Assets/Resources/KritaArt/TreadTextures/):
+    ///   Rubber           → shared tileable tread color   (_RustTex)  — one file for all engine frames
+    ///   {Name}TreadMask  → per-part B/W mask             (_RustMask) — e.g. VelocityTreadMask
+    ///   RubberNor        → shared normal map (optional)  (_RustNormalMap)
+    ///   RubberDisp       → shared height map (optional)  (_RustHeightMap)
+    ///   RubberRough      → shared roughness map(optional)(_RustMetallicMap)
+    /// </summary>
+    private void ApplyTreadToModel(GameObject model, string componentName)
+    {
+        if (model == null || string.IsNullOrEmpty(componentName)) return;
+
+        // Shared rubber tread textures — same files for every engine frame
+        Texture2D rubberTex   = Resources.Load<Texture2D>("KritaArt/TreadTextures/Rubber");
+        Texture2D rubberNor   = Resources.Load<Texture2D>("KritaArt/TreadTextures/RubberNor");
+        Texture2D rubberDisp  = Resources.Load<Texture2D>("KritaArt/TreadTextures/RubberDisp");
+        Texture2D rubberRough = Resources.Load<Texture2D>("KritaArt/TreadTextures/RubberRough");
+
+        // Per-part tread mask — defines which UV area shows rubber
+        Texture2D treadMask = Resources.Load<Texture2D>($"KritaArt/TreadTextures/{componentName}TreadMask");
+
+        // Nothing to do if there's no mask for this engine frame
+        if (treadMask == null) return;
+
+        var renderers = model.GetComponentsInChildren<Renderer>();
+        foreach (var renderer in renderers)
+        {
+            if (renderer is SpriteRenderer) continue;
+            var mats = renderer.materials; // instanced copies — modifications stick
+            foreach (var mat in mats)
+            {
+                if (rubberTex   != null && mat.HasProperty("_RustTex"))         mat.SetTexture("_RustTex",         rubberTex);
+                if (treadMask   != null && mat.HasProperty("_RustMask"))        mat.SetTexture("_RustMask",        treadMask);
+                if (rubberNor   != null && mat.HasProperty("_RustNormalMap"))   mat.SetTexture("_RustNormalMap",   rubberNor);
+                if (rubberDisp  != null && mat.HasProperty("_RustHeightMap"))   mat.SetTexture("_RustHeightMap",   rubberDisp);
+                if (rubberRough != null && mat.HasProperty("_RustMetallicMap")) mat.SetTexture("_RustMetallicMap", rubberRough);
+
+                // Register with TankMan for per-frame UV scrolling
+                tankMan?.RegisterTreadMaterial(mat);
             }
         }
     }

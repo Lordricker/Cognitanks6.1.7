@@ -91,6 +91,12 @@ public class TankMan : MonoBehaviour
     private AudioSource tankDrivingAudioSource;
     private bool isTankMoving = false;
     private float drivingSoundFadeDuration = 0.3f;
+
+    // Tread texture animation
+    [SerializeField] private float treadScrollSpeed = 0.5f; // UV units per second
+    [SerializeField] private float treadStepUV = 0.039f;   // Slide distance before snap-back (20px / maskHeight px, e.g. 20/512 ≈ 0.039)
+    private readonly System.Collections.Generic.List<Material> treadMaterials = new System.Collections.Generic.List<Material>();
+    private float treadScrollOffset = 0f;
     
     [Header("Dirt Emitters")]
     private ParticleSystem leftDirtEmitter;
@@ -152,6 +158,13 @@ public class TankMan : MonoBehaviour
     // Apply Coms penalty if currently using Coms intel (simulates distracted driving)
     public float MoveSpeed => isCurrentlyUsingComs ? topSpeed * COMS_SPEED_PENALTY : topSpeed;
     public float TurnSpeed => isCurrentlyUsingComs ? maxTurnRate * COMS_SPEED_PENALTY : maxTurnRate;
+    public bool IsMoving => isTankMoving;
+
+    public void RegisterTreadMaterial(Material mat)
+    {
+        if (mat != null && !treadMaterials.Contains(mat))
+            treadMaterials.Add(mat);
+    }
     
     // Public properties for AI Master scripts
     public Transform turretPivot => turretTransform;
@@ -433,7 +446,19 @@ public class TankMan : MonoBehaviour
             StopDirtEmitters();
         }
         isTankMoving = isCurrentlyMoving;
-        
+
+        // Scroll tread materials while moving
+        if (isTankMoving && treadMaterials.Count > 0)
+        {
+            treadScrollOffset += treadScrollSpeed * Time.fixedDeltaTime;
+            if (treadScrollOffset >= treadStepUV) treadScrollOffset = 0f;
+            var treadOffset = new Vector2(0f, treadScrollOffset);
+            foreach (var mat in treadMaterials)
+            {
+                if (mat != null) mat.SetTextureOffset("_RustMask", treadOffset);
+            }
+        }
+
         // Aggressively limit speeds to engine's mechanical limits
         // Note: Speed limits are reduced by 50% when using IfComs (see MoveSpeed/TurnSpeed properties)
         float currentSpeed = rb.linearVelocity.magnitude;
