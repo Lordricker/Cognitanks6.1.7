@@ -301,6 +301,7 @@ public class TankAssembly : MonoBehaviour
                 string decalPathForModels = !string.IsNullOrEmpty(data.turretDecalPath) 
                     ? data.turretDecalPath
                     : ComponentCustomizationManager.Instance?.GetDecal(data.turretInstanceId);
+                string rustNameForModels = GetRustBaseName(turretRustName);
                 
                 // Load and assign hammer animation prefab if specified
                 if (!string.IsNullOrEmpty(data.turretAnimationPrefabPath))
@@ -308,7 +309,7 @@ public class TankAssembly : MonoBehaviour
                     GameObject animationPrefab = Resources.Load<GameObject>(data.turretAnimationPrefabPath);
                     if (animationPrefab != null)
                     {
-                        tankMan.SetHammerAnimationPrefab(animationPrefab, data.turretColor.ToUnityColor(), skinPathForModels, decalPathForModels);
+                        tankMan.SetHammerAnimationPrefab(animationPrefab, data.turretColor.ToUnityColor(), skinPathForModels, decalPathForModels, rustNameForModels);
                         Debug.Log($"TankAssembly: Loaded and assigned hammer animation prefab: {animationPrefab.name}");
                     }
                     else
@@ -323,7 +324,7 @@ public class TankAssembly : MonoBehaviour
                     GameObject deathModelPrefab = Resources.Load<GameObject>(data.turretDeathModelPrefabPath);
                     if (deathModelPrefab != null)
                     {
-                        tankMan.SetTurretDeathModelPrefab(deathModelPrefab, data.turretColor.ToUnityColor(), skinPathForModels, decalPathForModels);
+                        tankMan.SetTurretDeathModelPrefab(deathModelPrefab, data.turretColor.ToUnityColor(), skinPathForModels, decalPathForModels, rustNameForModels);
                         Debug.Log($"TankAssembly: Loaded and assigned turret death model prefab: {deathModelPrefab.name}");
                     }
                     else

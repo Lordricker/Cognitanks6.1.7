@@ -44,13 +44,19 @@ public class WorkshopModelPreview : MonoBehaviour
             else
                 ApplyColorToModel(model, componentData.customColor);
 
-            // Apply skin if available (from ComponentCustomizationManager)
+            // Apply skin (falls back to default TankPaint if none set)
             string skinPath = ComponentCustomizationManager.Instance?.GetSkin(componentData.instanceId);
-            if (!string.IsNullOrEmpty(skinPath))
-            {
-                ApplySkinToModel(model, skinPath);
-            }
-            
+            ApplySkinToModel(model, skinPath);
+
+            // Apply tread texture (engine frames) or rust overlay (all others)
+            string compName = componentData.instanceId.Contains("_")
+                ? componentData.instanceId.Substring(0, componentData.instanceId.LastIndexOf("_"))
+                : componentData.instanceId;
+            if (componentData.category == ComponentCategory.EngineFrame)
+                ApplyTreadToModel(model, GetRustBaseName(compName));
+            else
+                ApplyRustToModel(model, GetRustBaseName(compName));
+
             // Apply decal if available (turrets only, from ComponentCustomizationManager)
             if (componentData.category == ComponentCategory.Turret)
             {
@@ -75,13 +81,16 @@ public class WorkshopModelPreview : MonoBehaviour
             SetLayerRecursively(model, previewLayer);
             ApplyColorToTreadMount(model, engineFrame.customColor);
             
-            // Apply skin if available (from ComponentCustomizationManager)
+            // Apply skin (falls back to default TankPaint if none set)
             string engineSkinPath = ComponentCustomizationManager.Instance?.GetSkin(engineFrame.instanceId);
-            if (!string.IsNullOrEmpty(engineSkinPath))
-            {
-                ApplySkinToModel(model, engineSkinPath);
-            }
-            
+            ApplySkinToModel(model, engineSkinPath);
+
+            // Apply tread rubber texture
+            string efName = engineFrame.instanceId.Contains("_")
+                ? engineFrame.instanceId.Substring(0, engineFrame.instanceId.LastIndexOf("_"))
+                : engineFrame.instanceId;
+            ApplyTreadToModel(model, GetRustBaseName(efName));
+
             currentModels.Add(model);
         }
 
@@ -94,13 +103,16 @@ public class WorkshopModelPreview : MonoBehaviour
             SetLayerRecursively(model, previewLayer);
             ApplyColorToModel(model, turret.customColor);
             
-            // Apply skin if available (from ComponentCustomizationManager)
+            // Apply skin (falls back to default TankPaint if none set)
             string turretSkinPath = ComponentCustomizationManager.Instance?.GetSkin(turret.instanceId);
-            if (!string.IsNullOrEmpty(turretSkinPath))
-            {
-                ApplySkinToModel(model, turretSkinPath);
-            }
-            
+            ApplySkinToModel(model, turretSkinPath);
+
+            // Apply rust overlay
+            string turretName = turret.instanceId.Contains("_")
+                ? turret.instanceId.Substring(0, turret.instanceId.LastIndexOf("_"))
+                : turret.instanceId;
+            ApplyRustToModel(model, GetRustBaseName(turretName));
+
             // Apply decal if available (from ComponentCustomizationManager)
             string turretDecalPath = ComponentCustomizationManager.Instance?.GetDecal(turret.instanceId);
             if (!string.IsNullOrEmpty(turretDecalPath))
@@ -120,13 +132,16 @@ public class WorkshopModelPreview : MonoBehaviour
             SetLayerRecursively(model, previewLayer);
             ApplyColorToModel(model, armor.customColor);
             
-            // Apply skin if available (from ComponentCustomizationManager)
+            // Apply skin (falls back to default TankPaint if none set)
             string armorSkinPath = ComponentCustomizationManager.Instance?.GetSkin(armor.instanceId);
-            if (!string.IsNullOrEmpty(armorSkinPath))
-            {
-                ApplySkinToModel(model, armorSkinPath);
-            }
-            
+            ApplySkinToModel(model, armorSkinPath);
+
+            // Apply rust overlay
+            string armorName = armor.instanceId.Contains("_")
+                ? armor.instanceId.Substring(0, armor.instanceId.LastIndexOf("_"))
+                : armor.instanceId;
+            ApplyRustToModel(model, GetRustBaseName(armorName));
+
             currentModels.Add(model);
         }
 
@@ -194,7 +209,7 @@ public class WorkshopModelPreview : MonoBehaviour
     private void ApplySkinToModel(GameObject model, string skinPath)
     {
         if (string.IsNullOrEmpty(skinPath))
-            return;
+            skinPath = "KritaArt/Skins/TankPaint";
             
         // Load texture from Resources
         Texture2D skinTexture = Resources.Load<Texture2D>(skinPath);
@@ -324,6 +339,70 @@ public class WorkshopModelPreview : MonoBehaviour
         else
         {
             Debug.LogWarning($"No SpriteRenderer component found on 'Decal' child of {model.name}");
+        }
+    }
+
+    private static string GetRustBaseName(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return name;
+        int spaceIdx = name.IndexOf(' ');
+        if (spaceIdx > 0) return name.Substring(0, spaceIdx);
+        for (int i = 1; i < name.Length; i++)
+            if (char.IsUpper(name[i]) && char.IsLower(name[i - 1]))
+                return name.Substring(0, i);
+        return name;
+    }
+
+    private void ApplyTreadToModel(GameObject model, string componentName)
+    {
+        if (model == null || string.IsNullOrEmpty(componentName)) return;
+
+        Texture2D rubberTex   = Resources.Load<Texture2D>("KritaArt/TreadTextures/Rubber");
+        Texture2D rubberNor   = Resources.Load<Texture2D>("KritaArt/TreadTextures/RubberNor");
+        Texture2D rubberDisp  = Resources.Load<Texture2D>("KritaArt/TreadTextures/RubberDisp");
+        Texture2D rubberRough = Resources.Load<Texture2D>("KritaArt/TreadTextures/RubberRough");
+        Texture2D treadMask   = Resources.Load<Texture2D>($"KritaArt/TreadTextures/{componentName}TreadMask");
+
+        if (treadMask == null) return;
+
+        foreach (var renderer in model.GetComponentsInChildren<Renderer>())
+        {
+            if (renderer is SpriteRenderer) continue;
+            foreach (var mat in renderer.materials)
+            {
+                if (rubberTex   != null && mat.HasProperty("_RustTex"))         mat.SetTexture("_RustTex",         rubberTex);
+                if (treadMask   != null && mat.HasProperty("_RustMask"))        mat.SetTexture("_RustMask",        treadMask);
+                if (rubberNor   != null && mat.HasProperty("_RustNormalMap"))   mat.SetTexture("_RustNormalMap",   rubberNor);
+                if (rubberDisp  != null && mat.HasProperty("_RustHeightMap"))   mat.SetTexture("_RustHeightMap",   rubberDisp);
+                if (rubberRough != null && mat.HasProperty("_RustMetallicMap")) mat.SetTexture("_RustMetallicMap", rubberRough);
+            }
+        }
+    }
+
+    private void ApplyRustToModel(GameObject model, string componentName)
+    {
+        if (model == null || string.IsNullOrEmpty(componentName)) return;
+
+        Texture2D rustTex      = Resources.Load<Texture2D>("KritaArt/RustTextures/rust");
+        string basePath        = $"KritaArt/RustTextures/{componentName}";
+        Texture2D rustMask     = Resources.Load<Texture2D>($"{basePath}RustMask");
+        Texture2D rustNormal   = Resources.Load<Texture2D>($"{basePath}RustNormal");
+        Texture2D rustMetallic = Resources.Load<Texture2D>($"{basePath}RustMetallic");
+        Texture2D rustHeight   = Resources.Load<Texture2D>($"{basePath}RustHeight");
+
+        if (rustMask == null) return;
+
+        foreach (var renderer in model.GetComponentsInChildren<Renderer>())
+        {
+            if (renderer is SpriteRenderer) continue;
+            foreach (var mat in renderer.materials)
+            {
+                if (rustTex      != null && mat.HasProperty("_RustTex"))         mat.SetTexture("_RustTex",         rustTex);
+                if (rustMask     != null && mat.HasProperty("_RustMask"))        mat.SetTexture("_RustMask",        rustMask);
+                if (rustNormal   != null && mat.HasProperty("_RustNormalMap"))   mat.SetTexture("_RustNormalMap",   rustNormal);
+                if (rustMetallic != null && mat.HasProperty("_RustMetallicMap")) mat.SetTexture("_RustMetallicMap", rustMetallic);
+                if (rustHeight   != null && mat.HasProperty("_RustHeightMap"))   mat.SetTexture("_RustHeightMap",   rustHeight);
+            }
         }
     }
 }

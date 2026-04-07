@@ -1041,7 +1041,7 @@ public class TankMan : MonoBehaviour
     /// Set the hammer animation prefab (called by TankAssembly during assembly)
     /// Pre-instantiates the hammer down model for performance
     /// </summary>
-    public void SetHammerAnimationPrefab(GameObject prefab, Color turretColor, string skinPath = null, string decalPath = null)
+    public void SetHammerAnimationPrefab(GameObject prefab, Color turretColor, string skinPath = null, string decalPath = null, string rustComponentName = null)
     {
         hammerDownPrefab = prefab;
         if (prefab != null && turretTransform != null)
@@ -1053,19 +1053,18 @@ public class TankMan : MonoBehaviour
             
             // Apply the same color as the main turret
             ApplyColorToModel(hammerDownInstance, turretColor);
-            
-            // Apply skin if provided
-            if (!string.IsNullOrEmpty(skinPath))
-            {
-                ApplySkinToModel(hammerDownInstance, skinPath);
-                Debug.Log($"[TankMan] Applied skin to hammer animation: {skinPath}");
-            }
+
+            // Apply skin (falls back to default TankPaint inside)
+            ApplySkinToModel(hammerDownInstance, skinPath);
+
+            // Apply rust overlay (same mask as the main turret model)
+            if (!string.IsNullOrEmpty(rustComponentName))
+                ApplyRustToModel(hammerDownInstance, rustComponentName);
             
             // Apply decal if provided
             if (!string.IsNullOrEmpty(decalPath))
             {
                 ApplyDecalToModel(hammerDownInstance, decalPath);
-                Debug.Log($"[TankMan] Applied decal to hammer animation: {decalPath}");
             }
             
             Debug.Log($"[TankMan] Pre-instantiated hammer animation prefab: {prefab.name} with color: {turretColor}");
@@ -1076,7 +1075,7 @@ public class TankMan : MonoBehaviour
     /// Set the turret death model prefab (called by TankAssembly during assembly)
     /// Pre-instantiates the death model for performance
     /// </summary>
-    public void SetTurretDeathModelPrefab(GameObject prefab, Color turretColor, string skinPath = null, string decalPath = null)
+    public void SetTurretDeathModelPrefab(GameObject prefab, Color turretColor, string skinPath = null, string decalPath = null, string rustComponentName = null)
     {
         turretDeathModelPrefab = prefab;
         if (prefab != null && turretTransform != null)
@@ -1088,19 +1087,18 @@ public class TankMan : MonoBehaviour
             
             // Apply the same color as the main turret
             ApplyColorToModel(turretDeathModelInstance, turretColor);
-            
-            // Apply skin if provided
-            if (!string.IsNullOrEmpty(skinPath))
-            {
-                ApplySkinToModel(turretDeathModelInstance, skinPath);
-                Debug.Log($"[TankMan] Applied skin to death model: {skinPath}");
-            }
+
+            // Apply skin (falls back to default TankPaint inside)
+            ApplySkinToModel(turretDeathModelInstance, skinPath);
+
+            // Apply rust overlay (same mask as the main turret model)
+            if (!string.IsNullOrEmpty(rustComponentName))
+                ApplyRustToModel(turretDeathModelInstance, rustComponentName);
             
             // Apply decal if provided
             if (!string.IsNullOrEmpty(decalPath))
             {
                 ApplyDecalToModel(turretDeathModelInstance, decalPath);
-                Debug.Log($"[TankMan] Applied decal to death model: {decalPath}");
             }
             
             Debug.Log($"[TankMan] Pre-instantiated turret death model prefab: {prefab.name} with color: {turretColor}");
@@ -1135,7 +1133,7 @@ public class TankMan : MonoBehaviour
     private void ApplySkinToModel(GameObject model, string skinPath)
     {
         if (string.IsNullOrEmpty(skinPath))
-            return;
+            skinPath = "KritaArt/Skins/TankPaint";
             
         // Load texture from Resources
         Texture2D skinTexture = Resources.Load<Texture2D>(skinPath);
@@ -1269,6 +1267,37 @@ public class TankMan : MonoBehaviour
     public void SetDeathExplosionPrefab(GameObject prefab)
     {
         deathExplosionPrefab = prefab;
+    }
+
+    /// <summary>
+    /// Loads the shared rust texture and a per-part mask, then applies them to the TankPaint shader.
+    /// Mirrors TankAssembly.ApplyRustToModel so secondary models match the main turret.
+    /// </summary>
+    private void ApplyRustToModel(GameObject model, string componentName)
+    {
+        if (model == null || string.IsNullOrEmpty(componentName)) return;
+
+        Texture2D rustTex      = Resources.Load<Texture2D>("KritaArt/RustTextures/rust");
+        string basePath        = $"KritaArt/RustTextures/{componentName}";
+        Texture2D rustMask     = Resources.Load<Texture2D>($"{basePath}RustMask");
+        Texture2D rustNormal   = Resources.Load<Texture2D>($"{basePath}RustNormal");
+        Texture2D rustMetallic = Resources.Load<Texture2D>($"{basePath}RustMetallic");
+        Texture2D rustHeight   = Resources.Load<Texture2D>($"{basePath}RustHeight");
+
+        if (rustMask == null) return;
+
+        foreach (var renderer in model.GetComponentsInChildren<Renderer>())
+        {
+            if (renderer is SpriteRenderer) continue;
+            foreach (var mat in renderer.materials)
+            {
+                if (rustTex      != null && mat.HasProperty("_RustTex"))         mat.SetTexture("_RustTex",         rustTex);
+                if (rustMask     != null && mat.HasProperty("_RustMask"))        mat.SetTexture("_RustMask",        rustMask);
+                if (rustNormal   != null && mat.HasProperty("_RustNormalMap"))   mat.SetTexture("_RustNormalMap",   rustNormal);
+                if (rustMetallic != null && mat.HasProperty("_RustMetallicMap")) mat.SetTexture("_RustMetallicMap", rustMetallic);
+                if (rustHeight   != null && mat.HasProperty("_RustHeightMap"))   mat.SetTexture("_RustHeightMap",   rustHeight);
+            }
+        }
     }
 
     private void StartTankDrivingSound()
