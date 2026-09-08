@@ -1,0 +1,63 @@
+# PPO trainer config for the Phase 1 solo/1v1 spike (BottomUpAgentPlan.md Section 9, Section 11
+# Risk 1). Two independent behaviors, one per branch (Section 2.2) - they train separately even
+# though they're control the same tank each episode.
+#
+# Usage (from repo root, with the venv set up per BottomUpAgentPlan.md):
+#   MLTraining/venv/Scripts/mlagents-learn.exe MLTraining/configs/solo_tank.yaml --run-id=solo-tank-01
+# then press Play in the Unity Editor once the trainer prints "Start training by pressing the Play
+# button".
+#
+# max_steps is a first-guess training budget for the spike, not tuned - shorten it for a quick
+# smoke test (e.g. 50000) before committing to a long run.
+behaviors:
+  NavPolicy:
+    trainer_type: ppo
+    hyperparameters:
+      batch_size: 256
+      buffer_size: 2560
+      learning_rate: 0.0003
+      beta: 0.005
+      epsilon: 0.2
+      lambd: 0.95
+      num_epoch: 3
+      learning_rate_schedule: linear
+    network_settings:
+      normalize: true
+      hidden_units: 128
+      num_layers: 2
+      vis_encode_type: simple
+    reward_signals:
+      extrinsic:
+        gamma: 0.99
+        strength: 1.0
+    keep_checkpoints: 5
+    checkpoint_interval: 250000
+    max_steps: 5000000
+    time_horizon: 128
+    summary_freq: 1000
+
+  TurretPolicy:
+    trainer_type: ppo
+    hyperparameters:
+      batch_size: 256
+      buffer_size: 2560
+      learning_rate: 0.0003
+      beta: 0.005
+      epsilon: 0.2
+      lambd: 0.95
+      num_epoch: 3
+      learning_rate_schedule: linear
+    network_settings:
+      normalize: true
+      hidden_units: 128
+      num_layers: 2
+      vis_encode_type: simple
+    reward_signals:
+      extrinsic:
+        gamma: 0.99
+        strength: 1.0
+    keep_checkpoints: 5
+    checkpoint_interval: 250000
+    max_steps: 5000000
+    time_horizon: 128
+    summary_freq: 1000

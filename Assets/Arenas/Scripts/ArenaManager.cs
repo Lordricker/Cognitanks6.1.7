@@ -37,7 +37,11 @@ public class ArenaManager : MonoBehaviour
     public Transform[] enemySpawnPoints = new Transform[10];
     [Tooltip("Manually set enemy folder path (overrides dynamic loading)")]
     public string manualEnemyFolderPath = "";
-    
+
+    [Header("Spawn Randomization")]
+    [Tooltip("Every spawned tank's starting yaw is randomized by +/- this many degrees around its spawn point's own facing, re-rolled per spawn. 0 disables jitter (always spawn facing exactly the spawn point's fixed rotation). Keeps spawn facing from being a fixed, memorizable angle - matters for MLPolicy training (BottomUpAgentPlan.md Section 5) as much as it does for not giving human players a perfectly predictable opening angle every match.")]
+    public float spawnYawJitterDegrees = 15f;
+
     [Header("Game Mode Configuration")]
     [SerializeField] private GameMode gameMode = GameMode.Singleplayer;
     [SerializeField] private int playerCount = 1; // For multiplayer modes
@@ -308,7 +312,7 @@ public class ArenaManager : MonoBehaviour
                     continue;
                 }
 
-                GameObject tank = Instantiate(tankPrefab, spawnPoints[i].position, spawnPoints[i].rotation);
+                GameObject tank = Instantiate(tankPrefab, spawnPoints[i].position, JitteredSpawnRotation(spawnPoints[i].rotation));
                 string tankName = !string.IsNullOrEmpty(config.displayName) ? config.displayName : $"ChallengerTank_{i}";
                 tank.name = $"{tankName}_Team0";
 
@@ -355,7 +359,7 @@ public class ArenaManager : MonoBehaviour
                     continue;
                 }
 
-                GameObject tank = Instantiate(tankPrefab, spawnPoint.position, spawnPoint.rotation);
+                GameObject tank = Instantiate(tankPrefab, spawnPoint.position, JitteredSpawnRotation(spawnPoint.rotation));
                 string tankName = !string.IsNullOrEmpty(config.displayName) ? config.displayName : $"PosterTank_{i}";
                 tank.name = $"{tankName}_Team1";
 
@@ -415,8 +419,8 @@ public class ArenaManager : MonoBehaviour
                 
                 Debug.Log($"[ArenaManager] Spawning tank at spawn point {i}: {spawnPoints[i].position}");
                 
-                GameObject tank = Instantiate(tankPrefab, spawnPoints[i].position, spawnPoints[i].rotation);
-                
+                GameObject tank = Instantiate(tankPrefab, spawnPoints[i].position, JitteredSpawnRotation(spawnPoints[i].rotation));
+
                 // Set the tank's name to include team and type information
                 string tankName = !string.IsNullOrEmpty(slot.displayName) ? slot.displayName : $"PlayerTank_{i}";
                 tank.name = $"{tankName}_Team{slot.teamId}";
@@ -467,8 +471,8 @@ public class ArenaManager : MonoBehaviour
                         
                         if (spawnPoint != null)
                         {
-                            GameObject tank = Instantiate(tankPrefab, spawnPoint.position, spawnPoint.rotation);
-                            
+                            GameObject tank = Instantiate(tankPrefab, spawnPoint.position, JitteredSpawnRotation(spawnPoint.rotation));
+
                             // Set the tank's name to include team and spawn point information
                             string tankName = !string.IsNullOrEmpty(enemyTankSlots[i].displayName) ? enemyTankSlots[i].displayName : $"EnemyTank_{i}";
                             tank.name = $"{tankName}_Team{enemyTankSlots[i].teamId}_{enemyTankSlots[i].spawnPointName}";
@@ -499,6 +503,19 @@ public class ArenaManager : MonoBehaviour
         }
     }
     
+    /// <summary>
+    /// Applies spawnYawJitterDegrees to a spawn point's rotation - re-rolled every call, so each
+    /// spawn gets its own independent random offset rather than one jitter shared across a whole
+    /// match's tanks. Yaw-only (world Y axis) so it doesn't tip a tank's pitch/roll on landing.
+    /// </summary>
+    Quaternion JitteredSpawnRotation(Quaternion baseRotation)
+    {
+        if (spawnYawJitterDegrees <= 0f)
+            return baseRotation;
+        float yawOffset = Random.Range(-spawnYawJitterDegrees, spawnYawJitterDegrees);
+        return baseRotation * Quaternion.Euler(0f, yawOffset, 0f);
+    }
+
     /// <summary>
     /// Find a spawn point by name, checking both regular spawn points and enemy spawn points
     /// Handles multiple naming conventions: "SpawnPoint10", "SpawnPoint (10)", etc.

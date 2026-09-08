@@ -75,3 +75,16 @@ crashlytics-build.properties
 /[Aa]ssets/[Ss]treamingAssets/aa/*
 Assets/Arenas/StoneAge/stonelandscape/Alien landscape lush.fbx.meta
 Assets/Arenas/StoneAge/stonelandscape/Alien landscape lush.fbx
+
+# ML-Agents Python trainer venv (BottomUpAgentPlan.md Section 9) - not committed, each dev/player
+# machine builds its own. Results/checkpoints from training runs are also excluded.
+/MLTraining/venv/
+/MLTraining/results/
+/MLTraining/ml-agents-src/
+/MLTraining/logs/
+# mlagents-learn's default --results-dir resolves relative to the caller's CWD, and
+# run_training.ps1 (2026-09-01) never cds into MLTraining/ before invoking it - every real run so
+# far (ML-01 etc.) has landed here, at repo root, not under MLTraining/results/ above despite that
+# being the originally-intended convention. Ignoring both rather than fixing the script's cwd
+# mid-flight, since retargeting it now would just split existing runs from future ones.
+/results/

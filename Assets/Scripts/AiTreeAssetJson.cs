@@ -210,7 +210,9 @@ public enum AiNodeTypeJson
     Start,
     Condition,
     Action,
-    SubAI
+    SubAI,
+    // Must stay index-aligned with AiEditor.AiNodeType (AiTreeAsset.cs) - see that enum's comment.
+    MLPolicy
 }
 
 [System.Serializable]

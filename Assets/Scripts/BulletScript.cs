@@ -440,10 +440,15 @@ public class BulletScript : MonoBehaviour
     /// </summary>
     void RecordDamageDealt(float damageAmount)
     {
-        if (firingTank != null && MatchStatsManager.Instance != null)
+        if (firingTank == null)
+            return;
+
+        if (MatchStatsManager.Instance != null)
         {
             MatchStatsManager.Instance.RecordDamageDealt(firingTank, damageAmount);
         }
+
+        firingTank.NotifyDamageDealt(damageAmount);
     }
     
     /// <summary>

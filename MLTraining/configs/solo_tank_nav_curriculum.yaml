@@ -1,0 +1,72 @@
+# Curriculum-transition variant of solo_tank.yaml (BottomUpAgentPlan.md Section 5, 2026-09-02):
+# brings NavPolicy online for the first time (trains fresh) while TurretPolicy continues from the
+# ML-01 stationary-duel baseline, via a per-behavior `init_path` rather than the global
+# --initialize-from CLI flag.
+#
+# Why per-behavior init_path instead of --initialize-from=ML-01: that flag is all-or-nothing across
+# every behavior in the config (mlagents/trainers/directory_utils.py's setup_init_path validates
+# EVERY behavior has a matching checkpoint.pt under the source run dir, unconditionally) - it
+# doesn't skip behaviors missing from the source and let them init fresh, it just throws
+# immediately. ML-01 only ever trained TurretPolicy, so --initialize-from=ML-01 fails before
+# training starts. Setting init_path directly on just the TurretPolicy block below bypasses that
+# global check entirely (torch_model_saver.py reads trainer_settings.init_path straight off the
+# per-behavior config either way) - NavPolicy has no init_path here, so it initializes fresh, same
+# outcome the global flag was originally supposed to give us.
+#
+# Path below is relative to repo root (matches run_training.ps1's CWD, which never cds into
+# MLTraining/ - see .gitignore's note on where results/ actually lands).
+#
+# Usage: .\MLTraining\run_training.ps1 -ConfigPath MLTraining\configs\solo_tank_nav_curriculum.yaml -RunId ML-09
+behaviors:
+  NavPolicy:
+    trainer_type: ppo
+    hyperparameters:
+      batch_size: 256
+      buffer_size: 2560
+      learning_rate: 0.0003
+      beta: 0.005
+      epsilon: 0.2
+      lambd: 0.95
+      num_epoch: 3
+      learning_rate_schedule: linear
+    network_settings:
+      normalize: true
+      hidden_units: 128
+      num_layers: 2
+      vis_encode_type: simple
+    reward_signals:
+      extrinsic:
+        gamma: 0.99
+        strength: 1.0
+    keep_checkpoints: 5
+    checkpoint_interval: 250000
+    max_steps: 5000000
+    time_horizon: 128
+    summary_freq: 1000
+
+  TurretPolicy:
+    trainer_type: ppo
+    init_path: results/ML-01/TurretPolicy/checkpoint.pt
+    hyperparameters:
+      batch_size: 256
+      buffer_size: 2560
+      learning_rate: 0.0003
+      beta: 0.005
+      epsilon: 0.2
+      lambd: 0.95
+      num_epoch: 3
+      learning_rate_schedule: linear
+    network_settings:
+      normalize: true
+      hidden_units: 128
+      num_layers: 2
+      vis_encode_type: simple
+    reward_signals:
+      extrinsic:
+        gamma: 0.99
+        strength: 1.0
+    keep_checkpoints: 5
+    checkpoint_interval: 250000
+    max_steps: 5000000
+    time_horizon: 128
+    summary_freq: 1000

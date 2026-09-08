@@ -1,4 +1,5 @@
 ﻿using UnityEngine;
+using System;
 using System.Collections.Generic;
 using System.Collections;
 using System.Linq;
@@ -25,7 +26,7 @@ public class TankMan : MonoBehaviour
     
     [Header("Tank Components")]
     [SerializeField] private Transform turretTransform;
-    private List<Transform> firePoints = new List<Transform>();
+    [SerializeField] private List<Transform> firePoints = new List<Transform>();
     
     [Header("Hammer Animation")]
     [SerializeField] private GameObject hammerDownPrefab; // Animation prefab assigned by TankAssembly
@@ -58,13 +59,19 @@ public class TankMan : MonoBehaviour
     [Header("Turret Rotation")]
     [SerializeField] private float turretRotationSpeed = 1.5f; // Multiplier for turret rotation speed (relative to tank turn speed)
     [SerializeField] private float turretRampUpTime = 0.3f; // Time to ramp up to full turret rotation speed
-    [SerializeField] private float minPitchAngle = -30f; // Minimum pitch angle (down) in degrees
-    [SerializeField] private float maxPitchAngle = 30f; // Maximum pitch angle (up) in degrees
+    [SerializeField] private float minPitchAngle = -20f; // Minimum pitch angle (down) in degrees
+    [SerializeField] private float maxPitchAngle = 20f; // Maximum pitch angle (up) in degrees
 
     private Rigidbody rb;
     private float currentMoveInput = 0f;
     private float currentTurnInput = 0f;
     private bool isGrounded = false;
+
+    // Raw turret rate-control actuator inputs, set via RotateTurret(). Independent of the
+    // target-tracking coroutines (FireAction/LeadTargetAction) - only one driver should be
+    // active on a given turret branch at a time.
+    private float currentTurretYawInput = 0f;
+    private float currentTurretPitchInput = 0f;
     
     // Turning ramp-up state (for tank body rotation)
     private float currentTurningPower = 0f;
@@ -114,7 +121,17 @@ public class TankMan : MonoBehaviour
     [SerializeField] private float visionCone;
     [SerializeField] private float visionRange;
     [SerializeField] private TurretType turretType = TurretType.DirectFire;
-    
+
+    // Lightweight combat events for reward wiring (decoupled from the UI-coupled
+    // MatchStatsManager, which requires a full match UI hierarchy that the training arena
+    // doesn't have). NotifyDamageDealt() is called by BulletScript.RecordDamageDealt() on the
+    // firing tank; OnDamageTaken/OnDied fire directly from TakeDamage()/Die() below.
+    public event Action<float> OnDamageDealt;
+    public event Action<float> OnDamageTaken;
+    public event Action OnDied;
+
+    public void NotifyDamageDealt(float damageAmount) => OnDamageDealt?.Invoke(damageAmount);
+
     [Header("Assigned AI Components")]
     [SerializeField] private string assignedNavAIInstanceId;
     [SerializeField] private string assignedTurretAIInstanceId;
@@ -159,6 +176,19 @@ public class TankMan : MonoBehaviour
     public float MoveSpeed => isCurrentlyUsingComs ? topSpeed * COMS_SPEED_PENALTY : topSpeed;
     public float TurnSpeed => isCurrentlyUsingComs ? maxTurnRate * COMS_SPEED_PENALTY : maxTurnRate;
     public bool IsMoving => isTankMoving;
+
+    // Hidden actuator/MDP state (BottomUpAgentPlan.md Section 3) - the same action produces
+    // different results depending on this state, so it must be observable, not just internal.
+    public bool IsGrounded => isGrounded;
+    public bool IsCurrentlyUsingComs => isCurrentlyUsingComs;
+    /// 0..1 progress through the chassis turn ramp-up (turnRampUpTime); ~0 when not currently turning.
+    public float TurnRampProgress01 => Mathf.Clamp01((Time.time - turnInputStartTime) / turnRampUpTime);
+    /// Current chassis turning torque as a fraction of turningPower (the unclamped max).
+    public float NormalizedTurningPower => turningPower > 0f ? currentTurningPower / turningPower : 0f;
+    /// Reload cooldown as 0 (just fired) .. 1 (ready to fire) - shares gating logic with IsReloadReady().
+    public float ReloadProgress01 => shotsPerSec > 0f ? Mathf.Clamp01((Time.time - lastFireTime) / (1f / shotsPerSec)) : 1f;
+    /// Raw seconds since this turret last fired - cross-branch signal for a Nav policy (Section 3).
+    public float TimeSinceLastShot => Time.time - lastFireTime;
 
     public void RegisterTreadMaterial(Material mat)
     {
@@ -485,6 +515,36 @@ public class TankMan : MonoBehaviour
         currentMoveInput = Mathf.Clamp(moveInput, -1f, 1f);
         currentTurnInput = Mathf.Clamp(turnInput, -1f, 1f);
     }
+
+    /// <summary>
+    /// Raw rate-control actuator for the turret - yawIntensity/pitchIntensity are -1..1 and are
+    /// applied every frame in ApplyTurretRotation() until changed. Unlike SetMovementInput, this
+    /// bypasses the target-tracking state machine (FireAction/LeadTargetAction) entirely; callers
+    /// are responsible for not driving both at once on the same turret branch.
+    /// </summary>
+    public void RotateTurret(float yawIntensity, float pitchIntensity)
+    {
+        currentTurretYawInput = Mathf.Clamp(yawIntensity, -1f, 1f);
+        currentTurretPitchInput = Mathf.Clamp(pitchIntensity, -1f, 1f);
+    }
+
+    /// <summary>
+    /// Applies the RotateTurret() rate inputs. Pitch is clamped to [minPitchAngle, maxPitchAngle]
+    /// by the existing pass in LateUpdate(), so it isn't duplicated here.
+    /// </summary>
+    private void ApplyTurretRotation()
+    {
+        if (turretTransform == null)
+            return;
+        if (currentTurretYawInput == 0f && currentTurretPitchInput == 0f)
+            return;
+
+        float maxRate = TurnSpeed * turretRotationSpeed; // degrees/sec, same scale as the tracking coroutines' targetSpeed
+        Vector3 localEuler = turretTransform.localEulerAngles;
+        float yaw = localEuler.y + currentTurretYawInput * maxRate * Time.deltaTime;
+        float pitch = localEuler.x + currentTurretPitchInput * maxRate * Time.deltaTime;
+        turretTransform.localEulerAngles = new Vector3(pitch, yaw, 0f);
+    }
     
     /// <summary>
     /// Stops all movement
@@ -710,7 +770,9 @@ public class TankMan : MonoBehaviour
         {
             RespawnAtSpawnPoint();
         }
-        
+
+        ApplyTurretRotation();
+
         // Check if we need to restore wheel friction after knockback
         if (frictionReduced && Time.time >= frictionRestoreTime)
         {
@@ -1414,7 +1476,62 @@ public class TankMan : MonoBehaviour
         // Reset wait action flag
         isInWaitAction = false;
     }
-    
+
+    /// <summary>
+    /// Enables/disables the Nav-branch BT coroutine independently of the Turret branch - the
+    /// mutex an ML policy needs to take over just one branch while the other stays BT-driven
+    /// (curriculum training, BottomUpAgentPlan.md Section 2.4's eventual MLPolicy BT node uses the
+    /// same flag). Takes effect immediately: stops the running coroutine right away when disabling,
+    /// and starts it right away when re-enabling (if a nav AI tree is actually assigned) - doesn't
+    /// wait for the next StartAI()/RestartAI() call.
+    /// </summary>
+    public void SetNavAIEnabled(bool aiEnabled)
+    {
+        enableNavAI = aiEnabled;
+        if (!aiEnabled)
+        {
+            if (navAiCoroutine != null)
+            {
+                StopCoroutine(navAiCoroutine);
+                navAiCoroutine = null;
+            }
+            if (currentNavActionCoroutine != null)
+            {
+                StopCoroutine(currentNavActionCoroutine);
+                currentNavActionCoroutine = null;
+            }
+        }
+        else if (navAiCoroutine == null && runtimeNavAI != null)
+        {
+            navAiCoroutine = StartCoroutine(ExecuteNavAI());
+        }
+    }
+
+    /// <summary>
+    /// Turret-branch counterpart to SetNavAIEnabled - see that method's doc comment.
+    /// </summary>
+    public void SetTurretAIEnabled(bool aiEnabled)
+    {
+        enableTurretAI = aiEnabled;
+        if (!aiEnabled)
+        {
+            if (turretAiCoroutine != null)
+            {
+                StopCoroutine(turretAiCoroutine);
+                turretAiCoroutine = null;
+            }
+            if (currentTurretActionCoroutine != null)
+            {
+                StopCoroutine(currentTurretActionCoroutine);
+                currentTurretActionCoroutine = null;
+            }
+        }
+        else if (turretAiCoroutine == null && runtimeTurretAI != null)
+        {
+            turretAiCoroutine = StartCoroutine(ExecuteTurretAI());
+        }
+    }
+
     /// <summary>
     /// Restarts AI coroutines without stopping them first (for unstuck recovery)
     /// </summary>
@@ -1540,6 +1657,46 @@ public class TankMan : MonoBehaviour
     /// Executes a single AI node and returns the next node to execute
     /// Implements the top-down, backtrack-on-false, Y-position priority pattern
     /// </summary>
+    // Cached lookups for the MLPolicy node case (Section 2.4) - lazily resolved since these
+    // components may not exist at all on a tank that never uses MLPolicy, and may start disabled
+    // (GetComponentInChildren needs includeInactive:true for that case).
+    private NavPolicyAgent cachedNavPolicyAgent;
+    private TurretPolicyAgent cachedTurretPolicyAgent;
+    private bool navPolicyAgentLookupDone;
+    private bool turretPolicyAgentLookupDone;
+
+    /// <summary>
+    /// MLPolicy node handler (Section 2.4) - enables the corresponding branch's PolicyAgent,
+    /// which claims the branch via its own OnEnable (TankMan.SetNavAIEnabled/SetTurretAIEnabled).
+    /// </summary>
+    private void ClaimMLPolicyControl(bool isNavBranch)
+    {
+        if (isNavBranch)
+        {
+            if (!navPolicyAgentLookupDone)
+            {
+                cachedNavPolicyAgent = GetComponentInChildren<NavPolicyAgent>(true);
+                navPolicyAgentLookupDone = true;
+            }
+            if (cachedNavPolicyAgent != null)
+                cachedNavPolicyAgent.enabled = true;
+            else
+                Debug.LogWarning($"[{gameObject.name}] MLPolicy node reached on the Nav branch but no NavPolicyAgent exists in children - nothing to hand control to.");
+        }
+        else
+        {
+            if (!turretPolicyAgentLookupDone)
+            {
+                cachedTurretPolicyAgent = GetComponentInChildren<TurretPolicyAgent>(true);
+                turretPolicyAgentLookupDone = true;
+            }
+            if (cachedTurretPolicyAgent != null)
+                cachedTurretPolicyAgent.enabled = true;
+            else
+                Debug.LogWarning($"[{gameObject.name}] MLPolicy node reached on the Turret branch but no TurretPolicyAgent exists in children - nothing to hand control to.");
+        }
+    }
+
     AiExecutableNode ExecuteNode(AiExecutableNode node, AiTreeAsset tree)
     {
         if (node == null) return null;
@@ -1572,6 +1729,17 @@ public class TankMan : MonoBehaviour
                 
                 ExecuteAction(node, tree);
                 return GetNextNodeFromAction(node, tree);
+            case AiNodeType.MLPolicy:
+                // Hands this branch to the tank's trained policy instead of executing BT logic
+                // (BottomUpAgentPlan.md Section 2.4). Unlike Condition/Action, there's no "next
+                // node" to return here - the branch's own BT coroutine is about to be stopped by
+                // the Agent's OnEnable (TankMan.SetNavAIEnabled/SetTurretAIEnabled), and control
+                // only comes back when the Agent releases it (its own configured release
+                // condition, e.g. losing vision - see NavPolicyAgent/TurretPolicyAgent's
+                // releaseControlOnLostVision), which re-enables this coroutine from the tree's
+                // root via RestartAI(), not from wherever it left off.
+                ClaimMLPolicyControl(isNavAI);
+                return null;
             // SubAI nodes are flattened at save time by AiEditorFileUI - no runtime handling needed
             default:
                 // Move to first connected node
@@ -2833,16 +3001,24 @@ public class TankMan : MonoBehaviour
         return targetObject.transform;
     }
     
+    /// <summary>
+    /// Reload-cooldown gating shared by CanFire() (BT tracking path) and TryFire() (raw actuator path).
+    /// </summary>
+    private bool IsReloadReady()
+    {
+        float timeSinceLastFire = Time.time - lastFireTime;
+        float fireRate = 1f / shotsPerSec;
+        return timeSinceLastFire >= fireRate;
+    }
+
     bool CanFire()
     {
-        
+
         if (currentTarget == null)
         {
             return false;
         }
-        float timeSinceLastFire = Time.time - lastFireTime;
-        float fireRate = 1f / shotsPerSec;
-        if (timeSinceLastFire < fireRate)
+        if (!IsReloadReady())
         {
             return false;
         }
@@ -2982,18 +3158,22 @@ public class TankMan : MonoBehaviour
     
     void Fire()
     {
-        if (currentTarget == null)
+        // Only Artillery's direction calc below actually needs currentTarget (for the ballistic
+        // solve); DirectFire/Hammer/Healer just fire along turretTransform.forward. Scoping the
+        // guard this way lets a raw actuator caller (TryFire) fire those turret types without a
+        // BT-style target lock.
+        if (turretType == TurretType.Artillery && currentTarget == null)
         {
             return;
         }
-        
+
         if (firePoints == null || firePoints.Count == 0)
         {
             return;
         }
-        
+
         lastFireTime = Time.time;
-        
+
         // Simple firing - instantiate bullet if prefab exists
         if (bulletPrefab != null)
         {
@@ -3069,9 +3249,28 @@ public class TankMan : MonoBehaviour
                 hammerSwingCoroutine = StartCoroutine(SwingHammer());
             }
         }
-        
+
     }
-    
+
+    /// <summary>
+    /// Public, agent-safe fire actuator. Respects the same reload cooldown as the BT's CanFire()/
+    /// FireAction() path, but does not require a BT-detected currentTarget or aim-tolerance check -
+    /// a policy aims via RotateTurret() and decides for itself when to pull the trigger.
+    /// For Artillery, the ballistic direction solve still needs a target point (see
+    /// BottomUpAgentPlan.md Section 4.2), so this returns false for Artillery with no currentTarget
+    /// until that's resolved; DirectFire/Hammer/Healer fire along the turret's current forward.
+    /// </summary>
+    public bool TryFire()
+    {
+        if (!IsReloadReady())
+            return false;
+        if (turretType == TurretType.Artillery && currentTarget == null)
+            return false;
+
+        Fire();
+        return true;
+    }
+
     /// <summary>
     /// Coroutine to animate hammer swinging down and back up
     /// Swaps entire turret from HammerUp to HammerDown for 0.15s, then back
@@ -3292,6 +3491,8 @@ public class TankMan : MonoBehaviour
             MatchStatsManager.Instance.RecordDamageTaken(this, damageAmount);
         }
 
+        OnDamageTaken?.Invoke(damageAmount);
+
         if (currentHealth <= 0)
         {
             Die();
@@ -3395,6 +3596,8 @@ public class TankMan : MonoBehaviour
     
     void Die()
     {
+        OnDied?.Invoke();
+
         StopAI();
 
         // Play explosion sound at tank position
@@ -3498,7 +3701,100 @@ public class TankMan : MonoBehaviour
         
         Debug.Log($"[TankMan] {gameObject.name} fell out of map and respawned at spawn point: {spawnPosition}");
     }
-    
+
+    /// <summary>
+    /// Full reset for a new training episode/round (BottomUpAgentPlan.md Section 8). Revives a
+    /// tank that Die() disabled - without re-instantiating anything - and restarts its BT
+    /// coroutines (a no-op if it has no nav/turret tree assigned, e.g. a tank under MLPolicy
+    /// control). Safe to call on either the trained tank or a plain BT opponent.
+    ///
+    /// Resets everything Section 8 flags as leaking across episodes otherwise: position/velocity/
+    /// HP/reload/turret rotation, the chassis and turret rate-control inputs (including the turn
+    /// ramp-up state), and the BT's vision/target state (currentTarget, detectedEnemies).
+    /// </summary>
+    public void ResetForNewEpisode(Vector3 position, Quaternion rotation)
+    {
+        enabled = true;
+        currentHealth = totalHP;
+
+        transform.position = position;
+        transform.rotation = rotation;
+        if (rb != null)
+        {
+            // Setting Transform.position alone doesn't immediately update the Rigidbody's own
+            // internal physics-authoritative position - that only syncs at the next physics step
+            // (or via Physics.SyncTransforms()). Without this, the next physics step can snap the
+            // Transform back to the Rigidbody's stale cached position (confirmed via logging: the
+            // position was correct immediately after this method returned, but had reverted to the
+            // exact pre-reset position one frame later). Setting rb.position/rotation directly
+            // updates both atomically, with no sync-timing gap.
+            rb.position = position;
+            rb.rotation = rotation;
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+        }
+
+        // RestoreWheelFriction() is normally called from Update() once frictionRestoreTime is
+        // reached (see ~line 777) - but Update() stops running the moment Die() sets enabled =
+        // false, so a tank that died mid-knockback (friction still reduced) stays on zero-friction
+        // wheel colliders forever, through revival, unless explicitly restored here. A zero-
+        // friction tank can still aim/fire but its chassis just slides uselessly - looks "dead"
+        // even though it's technically alive and enabled.
+        RestoreWheelFriction();
+
+        // Undo Die()'s visual state
+        if (turretTransform != null)
+        {
+            turretTransform.gameObject.SetActive(true);
+            turretTransform.localRotation = Quaternion.identity;
+        }
+        if (turretDeathModelInstance != null)
+            turretDeathModelInstance.SetActive(false);
+
+        // Reset actuator/input state (Section 3's hidden actuator state, Section 8's leak list)
+        currentMoveInput = 0f;
+        currentTurnInput = 0f;
+        currentTurningPower = 0f;
+        turnInputStartTime = Time.time;
+        previousTurnInput = 0f;
+        currentTurretYawInput = 0f;
+        currentTurretPitchInput = 0f;
+        currentTurretRotationSpeed = 0f;
+        turretRotationStartTime = Time.time;
+        // Reload ready immediately rather than carrying a cooldown into the new episode.
+        lastFireTime = Time.time - (shotsPerSec > 0f ? 1f / shotsPerSec : 0f);
+
+        // Clear BT vision/target state
+        currentTarget = null;
+        detectedEnemies.Clear();
+
+        RestartAI();
+    }
+
+    /// <summary>
+    /// Training-only: makes this tank genuinely undetectable (or detectable again) rather than
+    /// just inert. Vision detection (UpdateSensorData, ~line 1984) runs Physics.OverlapSphere and
+    /// filters by TankTeamInfo on the hit collider - disabling a script or hiding one model
+    /// doesn't stop that query from finding the tank, so this disables every Collider in the
+    /// hierarchy instead. Also freezes the Rigidbody (isKinematic) while hidden, since a
+    /// collider-less tank would otherwise fall through the ground under gravity. Renderers are
+    /// toggled too so it's not visibly floating there for a human watching.
+    ///
+    /// Used by TrainingEpisodeManager to give a BT opponent a real window to lose its target and
+    /// fall back to search/wander behavior after a death, instead of instantly re-acquiring a
+    /// tank that reappears in the same spot the moment it's revived (Section 8 spirit: episode
+    /// resets shouldn't hand the opponent free, skill-independent information).
+    /// </summary>
+    public void SetDetectable(bool detectable)
+    {
+        foreach (var col in GetComponentsInChildren<Collider>(true))
+            col.enabled = detectable;
+        foreach (var rend in GetComponentsInChildren<Renderer>(true))
+            rend.enabled = detectable;
+        if (rb != null)
+            rb.isKinematic = !detectable;
+    }
+
     /// <summary>
     /// Coroutine to stop particle emission after a delay for smooth fade-out
     /// </summary>

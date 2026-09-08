@@ -8,6 +8,7 @@ TagManager:
   - OutputPort
   - NavOrigin
   - TurretOrigin
+  - Enemy
   layers:
   - Default
   - TransparentFX

@@ -127,7 +127,13 @@ namespace AiEditor
                 
             if (cleanLabel.Contains("subai") || cleanLabel.Contains("sub-ai") || cleanLabel.Contains("sub ai"))
                 return AiNodeType.SubAI;
-                
+
+            // MLPolicy (Section 2.4): typed as a plain label like any Action node for now - no
+            // dedicated editor prefab/palette entry yet (that's the Phase 2 MLGoalNodeAsset
+            // authoring UI, Section 5b). This is enough for hand-authoring a test tree today.
+            if (cleanLabel.Contains("mlpolicy") || cleanLabel.Contains("ml policy") || cleanLabel.Contains("ml-policy"))
+                return AiNodeType.MLPolicy;
+
             return AiNodeType.Action;
         }
         

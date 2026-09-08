@@ -105,6 +105,15 @@ namespace AiEditor
         Start,
         Condition,
         Action,
-        SubAI
+        SubAI,
+        // Appended, not inserted - AiEditorFileUI.cs and WorkshopUIManager.cs both do a direct
+        // (AiNodeType)/(AiNodeTypeJson) cast between this enum and AiNodeTypeJson (AiTreeAssetJson.cs),
+        // so the two must stay index-aligned. MLPolicy (BottomUpAgentPlan.md Section 2.4): hands the
+        // branch to the tank's NavPolicyAgent/TurretPolicyAgent (whichever this tree's branchType is)
+        // instead of executing BT logic - see TankMan.ExecuteNode's case for what happens at runtime.
+        // Unlike SubAI, this is NOT flattened/expanded at save time - it stays a real node type all
+        // the way to TankMan.ExecuteNode, since there's no static tree to inline for a live model
+        // reference.
+        MLPolicy
     }
 }
